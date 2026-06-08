@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
 import companyLogo from "@/assets/company-logo.png";
+import warehouseBg from "@/assets/warehouse-bg.jpg";
+
+
 
 const PAGE_SIZE = 6;
 
