@@ -33,6 +33,24 @@ function Index() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+        frame = 0;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
 
   const queryKey = ["entries", { from, to, limit }];
 
