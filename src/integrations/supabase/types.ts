@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      evidence_entries: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: number
+          image_url: string
+          latitude: number | null
+          location: string
+          longitude: number | null
+          occurred_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          image_url: string
+          latitude?: number | null
+          location: string
+          longitude?: number | null
+          occurred_at: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          image_url?: string
+          latitude?: number | null
+          location?: string
+          longitude?: number | null
+          occurred_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
