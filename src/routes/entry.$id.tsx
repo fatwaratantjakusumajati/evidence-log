@@ -87,41 +87,15 @@ function EntryDetail() {
               <p className="mt-4 text-sm leading-relaxed text-foreground">{entry.description}</p>
             )}
 
-            {entry.latitude != null && entry.longitude != null && (
-              <section className="mt-6">
-                <h2 className="mb-2 text-sm font-medium text-foreground">Peta</h2>
-                <div className="overflow-hidden rounded-lg border border-border">
-                  <iframe
-                    title="Peta lokasi"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${entry.longitude - 0.01}%2C${entry.latitude - 0.01}%2C${entry.longitude + 0.01}%2C${entry.latitude + 0.01}&layer=mapnik&marker=${entry.latitude}%2C${entry.longitude}`}
-                    className="h-64 w-full"
-                    loading="lazy"
-                  />
-                </div>
-                <a
-                  href={`https://www.openstreetmap.org/?mlat=${entry.latitude}&mlon=${entry.longitude}#map=15/${entry.latitude}/${entry.longitude}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-block text-xs text-muted-foreground underline hover:text-foreground"
-                >
-                  Buka di OpenStreetMap
-                </a>
-              </section>
-            )}
-
             <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs">
               <div>
                 <dt className="text-muted-foreground">ID Entri</dt>
                 <dd className="mt-0.5 text-foreground">#{entry.id}</dd>
               </div>
-              {entry.latitude != null && entry.longitude != null && (
-                <div>
-                  <dt className="text-muted-foreground">Koordinat</dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {entry.latitude.toFixed(4)}, {entry.longitude.toFixed(4)}
-                  </dd>
-                </div>
-              )}
+              <div>
+                <dt className="text-muted-foreground">Lokasi</dt>
+                <dd className="mt-0.5 text-foreground">{entry.location}</dd>
+              </div>
             </dl>
           </article>
         )}
