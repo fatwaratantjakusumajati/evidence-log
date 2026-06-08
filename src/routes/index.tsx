@@ -87,8 +87,38 @@ function Index() {
   };
 
   return (
-    <main className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/60 backdrop-blur">
+    <main className="relative min-h-screen overflow-hidden bg-background">
+      {/* Parallax warehouse background */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[120vh] will-change-transform"
+        style={{
+          transform: `translate3d(0, ${scrollY * 0.35}px, 0)`,
+        }}
+      >
+        <img
+          src={warehouseBg}
+          alt=""
+          width={1920}
+          height={1280}
+          className="h-full w-full object-cover opacity-40"
+        />
+        {/* Gradient overlay so content remains readable */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
+      </div>
+
+      {/* Midground tint that drifts slower than the photo */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
+          background:
+            "radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%), radial-gradient(50% 40% at 90% 30%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 60%)",
+        }}
+      />
+
+      <header className="border-b border-border/60 bg-card/70 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-8">
           <img
             src={companyLogo}
@@ -112,7 +142,8 @@ function Index() {
       </header>
 
       <section className="mx-auto max-w-5xl px-6 py-8">
-        <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
+        <div className="rounded-lg border border-border/60 bg-card/80 p-4 shadow-[var(--shadow-soft)] backdrop-blur-md">
+
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-muted-foreground">Dari tanggal</span>
