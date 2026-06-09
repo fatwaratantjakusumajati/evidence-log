@@ -118,7 +118,7 @@ function Index() {
       {/* Midground tint that drifts slower than the photo */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
           transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
           background:
