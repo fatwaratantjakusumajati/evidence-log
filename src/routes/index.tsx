@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
 import companyLogo from "@/assets/company-logo.png";
 import warehouseBg from "@/assets/warehouse-bg.jpg";
+import warehouseVideo from "@/assets/warehouse-bg.mp4.asset.json";
 
 
 
@@ -96,11 +97,14 @@ function Index() {
           transform: `translate3d(0, ${scrollY * 0.35}px, 0)`,
         }}
       >
-        <img
-          src={warehouseBg}
-          alt=""
-          width={1920}
-          height={1280}
+        <video
+          src={warehouseVideo.url}
+          poster={warehouseBg}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
           className="h-full w-full object-cover opacity-40"
         />
         {/* Gradient overlay so content remains readable */}
