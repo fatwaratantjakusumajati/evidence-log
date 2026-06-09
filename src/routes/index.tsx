@@ -110,8 +110,8 @@ function Index() {
           aria-hidden
           className="h-full w-full object-cover opacity-80"
         />
-        {/* Gradient overlay so content remains readable */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/30 to-background/60" />
+        {/* Minimal vignette — keeps video crisp while taking edge glare off text */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,transparent_40%,color-mix(in_oklab,var(--background)_55%,transparent)_100%)]" />
       </div>
 
 
@@ -126,7 +126,7 @@ function Index() {
         }}
       />
 
-      <header className="relative z-10 border-b border-border/60 bg-card/70 backdrop-blur-md">
+      <header className="relative z-10 border-b border-border/60 bg-card/90 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-8">
           <img
             src={companyLogo}
@@ -150,7 +150,7 @@ function Index() {
       </header>
 
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-8">
-        <div className="rounded-lg border border-border/60 bg-card/80 p-4 shadow-[var(--shadow-soft)] backdrop-blur-md">
+        <div className="rounded-lg border border-border/60 bg-card/95 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl">
 
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <label className="flex flex-col gap-1">
@@ -210,7 +210,7 @@ function Index() {
                 ))}
               </ul>
 
-              <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
+              <div className="mt-8 flex items-center justify-between gap-3 rounded-md bg-card/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur-md">
                 <span>
                   Menampilkan {entries.length} dari {total} entri
                 </span>
@@ -229,7 +229,7 @@ function Index() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-border py-8 text-center text-xs text-muted-foreground">
+      <footer className="relative z-10 border-t border-border/60 bg-card/80 py-8 text-center text-xs text-muted-foreground backdrop-blur-md">
         {TEMPLATE.companyName} · Arsip Bukti Kejadian
       </footer>
     </main>
