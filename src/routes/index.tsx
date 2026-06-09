@@ -210,7 +210,7 @@ function Index() {
                 ))}
               </ul>
 
-              <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
+              <div className="mt-8 flex items-center justify-between gap-3 rounded-md bg-card/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur-md">
                 <span>
                   Menampilkan {entries.length} dari {total} entri
                 </span>
