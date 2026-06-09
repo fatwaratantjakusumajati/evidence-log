@@ -97,11 +97,14 @@ function Index() {
           transform: `translate3d(0, ${scrollY * 0.35}px, 0)`,
         }}
       >
-        <img
-          src={warehouseBg}
-          alt=""
-          width={1920}
-          height={1280}
+        <video
+          src={warehouseVideo.url}
+          poster={warehouseBg}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
           className="h-full w-full object-cover opacity-40"
         />
         {/* Gradient overlay so content remains readable */}
