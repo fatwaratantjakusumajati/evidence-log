@@ -88,11 +88,11 @@ function Index() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background">
-      {/* Parallax warehouse background */}
+    <main className="relative min-h-screen overflow-hidden">
+      {/* Parallax warehouse background — fixed at the body level so it sits behind page content */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[120vh] will-change-transform"
+        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[120vh] will-change-transform"
         style={{
           transform: `translate3d(0, ${scrollY * 0.35}px, 0)`,
         }}
@@ -105,16 +105,20 @@ function Index() {
           loop
           playsInline
           preload="auto"
+          disableRemotePlayback
+          disablePictureInPicture
+          aria-hidden
           className="h-full w-full object-cover opacity-40"
         />
         {/* Gradient overlay so content remains readable */}
         <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
       </div>
 
+
       {/* Midground tint that drifts slower than the photo */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
           transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
           background:
@@ -122,7 +126,7 @@ function Index() {
         }}
       />
 
-      <header className="border-b border-border/60 bg-card/70 backdrop-blur-md">
+      <header className="relative z-10 border-b border-border/60 bg-card/70 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-8">
           <img
             src={companyLogo}
@@ -145,7 +149,7 @@ function Index() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 py-8">
+      <section className="relative z-10 mx-auto max-w-5xl px-6 py-8">
         <div className="rounded-lg border border-border/60 bg-card/80 p-4 shadow-[var(--shadow-soft)] backdrop-blur-md">
 
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -225,7 +229,7 @@ function Index() {
         </div>
       </section>
 
-      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
+      <footer className="relative z-10 border-t border-border py-8 text-center text-xs text-muted-foreground">
         {TEMPLATE.companyName} · Arsip Bukti Kejadian
       </footer>
     </main>
