@@ -108,10 +108,10 @@ function Index() {
           disableRemotePlayback
           disablePictureInPicture
           aria-hidden
-          className="h-full w-full object-cover opacity-40"
+          className="h-full w-full object-cover opacity-80"
         />
         {/* Gradient overlay so content remains readable */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/30 to-background/60" />
       </div>
 
 
