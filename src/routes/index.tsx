@@ -110,8 +110,8 @@ function Index() {
           aria-hidden
           className="h-full w-full object-cover opacity-80"
         />
-        {/* Gradient overlay so content remains readable */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/30 to-background/60" />
+        {/* Vignette — stronger at bottom on mobile so text panels stay legible on small screens */}
+        <div className="absolute inset-0 bg-[radial-gradient(140%_90%_at_50%_0%,transparent_30%,color-mix(in_oklab,var(--background)_70%,transparent)_100%)] sm:bg-[radial-gradient(120%_80%_at_50%_0%,transparent_40%,color-mix(in_oklab,var(--background)_55%,transparent)_100%)]" />
       </div>
 
 
