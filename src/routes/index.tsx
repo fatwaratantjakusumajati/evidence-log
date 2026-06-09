@@ -229,7 +229,7 @@ function Index() {
         </div>
       </section>
 
-      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
+      <footer className="relative z-10 border-t border-border py-8 text-center text-xs text-muted-foreground">
         {TEMPLATE.companyName} · Arsip Bukti Kejadian
       </footer>
     </main>
