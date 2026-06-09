@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
 import companyLogo from "@/assets/company-logo.png";
 import warehouseBg from "@/assets/warehouse-bg.jpg";
+import warehouseVideo from "@/assets/warehouse-bg.mp4.asset.json";
 
 
 
