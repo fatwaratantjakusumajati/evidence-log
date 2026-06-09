@@ -126,7 +126,7 @@ function Index() {
         }}
       />
 
-      <header className="relative z-10 border-b border-border/60 bg-card/70 backdrop-blur-md">
+      <header className="relative z-10 border-b border-border/60 bg-card/90 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-8">
           <img
             src={companyLogo}
