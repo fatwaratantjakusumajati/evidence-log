@@ -150,7 +150,7 @@ function Index() {
       </header>
 
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-8">
-        <div className="rounded-lg border border-border/60 bg-card/80 p-4 shadow-[var(--shadow-soft)] backdrop-blur-md">
+        <div className="rounded-lg border border-border/60 bg-card/95 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:bg-card/85">
 
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <label className="flex flex-col gap-1">
