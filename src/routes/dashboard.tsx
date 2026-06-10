@@ -136,6 +136,45 @@ function Dashboard() {
     },
   });
 
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["vehicle_logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_logs")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as VehicleLog[];
+    },
+  });
+
+  const { data: stagings = [] } = useQuery({
+    queryKey: ["staging_detections"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staging_detections")
+        .select("*")
+        .order("reported_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as StagingDetection[];
+    },
+  });
+
+  const { data: offlineCams = [] } = useQuery({
+    queryKey: ["camera_offline_events"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("camera_offline_events")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as CameraOfflineEvent[];
+    },
+  });
+
   const entries = data?.entries ?? [];
   const total = data?.total ?? 0;
   const hasMore = useMemo(() => entries.length < total, [entries.length, total]);
