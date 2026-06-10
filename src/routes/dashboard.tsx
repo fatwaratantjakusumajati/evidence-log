@@ -22,6 +22,9 @@ import {
   CameraOff,
   Truck,
   AlertTriangle,
+  Car,
+  Boxes,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
@@ -60,11 +63,41 @@ const vehicleLogs = [
   { hour: "21:00", masuk: 2, keluar: 5 },
 ];
 
-const recentCameraIssues = [
-  { id: "CAM-04", location: "Gudang A - Pintu Belakang", since: "2 jam lalu" },
-  { id: "CAM-11", location: "Loading Dock 2", since: "5 jam lalu" },
-  { id: "CAM-17", location: "Area Parkir Timur", since: "1 hari lalu" },
-];
+type VehicleLog = {
+  id: number;
+  image_url: string;
+  plate_number: string;
+  direction: "masuk" | "keluar";
+  occurred_at: string;
+};
+
+type StagingDetection = {
+  id: number;
+  image_url: string;
+  item_label: string | null;
+  reported_at: string;
+  resolved_at: string | null;
+};
+
+type CameraOfflineEvent = {
+  id: number;
+  camera_name: string;
+  occurred_at: string;
+};
+
+function formatDuration(fromIso: string, toIso?: string | null) {
+  const start = new Date(fromIso).getTime();
+  const end = toIso ? new Date(toIso).getTime() : Date.now();
+  const diff = Math.max(0, end - start);
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes} menit`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (hours < 24) return remMin ? `${hours} jam ${remMin} menit` : `${hours} jam`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours ? `${days} hari ${remHours} jam` : `${days} hari`;
+}
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -100,6 +133,45 @@ function Dashboard() {
       const { data, error, count } = await q;
       if (error) throw error;
       return { entries: (data ?? []) as EvidenceEntry[], total: count ?? 0 };
+    },
+  });
+
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["vehicle_logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_logs")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as VehicleLog[];
+    },
+  });
+
+  const { data: stagings = [] } = useQuery({
+    queryKey: ["staging_detections"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staging_detections")
+        .select("*")
+        .order("reported_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as StagingDetection[];
+    },
+  });
+
+  const { data: offlineCams = [] } = useQuery({
+    queryKey: ["camera_offline_events"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("camera_offline_events")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as CameraOfflineEvent[];
     },
   });
 
@@ -260,32 +332,150 @@ function Dashboard() {
         </div>
 
         {/* Camera issues table */}
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {/* Log Kendaraan */}
+          <div className="rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Log Kendaraan</h2>
+                  <p className="text-xs text-muted-foreground">Bukti keluar/masuk terbaru</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {vehicles.length} entri
+              </span>
+            </div>
+            {vehicles.length === 0 ? (
+              <EmptyState text="Belum ada log kendaraan." />
+            ) : (
+              <ul className="space-y-3">
+                {vehicles.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex items-center gap-3 rounded-md border border-border/60 p-2"
+                  >
+                    <img
+                      src={v.image_url}
+                      alt={`Bukti kendaraan ${v.plate_number}`}
+                      loading="lazy"
+                      className="h-16 w-20 shrink-0 rounded object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs font-semibold tracking-wider text-foreground">
+                          {v.plate_number}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                            v.direction === "masuk"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-destructive/10 text-destructive"
+                          }`}
+                        >
+                          {v.direction}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {formatDateTime(v.occurred_at)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Deteksi Barang Staging */}
+          <div className="rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Boxes className="h-4 w-4 text-primary" />
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Deteksi Barang Staging</h2>
+                  <p className="text-xs text-muted-foreground">Bukti, waktu laporan & durasi</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {stagings.length} entri
+              </span>
+            </div>
+            {stagings.length === 0 ? (
+              <EmptyState text="Belum ada deteksi barang staging." />
+            ) : (
+              <ul className="space-y-3">
+                {stagings.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center gap-3 rounded-md border border-border/60 p-2"
+                  >
+                    <img
+                      src={s.image_url}
+                      alt={s.item_label ?? "Bukti deteksi barang"}
+                      loading="lazy"
+                      className="h-16 w-20 shrink-0 rounded object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {s.item_label ?? "Barang tidak teridentifikasi"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        Dilaporkan {formatDateTime(s.reported_at)}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs">
+                        <Clock className="h-3 w-3" />
+                        <span
+                          className={
+                            s.resolved_at ? "text-muted-foreground" : "font-medium text-destructive"
+                          }
+                        >
+                          {s.resolved_at
+                            ? `Selesai dalam ${formatDuration(s.reported_at, s.resolved_at)}`
+                            : `Berlangsung ${formatDuration(s.reported_at)}`}
+                        </span>
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Kamera Mati */}
         <div className="mt-6 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
           <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Laporan Kamera Mati</h2>
-              <p className="text-xs text-muted-foreground">Perlu perhatian teknisi</p>
+            <div className="flex items-center gap-2">
+              <CameraOff className="h-4 w-4 text-destructive" />
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Laporan Kamera Mati</h2>
+                <p className="text-xs text-muted-foreground">Nama kamera & waktu kejadian</p>
+              </div>
             </div>
             <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive">
-              {recentCameraIssues.length} insiden
+              {offlineCams.length} insiden
             </span>
           </div>
-          <ul className="divide-y divide-border">
-            {recentCameraIssues.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-                    <CameraOff className="h-4 w-4" />
+          {offlineCams.length === 0 ? (
+            <EmptyState text="Tidak ada kamera mati." />
+          ) : (
+            <ul className="divide-y divide-border">
+              {offlineCams.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+                      <CameraOff className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{c.camera_name}</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{c.id}</p>
-                    <p className="text-xs text-muted-foreground">{c.location}</p>
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground">{c.since}</span>
-              </li>
-            ))}
-          </ul>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDateTime(c.occurred_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Evidence archive */}
@@ -462,6 +652,14 @@ function EntryCard({ entry }: { entry: EvidenceEntry }) {
         <p className="text-xs text-muted-foreground">Entri #{entry.id}</p>
       </div>
     </Link>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <p className="rounded-md border border-dashed border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
+      {text}
+    </p>
   );
 }
 

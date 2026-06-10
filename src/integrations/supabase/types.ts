@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      camera_offline_events: {
+        Row: {
+          camera_name: string
+          created_at: string
+          id: number
+          occurred_at: string
+        }
+        Insert: {
+          camera_name: string
+          created_at?: string
+          id?: number
+          occurred_at?: string
+        }
+        Update: {
+          camera_name?: string
+          created_at?: string
+          id?: number
+          occurred_at?: string
+        }
+        Relationships: []
+      }
       evidence_entries: {
         Row: {
           created_at: string
@@ -44,6 +65,60 @@ export type Database = {
           location?: string
           longitude?: number | null
           occurred_at?: string
+        }
+        Relationships: []
+      }
+      staging_detections: {
+        Row: {
+          created_at: string
+          id: number
+          image_url: string
+          item_label: string | null
+          reported_at: string
+          resolved_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          image_url: string
+          item_label?: string | null
+          reported_at?: string
+          resolved_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          image_url?: string
+          item_label?: string | null
+          reported_at?: string
+          resolved_at?: string | null
+        }
+        Relationships: []
+      }
+      vehicle_logs: {
+        Row: {
+          created_at: string
+          direction: string
+          id: number
+          image_url: string
+          occurred_at: string
+          plate_number: string
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          id?: number
+          image_url: string
+          occurred_at?: string
+          plate_number: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          id?: number
+          image_url?: string
+          occurred_at?: string
+          plate_number?: string
         }
         Relationships: []
       }
