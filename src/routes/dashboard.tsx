@@ -655,6 +655,14 @@ function EntryCard({ entry }: { entry: EvidenceEntry }) {
   );
 }
 
+function EmptyState({ text }: { text: string }) {
+  return (
+    <p className="rounded-md border border-dashed border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
+      {text}
+    </p>
+  );
+}
+
 function SkeletonGrid() {
   return (
     <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
