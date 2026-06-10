@@ -63,11 +63,41 @@ const vehicleLogs = [
   { hour: "21:00", masuk: 2, keluar: 5 },
 ];
 
-const recentCameraIssues = [
-  { id: "CAM-04", location: "Gudang A - Pintu Belakang", since: "2 jam lalu" },
-  { id: "CAM-11", location: "Loading Dock 2", since: "5 jam lalu" },
-  { id: "CAM-17", location: "Area Parkir Timur", since: "1 hari lalu" },
-];
+type VehicleLog = {
+  id: number;
+  image_url: string;
+  plate_number: string;
+  direction: "masuk" | "keluar";
+  occurred_at: string;
+};
+
+type StagingDetection = {
+  id: number;
+  image_url: string;
+  item_label: string | null;
+  reported_at: string;
+  resolved_at: string | null;
+};
+
+type CameraOfflineEvent = {
+  id: number;
+  camera_name: string;
+  occurred_at: string;
+};
+
+function formatDuration(fromIso: string, toIso?: string | null) {
+  const start = new Date(fromIso).getTime();
+  const end = toIso ? new Date(toIso).getTime() : Date.now();
+  const diff = Math.max(0, end - start);
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes} menit`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (hours < 24) return remMin ? `${hours} jam ${remMin} menit` : `${hours} jam`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours ? `${days} hari ${remHours} jam` : `${days} hari`;
+}
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
