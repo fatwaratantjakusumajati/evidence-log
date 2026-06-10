@@ -22,6 +22,9 @@ import {
   CameraOff,
   Truck,
   AlertTriangle,
+  Car,
+  Boxes,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
