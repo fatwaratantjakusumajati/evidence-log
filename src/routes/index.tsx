@@ -1,18 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
+import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import companyLogo from "@/assets/company-logo.png";
 import warehouseBg from "@/assets/warehouse-bg.jpg";
 import warehouseVideo from "@/assets/warehouse-bg.mp4.asset.json";
 
-
-
-const PAGE_SIZE = 6;
-
-// Template tetap: lokasi tidak berubah antar entri.
-// Ubah nilai di bawah ini untuk mengganti lokasi/nama perusahaan yang ditampilkan.
 const TEMPLATE = {
   companyName: "PT Contoh Sejahtera",
   location: "Jalan Merdeka No. 10, Jakarta Pusat",
@@ -21,19 +13,14 @@ const TEMPLATE = {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Arsip Bukti Kejadian" },
-      { name: "description", content: "Daftar entri bukti kejadian berdasarkan tanggal dan waktu." },
-      { property: "og:title", content: "Arsip Bukti Kejadian" },
-      { property: "og:description", content: "Daftar entri bukti kejadian berdasarkan tanggal dan waktu." },
+      { title: "Selamat Datang · Arsip Bukti Kejadian" },
+      { name: "description", content: "Halaman selamat datang sistem pemantauan gudang." },
     ],
   }),
-  component: Index,
+  component: Welcome,
 });
 
-function Index() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [limit, setLimit] = useState(PAGE_SIZE);
+function Welcome() {
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
@@ -52,50 +39,13 @@ function Index() {
     };
   }, []);
 
-
-  const queryKey = ["entries", { from, to, limit }];
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      let q = supabase
-        .from("evidence_entries")
-        .select("*", { count: "exact" })
-        .order("occurred_at", { ascending: false })
-        .limit(limit);
-
-      if (from) q = q.gte("occurred_at", new Date(from).toISOString());
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        q = q.lte("occurred_at", end.toISOString());
-      }
-
-      const { data, error, count } = await q;
-      if (error) throw error;
-      return { entries: (data ?? []) as EvidenceEntry[], total: count ?? 0 };
-    },
-  });
-
-  const entries = data?.entries ?? [];
-  const total = data?.total ?? 0;
-  const hasMore = useMemo(() => entries.length < total, [entries.length, total]);
-
-  const reset = () => {
-    setFrom("");
-    setTo("");
-    setLimit(PAGE_SIZE);
-  };
-
   return (
     <main className="relative min-h-screen overflow-hidden">
-      {/* Parallax warehouse background — fixed at the body level so it sits behind page content */}
+      {/* Parallax warehouse video background */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[120vh] will-change-transform"
-        style={{
-          transform: `translate3d(0, ${scrollY * 0.35}px, 0)`,
-        }}
+        style={{ transform: `translate3d(0, ${scrollY * 0.35}px, 0)` }}
       >
         <video
           src={warehouseVideo.url}
@@ -108,171 +58,61 @@ function Index() {
           disableRemotePlayback
           disablePictureInPicture
           aria-hidden
-          className="h-full w-full object-cover opacity-80"
+          className="h-full w-full object-cover opacity-90"
         />
-        {/* Vignette — stronger at bottom on mobile so text panels stay legible on small screens */}
-        <div className="absolute inset-0 bg-[radial-gradient(140%_90%_at_50%_0%,transparent_30%,color-mix(in_oklab,var(--background)_70%,transparent)_100%)] sm:bg-[radial-gradient(120%_80%_at_50%_0%,transparent_40%,color-mix(in_oklab,var(--background)_55%,transparent)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_30%,transparent_20%,color-mix(in_oklab,var(--background)_75%,transparent)_100%)]" />
       </div>
 
-
-      {/* Midground tint that drifts slower than the photo */}
+      {/* Midground tint */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-0"
         style={{
           transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
           background:
-            "radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%), radial-gradient(50% 40% at 90% 30%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 60%)",
+            "radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 60%), radial-gradient(50% 40% at 90% 30%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 60%)",
         }}
       />
 
-      <header className="relative z-10 border-b border-border/60 bg-card/95 shadow-sm backdrop-blur-xl sm:bg-card/85">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-8">
+      <section className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
+        <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/80 px-5 py-2 backdrop-blur-xl">
           <img
             src={companyLogo}
             alt={`Logo ${TEMPLATE.companyName}`}
-            width={56}
-            height={56}
-            className="h-14 w-14 shrink-0 rounded-md border border-border bg-background object-contain p-1"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded bg-background object-contain p-0.5"
           />
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {TEMPLATE.companyName}
-            </p>
-            <h1 className="truncate text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Arsip Bukti Kejadian
-            </h1>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              Lokasi: {TEMPLATE.location}
-            </p>
-          </div>
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {TEMPLATE.companyName}
+          </span>
         </div>
-      </header>
 
-      <section className="relative z-10 mx-auto max-w-5xl px-6 py-8">
-        <div className="rounded-lg border border-border/60 bg-card/95 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:bg-card/85">
+        <div className="max-w-3xl rounded-2xl border border-border/60 bg-card/85 px-8 py-12 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:px-12 sm:py-16">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
+            Selamat Datang
+          </h1>
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+            Sistem pemantauan dan arsip bukti kejadian gudang.
+            <br className="hidden sm:block" />
+            Pantau deteksi barang, status kamera, dan lalu lintas kendaraan secara real-time.
+          </p>
 
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Dari tanggal</span>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  setLimit(PAGE_SIZE);
-                }}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Sampai tanggal</span>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setLimit(PAGE_SIZE);
-                }}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={reset}
-                className="h-9 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                Reset
-              </button>
-            </div>
+          <div className="mt-10 flex justify-center">
+            <Link
+              to="/dashboard"
+              className="group inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              Let&apos;s Go
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            </Link>
           </div>
         </div>
 
-        <div className="mt-6">
-          {isLoading ? (
-            <SkeletonGrid />
-          ) : isError ? (
-            <p className="rounded-md border border-border bg-card p-6 text-sm text-destructive">
-              Gagal memuat data.
-            </p>
-          ) : entries.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
-              Tidak ada entri pada rentang tanggal ini.
-            </p>
-          ) : (
-            <>
-              <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {entries.map((entry) => (
-                  <li key={entry.id}>
-                    <EntryCard entry={entry} />
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-md bg-card/90 px-4 py-2 text-sm text-muted-foreground backdrop-blur-md sm:bg-card/80">
-                <span>
-                  Menampilkan {entries.length} dari {total} entri
-                </span>
-                {hasMore && (
-                  <button
-                    type="button"
-                    onClick={() => setLimit((n) => n + PAGE_SIZE)}
-                    className="rounded-md border border-border bg-card px-4 py-2 font-medium text-foreground transition-colors hover:bg-accent"
-                  >
-                    Muat lebih banyak
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <footer className="relative z-10 border-t border-border/60 bg-card/90 py-8 text-center text-xs text-muted-foreground backdrop-blur-md sm:bg-card/80">
-        {TEMPLATE.companyName} · Arsip Bukti Kejadian
-      </footer>
-    </main>
-  );
-}
-
-function EntryCard({ entry }: { entry: EvidenceEntry }) {
-  return (
-    <Link
-      to="/entry/$id"
-      params={{ id: String(entry.id) }}
-      className="group block overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-soft)] transition-all hover:-translate-y-0.5 hover:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-    >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-        <img
-          src={entry.image_url}
-          alt={`Bukti kejadian ${formatShortDate(entry.occurred_at)}`}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-        />
-      </div>
-      <div className="space-y-1 p-4">
-        <p className="text-sm font-medium text-foreground">
-          {formatDateTime(entry.occurred_at)}
+        <p className="mt-8 text-xs text-muted-foreground/80">
+          Lokasi: {TEMPLATE.location}
         </p>
-        <p className="text-xs text-muted-foreground">Entri #{entry.id}</p>
-      </div>
-    </Link>
-  );
-}
-
-function SkeletonGrid() {
-  return (
-    <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <li key={i} className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="aspect-[4/3] w-full animate-pulse bg-muted" />
-          <div className="space-y-2 p-4">
-            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-          </div>
-        </li>
-      ))}
-    </ul>
+      </section>
+    </main>
   );
 }
