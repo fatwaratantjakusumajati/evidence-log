@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck, Radio, Activity } from "lucide-react";
 import companyLogo from "@/assets/company-logo.png";
 import warehouseBg from "@/assets/warehouse-bg.jpg";
 import warehouseVideo from "@/assets/warehouse-bg.mp4.asset.json";
@@ -22,8 +22,10 @@ export const Route = createFileRoute("/")({
 
 function Welcome() {
   const [scrollY, setScrollY] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     let frame = 0;
     const onScroll = () => {
       if (frame) return;
@@ -40,11 +42,14 @@ function Welcome() {
   }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    <main
+      className="relative min-h-screen overflow-hidden text-slate-100"
+      style={{ backgroundColor: "#05070d" }}
+    >
       {/* Parallax warehouse video background */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[120vh] will-change-transform"
+        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[130vh] will-change-transform"
         style={{ transform: `translate3d(0, ${scrollY * 0.35}px, 0)` }}
       >
         <video
@@ -58,61 +63,158 @@ function Welcome() {
           disableRemotePlayback
           disablePictureInPicture
           aria-hidden
-          className="h-full w-full object-cover opacity-90"
+          className="h-full w-full object-cover"
+          style={{ filter: "brightness(0.55) contrast(1.1) saturate(0.85)" }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_30%,transparent_20%,color-mix(in_oklab,var(--background)_75%,transparent)_100%)]" />
+        {/* Cinematic dark gradients */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_40%,transparent_30%,rgba(5,7,13,0.85)_100%)]" />
+        {/* Subtle blue tint */}
+        <div
+          className="absolute inset-0 mix-blend-overlay opacity-60"
+          style={{
+            background:
+              "radial-gradient(70% 50% at 20% 20%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(99,102,241,0.22), transparent 60%)",
+          }}
+        />
+        {/* Grain */}
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-[0.07] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>\")",
+          }}
+        />
       </div>
 
-      {/* Midground tint */}
+      {/* Floating ambient orbs */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
-          background:
-            "radial-gradient(60% 50% at 20% 10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 60%), radial-gradient(50% 40% at 90% 30%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 60%)",
-        }}
-      />
+        style={{ transform: `translate3d(0, ${scrollY * 0.18}px, 0)` }}
+      >
+        <div className="absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-sky-500/20 blur-[120px]" />
+        <div className="absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-indigo-500/20 blur-[140px]" />
+      </div>
 
-      <section className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/80 px-5 py-2 backdrop-blur-xl">
-          <img
-            src={companyLogo}
-            alt={`Logo ${TEMPLATE.companyName}`}
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded bg-background object-contain p-0.5"
-          />
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {TEMPLATE.companyName}
+      {/* Top bar */}
+      <header
+        className={`relative z-20 flex items-center justify-between px-6 py-6 sm:px-12 transition-all duration-700 ${
+          mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 backdrop-blur-xl">
+            <img
+              src={companyLogo}
+              alt={`Logo ${TEMPLATE.companyName}`}
+              width={28}
+              height={28}
+              className="h-7 w-7 object-contain"
+            />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Sentinel</span>
+            <span className="text-sm font-medium text-slate-100">{TEMPLATE.companyName}</span>
+          </div>
+        </div>
+        <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-xl sm:flex">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+          </span>
+          <span className="text-xs text-slate-300">Sistem aktif · Live monitoring</span>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="relative z-10 flex min-h-[calc(100vh-96px)] flex-col items-center justify-center px-6 text-center">
+        <div
+          className={`mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-xl transition-all duration-700 delay-100 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          }`}
+        >
+          <ShieldCheck className="h-3.5 w-3.5 text-sky-400" />
+          <span className="text-xs uppercase tracking-[0.18em] text-slate-300">
+            Warehouse Intelligence Platform
           </span>
         </div>
 
-        <div className="max-w-3xl rounded-2xl border border-border/60 bg-card/85 px-8 py-12 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:px-12 sm:py-16">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-            Selamat Datang
-          </h1>
-          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            Sistem pemantauan dan arsip bukti kejadian gudang.
-            <br className="hidden sm:block" />
-            Pantau deteksi barang, status kamera, dan lalu lintas kendaraan secara real-time.
-          </p>
+        <h1
+          className={`max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl lg:text-8xl transition-all duration-1000 delay-200 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+          }`}
+          style={{ textShadow: "0 4px 40px rgba(0,0,0,0.5)" }}
+        >
+          Pantau gudang.
+          <br />
+          <span className="bg-gradient-to-r from-sky-300 via-indigo-300 to-violet-300 bg-clip-text text-transparent">
+            Tanpa kompromi.
+          </span>
+        </h1>
 
-          <div className="mt-10 flex justify-center">
-            <Link
-              to="/dashboard"
-              className="group inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              Let&apos;s Go
-              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-            </Link>
-          </div>
+        <p
+          className={`mt-8 max-w-2xl text-base text-slate-300 sm:text-lg leading-relaxed transition-all duration-1000 delay-300 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+          }`}
+        >
+          Sistem pemantauan dan arsip bukti kejadian real-time.
+          Deteksi barang, status kamera, dan lalu lintas kendaraan dalam satu pandangan.
+        </p>
+
+        <div
+          className={`mt-12 flex flex-col items-center gap-4 sm:flex-row transition-all duration-1000 delay-500 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+          }`}
+        >
+          <Link
+            to="/dashboard"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(56,189,248,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(99,102,241,0.5)] focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            <span className="absolute inset-0 bg-gradient-to-r from-sky-200 via-white to-indigo-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <span className="relative">Let&apos;s Go</span>
+            <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1.5" />
+          </Link>
+          <a
+            href="#features"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm text-slate-200 backdrop-blur-xl transition-all hover:border-white/30 hover:bg-white/10"
+          >
+            Pelajari sistem
+          </a>
         </div>
 
-        <p className="mt-8 text-xs text-muted-foreground/80">
-          Lokasi: {TEMPLATE.location}
+        {/* Feature pills */}
+        <div
+          id="features"
+          className={`mt-20 grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3 transition-all duration-1000 delay-700 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}
+        >
+          {[
+            { icon: Activity, label: "Deteksi Barang", desc: "Real-time staging" },
+            { icon: Radio, label: "Status Kamera", desc: "24/7 monitoring" },
+            { icon: ShieldCheck, label: "Log Kendaraan", desc: "Arsip lengkap" },
+          ].map(({ icon: Icon, label, desc }) => (
+            <div
+              key={label}
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.08]"
+            >
+              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-500/10 blur-2xl transition-all group-hover:bg-sky-500/20" />
+              <Icon className="relative h-5 w-5 text-sky-300" />
+              <div className="relative mt-3 text-sm font-medium text-white">{label}</div>
+              <div className="relative mt-0.5 text-xs text-slate-400">{desc}</div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-16 text-xs uppercase tracking-[0.2em] text-slate-500">
+          {TEMPLATE.location}
         </p>
       </section>
+
+      {/* Bottom fade */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-[#05070d] to-transparent" />
     </main>
   );
 }
