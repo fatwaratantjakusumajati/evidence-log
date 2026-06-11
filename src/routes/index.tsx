@@ -74,7 +74,7 @@ function Welcome() {
           className="absolute inset-0 mix-blend-overlay opacity-60"
           style={{
             background:
-              "radial-gradient(70% 50% at 20% 20%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(99,102,241,0.22), transparent 60%)",
+              "radial-gradient(70% 50% at 20% 20%, rgba(239,68,68,0.20), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(190,18,60,0.22), transparent 60%)",
           }}
         />
         {/* Grain */}
@@ -94,8 +94,8 @@ function Welcome() {
         className="pointer-events-none fixed inset-0 z-0"
         style={{ transform: `translate3d(0, ${scrollY * 0.18}px, 0)` }}
       >
-        <div className="absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-sky-500/20 blur-[120px]" />
-        <div className="absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-indigo-500/20 blur-[140px]" />
+        <div className="absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-red-500/20 blur-[120px]" />
+        <div className="absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-rose-600/20 blur-[140px]" />
       </div>
 
       {/* Top bar */}
@@ -135,7 +135,7 @@ function Welcome() {
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          <ShieldCheck className="h-3.5 w-3.5 text-sky-400" />
+          <ShieldCheck className="h-3.5 w-3.5 text-red-400" />
           <span className="text-xs uppercase tracking-[0.18em] text-slate-300">
             Warehouse Intelligence Platform
           </span>
@@ -149,7 +149,7 @@ function Welcome() {
         >
           Pantau gudang.
           <br />
-          <span className="bg-gradient-to-r from-sky-300 via-indigo-300 to-violet-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-red-400 via-rose-400 to-red-300 bg-clip-text text-transparent">
             Tanpa kompromi.
           </span>
         </h1>
@@ -170,9 +170,9 @@ function Welcome() {
         >
           <Link
             to="/dashboard"
-            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(56,189,248,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(99,102,241,0.5)] focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(239,68,68,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(190,18,60,0.5)] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-sky-200 via-white to-indigo-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <span className="absolute inset-0 bg-gradient-to-r from-red-200 via-white to-rose-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
             <span className="relative">Let&apos;s Go</span>
             <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1.5" />
           </Link>
@@ -200,8 +200,8 @@ function Welcome() {
               key={label}
               className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.08]"
             >
-              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-500/10 blur-2xl transition-all group-hover:bg-sky-500/20" />
-              <Icon className="relative h-5 w-5 text-sky-300" />
+              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-red-500/10 blur-2xl transition-all group-hover:bg-red-500/20" />
+              <Icon className="relative h-5 w-5 text-red-400" />
               <div className="relative mt-3 text-sm font-medium text-white">{label}</div>
               <div className="relative mt-0.5 text-xs text-slate-400">{desc}</div>
             </div>
