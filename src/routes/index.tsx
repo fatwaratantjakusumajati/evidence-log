@@ -43,33 +43,73 @@ function Welcome() {
 
   return (
     <main
-      className="relative min-h-screen overflow-hidden text-slate-100"
+      className="welcome-root relative min-h-screen overflow-hidden text-slate-100"
       style={{ backgroundColor: "#05070d" }}
     >
+      {/* Scoped, GPU-friendly animations + reduced-motion safety */}
+      <style>{`
+        @keyframes welcome-zoom {
+          0% { transform: scale(1.05); }
+          50% { transform: scale(1.12); }
+          100% { transform: scale(1.05); }
+        }
+        @keyframes welcome-drift-a {
+          0%, 100% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(20px, -18px, 0); }
+        }
+        @keyframes welcome-drift-b {
+          0%, 100% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(-24px, 16px, 0); }
+        }
+        @keyframes welcome-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .welcome-ease { transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+        .welcome-video-zoom { animation: welcome-zoom 24s ease-in-out infinite; will-change: transform; }
+        .welcome-orb-a { animation: welcome-drift-a 14s ease-in-out infinite; will-change: transform; }
+        .welcome-orb-b { animation: welcome-drift-b 18s ease-in-out infinite; will-change: transform; }
+        .welcome-title-shimmer {
+          background-size: 200% auto;
+          animation: welcome-shimmer 8s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .welcome-root *,
+          .welcome-root *::before,
+          .welcome-root *::after {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.001ms !important;
+          }
+        }
+      `}</style>
+
       {/* Parallax warehouse video background */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[130vh] will-change-transform"
         style={{ transform: `translate3d(0, ${scrollY * 0.35}px, 0)` }}
       >
-        <video
-          src={warehouseVideo.url}
-          poster={warehouseBg}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          disableRemotePlayback
-          disablePictureInPicture
-          aria-hidden
-          className="h-full w-full object-cover"
-          style={{ filter: "brightness(0.55) contrast(1.1) saturate(0.85)" }}
-        />
+        <div className="welcome-video-zoom h-full w-full">
+          <video
+            src={warehouseVideo.url}
+            poster={warehouseBg}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            disableRemotePlayback
+            disablePictureInPicture
+            aria-hidden
+            className="h-full w-full object-cover"
+            style={{ filter: "brightness(0.55) contrast(1.1) saturate(0.85)" }}
+          />
+        </div>
         {/* Cinematic dark gradients */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90" />
         <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_40%,transparent_30%,rgba(5,7,13,0.85)_100%)]" />
-        {/* Subtle blue tint */}
+        {/* Color tint */}
         <div
           className="absolute inset-0 mix-blend-overlay opacity-60"
           style={{
@@ -94,8 +134,8 @@ function Welcome() {
         className="pointer-events-none fixed inset-0 z-0"
         style={{ transform: `translate3d(0, ${scrollY * 0.18}px, 0)` }}
       >
-        <div className="absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-red-500/20 blur-[120px]" />
-        <div className="absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-rose-600/20 blur-[140px]" />
+        <div className="welcome-orb-a absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-red-500/20 blur-[120px]" />
+        <div className="welcome-orb-b absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-rose-600/20 blur-[140px]" />
       </div>
 
       {/* Top bar */}
