@@ -140,7 +140,7 @@ function Welcome() {
 
       {/* Top bar */}
       <header
-        className={`relative z-20 flex items-center justify-between px-6 py-6 sm:px-12 transition-all duration-700 ${
+        className={`relative z-20 flex items-center justify-between px-6 py-6 sm:px-12 welcome-ease transition-all duration-[900ms] ${
           mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
         }`}
       >
@@ -171,7 +171,7 @@ function Welcome() {
       {/* Hero */}
       <section className="relative z-10 flex min-h-[calc(100vh-96px)] flex-col items-center justify-center px-6 text-center">
         <div
-          className={`mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-xl transition-all duration-700 delay-100 ${
+          className={`mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-xl welcome-ease transition-all duration-[900ms] delay-100 ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
@@ -182,20 +182,20 @@ function Welcome() {
         </div>
 
         <h1
-          className={`max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl lg:text-8xl transition-all duration-1000 delay-200 ${
+          className={`max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl lg:text-8xl welcome-ease transition-all duration-[1100ms] delay-200 ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
           style={{ textShadow: "0 4px 40px rgba(0,0,0,0.5)" }}
         >
           Pantau gudang.
           <br />
-          <span className="bg-gradient-to-r from-red-400 via-rose-400 to-red-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-red-400 via-rose-300 to-red-400 bg-clip-text welcome-title-shimmer text-transparent">
             Tanpa kompromi.
           </span>
         </h1>
 
         <p
-          className={`mt-8 max-w-2xl text-base text-slate-300 sm:text-lg leading-relaxed transition-all duration-1000 delay-300 ${
+          className={`mt-8 max-w-2xl text-base text-slate-300 sm:text-lg leading-relaxed welcome-ease transition-all duration-[1100ms] delay-[400ms] ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
@@ -204,13 +204,13 @@ function Welcome() {
         </p>
 
         <div
-          className={`mt-12 flex flex-col items-center gap-4 sm:flex-row transition-all duration-1000 delay-500 ${
+          className={`mt-12 flex flex-col items-center gap-4 sm:flex-row welcome-ease transition-all duration-[1100ms] delay-[600ms] ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
           <Link
             to="/dashboard"
-            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(239,68,68,0.35)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(190,18,60,0.5)] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(239,68,68,0.35)] welcome-ease transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(190,18,60,0.5)] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             <span className="absolute inset-0 bg-gradient-to-r from-red-200 via-white to-rose-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
             <span className="relative">Let&apos;s Go</span>
@@ -218,7 +218,7 @@ function Welcome() {
           </Link>
           <a
             href="#features"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm text-slate-200 backdrop-blur-xl transition-all hover:border-white/30 hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm text-slate-200 backdrop-blur-xl welcome-ease transition-all duration-500 hover:border-white/30 hover:bg-white/10"
           >
             Pelajari sistem
           </a>
@@ -227,7 +227,7 @@ function Welcome() {
         {/* Feature pills */}
         <div
           id="features"
-          className={`mt-20 grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3 transition-all duration-1000 delay-700 ${
+          className={`mt-20 grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3 welcome-ease transition-all duration-[1100ms] delay-[800ms] ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           }`}
         >
@@ -238,7 +238,7 @@ function Welcome() {
           ].map(({ icon: Icon, label, desc }) => (
             <div
               key={label}
-              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.08]"
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-xl welcome-ease transition-all duration-500 hover:border-white/20 hover:-translate-y-0.5 hover:bg-white/[0.08]"
             >
               <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-red-500/10 blur-2xl transition-all group-hover:bg-red-500/20" />
               <Icon className="relative h-5 w-5 text-red-400" />
