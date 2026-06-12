@@ -430,9 +430,12 @@ function Dashboard() {
                 <p className="text-xs text-muted-foreground">Nama kamera & waktu kejadian</p>
               </div>
             </div>
-            <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive">
-              {offlineCams.length} insiden
-            </span>
+            <Link
+              to="/logs/cameras"
+              className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+            >
+              Lihat selengkapnya <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
           {offlineCams.length === 0 ? (
             <EmptyState text="Tidak ada kamera mati." />
