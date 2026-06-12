@@ -314,9 +314,12 @@ function Dashboard() {
                   <p className="text-xs text-muted-foreground">Bukti keluar/masuk terbaru</p>
                 </div>
               </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {vehicles.length} entri
-              </span>
+              <Link
+                to="/logs/vehicles"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+              >
+                Lihat selengkapnya <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
             {vehicles.length === 0 ? (
               <EmptyState text="Belum ada log kendaraan." />
