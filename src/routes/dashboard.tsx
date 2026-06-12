@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -18,6 +17,7 @@ import {
 } from "recharts";
 import {
   ArrowLeft,
+  ArrowRight,
   Package,
   CameraOff,
   Truck,
@@ -27,10 +27,10 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
+import { formatDateTime } from "@/lib/evidence";
 import companyLogo from "@/assets/company-logo.png";
 
-const PAGE_SIZE = 6;
+const PREVIEW_LIMIT = 4;
 
 const TEMPLATE = {
   companyName: "PT Contoh Sejahtera",
