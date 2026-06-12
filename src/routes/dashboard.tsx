@@ -110,78 +110,49 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [limit, setLimit] = useState(PAGE_SIZE);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["entries", { from, to, limit }],
-    queryFn: async () => {
-      let q = supabase
-        .from("evidence_entries")
-        .select("*", { count: "exact" })
-        .order("occurred_at", { ascending: false })
-        .limit(limit);
-
-      if (from) q = q.gte("occurred_at", new Date(from).toISOString());
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        q = q.lte("occurred_at", end.toISOString());
-      }
-
-      const { data, error, count } = await q;
-      if (error) throw error;
-      return { entries: (data ?? []) as EvidenceEntry[], total: count ?? 0 };
-    },
-  });
-
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicle_logs"],
+    queryKey: ["vehicle_logs", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicle_logs")
         .select("*")
         .order("occurred_at", { ascending: false })
-        .limit(8);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as VehicleLog[];
     },
   });
 
   const { data: stagings = [] } = useQuery({
-    queryKey: ["staging_detections"],
+    queryKey: ["staging_detections", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staging_detections")
         .select("*")
         .order("reported_at", { ascending: false })
-        .limit(8);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as StagingDetection[];
     },
   });
 
   const { data: offlineCams = [] } = useQuery({
-    queryKey: ["camera_offline_events"],
+    queryKey: ["camera_offline_events", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("camera_offline_events")
         .select("*")
         .order("occurred_at", { ascending: false })
-        .limit(10);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as CameraOfflineEvent[];
     },
   });
 
-  const entries = data?.entries ?? [];
-  const total = data?.total ?? 0;
-  const hasMore = useMemo(() => entries.length < total, [entries.length, total]);
-
   const totalDetections = detectionData.reduce((s, d) => s + d.barang, 0);
   const camerasDown = cameraStatus.find((c) => c.name === "Mati")?.value ?? 0;
   const totalVehicles = vehicleLogs.reduce((s, v) => s + v.masuk + v.keluar, 0);
+
 
   return (
     <main className="min-h-screen bg-background">
