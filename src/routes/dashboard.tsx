@@ -513,49 +513,10 @@ function ChartCard({
   );
 }
 
-function EntryCard({ entry }: { entry: EvidenceEntry }) {
-  return (
-    <Link
-      to="/entry/$id"
-      params={{ id: String(entry.id) }}
-      className="group block overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-soft)] transition-all hover:-translate-y-0.5 hover:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-    >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-        <img
-          src={entry.image_url}
-          alt={`Bukti kejadian ${formatShortDate(entry.occurred_at)}`}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-        />
-      </div>
-      <div className="space-y-1 p-4">
-        <p className="text-sm font-medium text-foreground">{formatDateTime(entry.occurred_at)}</p>
-        <p className="text-xs text-muted-foreground">Entri #{entry.id}</p>
-      </div>
-    </Link>
-  );
-}
-
 function EmptyState({ text }: { text: string }) {
   return (
     <p className="rounded-md border border-dashed border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
       {text}
     </p>
-  );
-}
-
-function SkeletonGrid() {
-  return (
-    <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <li key={i} className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="aspect-[4/3] w-full animate-pulse bg-muted" />
-          <div className="space-y-2 p-4">
-            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-          </div>
-        </li>
-      ))}
-    </ul>
   );
 }
