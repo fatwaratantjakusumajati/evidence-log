@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
+import { Route as LogsStagingRouteImport } from './routes/logs.staging'
+import { Route as LogsCamerasRouteImport } from './routes/logs.cameras'
 import { Route as EntryIdRouteImport } from './routes/entry.$id'
 
 const DashboardRoute = DashboardRouteImport.update({
@@ -23,6 +26,21 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LogsVehiclesRoute = LogsVehiclesRouteImport.update({
+  id: '/logs/vehicles',
+  path: '/logs/vehicles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsStagingRoute = LogsStagingRouteImport.update({
+  id: '/logs/staging',
+  path: '/logs/staging',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsCamerasRoute = LogsCamerasRouteImport.update({
+  id: '/logs/cameras',
+  path: '/logs/cameras',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EntryIdRoute = EntryIdRouteImport.update({
   id: '/entry/$id',
   path: '/entry/$id',
@@ -33,30 +51,61 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/entry/$id': typeof EntryIdRoute
+  '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/staging': typeof LogsStagingRoute
+  '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/entry/$id': typeof EntryIdRoute
+  '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/staging': typeof LogsStagingRoute
+  '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/entry/$id': typeof EntryIdRoute
+  '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/staging': typeof LogsStagingRoute
+  '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/entry/$id'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/entry/$id'
+    | '/logs/cameras'
+    | '/logs/staging'
+    | '/logs/vehicles'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/entry/$id'
-  id: '__root__' | '/' | '/dashboard' | '/entry/$id'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/entry/$id'
+    | '/logs/cameras'
+    | '/logs/staging'
+    | '/logs/vehicles'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/entry/$id'
+    | '/logs/cameras'
+    | '/logs/staging'
+    | '/logs/vehicles'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   EntryIdRoute: typeof EntryIdRoute
+  LogsCamerasRoute: typeof LogsCamerasRoute
+  LogsStagingRoute: typeof LogsStagingRoute
+  LogsVehiclesRoute: typeof LogsVehiclesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,6 +124,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/logs/vehicles': {
+      id: '/logs/vehicles'
+      path: '/logs/vehicles'
+      fullPath: '/logs/vehicles'
+      preLoaderRoute: typeof LogsVehiclesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs/staging': {
+      id: '/logs/staging'
+      path: '/logs/staging'
+      fullPath: '/logs/staging'
+      preLoaderRoute: typeof LogsStagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs/cameras': {
+      id: '/logs/cameras'
+      path: '/logs/cameras'
+      fullPath: '/logs/cameras'
+      preLoaderRoute: typeof LogsCamerasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/entry/$id': {
       id: '/entry/$id'
       path: '/entry/$id'
@@ -89,17 +159,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   EntryIdRoute: EntryIdRoute,
+  LogsCamerasRoute: LogsCamerasRoute,
+  LogsStagingRoute: LogsStagingRoute,
+  LogsVehiclesRoute: LogsVehiclesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

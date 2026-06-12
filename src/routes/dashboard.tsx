@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -18,6 +17,7 @@ import {
 } from "recharts";
 import {
   ArrowLeft,
+  ArrowRight,
   Package,
   CameraOff,
   Truck,
@@ -27,10 +27,10 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatShortDate, formatDateTime, type EvidenceEntry } from "@/lib/evidence";
+import { formatDateTime } from "@/lib/evidence";
 import companyLogo from "@/assets/company-logo.png";
 
-const PAGE_SIZE = 6;
+const PREVIEW_LIMIT = 4;
 
 const TEMPLATE = {
   companyName: "PT Contoh Sejahtera",
@@ -110,78 +110,49 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [limit, setLimit] = useState(PAGE_SIZE);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["entries", { from, to, limit }],
-    queryFn: async () => {
-      let q = supabase
-        .from("evidence_entries")
-        .select("*", { count: "exact" })
-        .order("occurred_at", { ascending: false })
-        .limit(limit);
-
-      if (from) q = q.gte("occurred_at", new Date(from).toISOString());
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        q = q.lte("occurred_at", end.toISOString());
-      }
-
-      const { data, error, count } = await q;
-      if (error) throw error;
-      return { entries: (data ?? []) as EvidenceEntry[], total: count ?? 0 };
-    },
-  });
-
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicle_logs"],
+    queryKey: ["vehicle_logs", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicle_logs")
         .select("*")
         .order("occurred_at", { ascending: false })
-        .limit(8);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as VehicleLog[];
     },
   });
 
   const { data: stagings = [] } = useQuery({
-    queryKey: ["staging_detections"],
+    queryKey: ["staging_detections", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staging_detections")
         .select("*")
         .order("reported_at", { ascending: false })
-        .limit(8);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as StagingDetection[];
     },
   });
 
   const { data: offlineCams = [] } = useQuery({
-    queryKey: ["camera_offline_events"],
+    queryKey: ["camera_offline_events", "preview"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("camera_offline_events")
         .select("*")
         .order("occurred_at", { ascending: false })
-        .limit(10);
+        .limit(PREVIEW_LIMIT);
       if (error) throw error;
       return (data ?? []) as CameraOfflineEvent[];
     },
   });
 
-  const entries = data?.entries ?? [];
-  const total = data?.total ?? 0;
-  const hasMore = useMemo(() => entries.length < total, [entries.length, total]);
-
   const totalDetections = detectionData.reduce((s, d) => s + d.barang, 0);
   const camerasDown = cameraStatus.find((c) => c.name === "Mati")?.value ?? 0;
   const totalVehicles = vehicleLogs.reduce((s, v) => s + v.masuk + v.keluar, 0);
+
 
   return (
     <main className="min-h-screen bg-background">
@@ -242,8 +213,8 @@ function Dashboard() {
           <KpiCard
             icon={<AlertTriangle className="h-5 w-5" />}
             label="Insiden Tercatat"
-            value={String(total)}
-            hint="total entri arsip"
+            value={String(offlineCams.length + stagings.length)}
+            hint="kamera mati & barang staging"
             tone="muted"
           />
         </div>
@@ -343,9 +314,12 @@ function Dashboard() {
                   <p className="text-xs text-muted-foreground">Bukti keluar/masuk terbaru</p>
                 </div>
               </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {vehicles.length} entri
-              </span>
+              <Link
+                to="/logs/vehicles"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+              >
+                Lihat selengkapnya <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
             {vehicles.length === 0 ? (
               <EmptyState text="Belum ada log kendaraan." />
@@ -397,9 +371,12 @@ function Dashboard() {
                   <p className="text-xs text-muted-foreground">Bukti, waktu laporan & durasi</p>
                 </div>
               </div>
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {stagings.length} entri
-              </span>
+              <Link
+                to="/logs/staging"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+              >
+                Lihat selengkapnya <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
             {stagings.length === 0 ? (
               <EmptyState text="Belum ada deteksi barang staging." />
@@ -453,9 +430,12 @@ function Dashboard() {
                 <p className="text-xs text-muted-foreground">Nama kamera & waktu kejadian</p>
               </div>
             </div>
-            <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive">
-              {offlineCams.length} insiden
-            </span>
+            <Link
+              to="/logs/cameras"
+              className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+            >
+              Lihat selengkapnya <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
           {offlineCams.length === 0 ? (
             <EmptyState text="Tidak ada kamera mati." />
@@ -478,96 +458,6 @@ function Dashboard() {
           )}
         </div>
 
-        {/* Evidence archive */}
-        <div className="mt-8">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Arsip Bukti Kejadian</h2>
-              <p className="text-xs text-muted-foreground">Daftar entri terbaru dari lapangan</p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
-            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Dari tanggal</span>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
-                    setLimit(PAGE_SIZE);
-                  }}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Sampai tanggal</span>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
-                    setLimit(PAGE_SIZE);
-                  }}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFrom("");
-                    setTo("");
-                    setLimit(PAGE_SIZE);
-                  }}
-                  className="h-9 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            {isLoading ? (
-              <SkeletonGrid />
-            ) : isError ? (
-              <p className="rounded-md border border-border bg-card p-6 text-sm text-destructive">
-                Gagal memuat data.
-              </p>
-            ) : entries.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
-                Tidak ada entri pada rentang tanggal ini.
-              </p>
-            ) : (
-              <>
-                <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {entries.map((entry) => (
-                    <li key={entry.id}>
-                      <EntryCard entry={entry} />
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                  <span>
-                    Menampilkan {entries.length} dari {total} entri
-                  </span>
-                  {hasMore && (
-                    <button
-                      type="button"
-                      onClick={() => setLimit((n) => n + PAGE_SIZE)}
-                      className="rounded-md border border-border bg-card px-4 py-2 font-medium text-foreground transition-colors hover:bg-accent"
-                    >
-                      Muat lebih banyak
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       </section>
 
       <footer className="border-t border-border bg-card py-6 text-center text-xs text-muted-foreground">
@@ -632,49 +522,10 @@ function ChartCard({
   );
 }
 
-function EntryCard({ entry }: { entry: EvidenceEntry }) {
-  return (
-    <Link
-      to="/entry/$id"
-      params={{ id: String(entry.id) }}
-      className="group block overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-soft)] transition-all hover:-translate-y-0.5 hover:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-    >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-        <img
-          src={entry.image_url}
-          alt={`Bukti kejadian ${formatShortDate(entry.occurred_at)}`}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-        />
-      </div>
-      <div className="space-y-1 p-4">
-        <p className="text-sm font-medium text-foreground">{formatDateTime(entry.occurred_at)}</p>
-        <p className="text-xs text-muted-foreground">Entri #{entry.id}</p>
-      </div>
-    </Link>
-  );
-}
-
 function EmptyState({ text }: { text: string }) {
   return (
     <p className="rounded-md border border-dashed border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
       {text}
     </p>
-  );
-}
-
-function SkeletonGrid() {
-  return (
-    <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <li key={i} className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="aspect-[4/3] w-full animate-pulse bg-muted" />
-          <div className="space-y-2 p-4">
-            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-          </div>
-        </li>
-      ))}
-    </ul>
   );
 }
