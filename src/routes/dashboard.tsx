@@ -213,8 +213,8 @@ function Dashboard() {
           <KpiCard
             icon={<AlertTriangle className="h-5 w-5" />}
             label="Insiden Tercatat"
-            value={String(total)}
-            hint="total entri arsip"
+            value={String(offlineCams.length + stagings.length)}
+            hint="kamera mati & barang staging"
             tone="muted"
           />
         </div>
