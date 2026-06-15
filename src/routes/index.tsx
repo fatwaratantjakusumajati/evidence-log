@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, ShieldCheck, Radio, Activity } from "lucide-react";
-import companyLogo from "@/assets/company-logo.png";
-import warehouseBg from "@/assets/warehouse-bg.jpg";
-import warehouseVideo from "@/assets/warehouse-bg.mp4.asset.json";
+import companyLogo from "@/assets/aristides-logo.png";
+// import warehouseBg from "@/assets/warehouse-bg.mp4";
+import warehouseVideo from "@/assets/warehouse-bg.mp4";
 
 const TEMPLATE = {
-  companyName: "PT Contoh Sejahtera",
-  location: "Jalan Merdeka No. 10, Jakarta Pusat",
+  companyName: "PT Aristides Logistik Indonesia",
+  location: "",
 };
 
 export const Route = createFileRoute("/")({
@@ -92,8 +92,8 @@ function Welcome() {
       >
         <div className="welcome-video-zoom h-full w-full">
           <video
-            src={warehouseVideo.url}
-            poster={warehouseBg}
+            src={warehouseVideo}
+            // poster={warehouseBg}
             autoPlay
             muted
             loop
@@ -114,7 +114,7 @@ function Welcome() {
           className="absolute inset-0 mix-blend-overlay opacity-60"
           style={{
             background:
-              "radial-gradient(70% 50% at 20% 20%, rgba(239,68,68,0.20), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(190,18,60,0.22), transparent 60%)",
+              "radial-gradient(70% 50% at 20% 20%, rgba(0,0,0,0.15), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(0,0,0,0.20), transparent 60%)",
           }}
         />
         {/* Grain */}
@@ -134,38 +134,15 @@ function Welcome() {
         className="pointer-events-none fixed inset-0 z-0"
         style={{ transform: `translate3d(0, ${scrollY * 0.18}px, 0)` }}
       >
-        <div className="welcome-orb-a absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-red-500/20 blur-[120px]" />
-        <div className="welcome-orb-b absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-rose-600/20 blur-[140px]" />
+        <div className="welcome-orb-a absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-black-500/20 blur-[120px]" />
+        <div className="welcome-orb-b absolute right-[8%] top-[55%] h-96 w-96 rounded-full bg-black-600/20 blur-[140px]" />
       </div>
 
       {/* Top bar */}
       <header
         className={`relative z-20 flex items-center justify-between px-6 py-6 sm:px-12 welcome-ease transition-all duration-[900ms] ${
           mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 backdrop-blur-xl">
-            <img
-              src={companyLogo}
-              alt={`Logo ${TEMPLATE.companyName}`}
-              width={28}
-              height={28}
-              className="h-7 w-7 object-contain"
-            />
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Sentinel</span>
-            <span className="text-sm font-medium text-slate-100">{TEMPLATE.companyName}</span>
-          </div>
-        </div>
-        <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-xl sm:flex">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-          </span>
-          <span className="text-xs text-slate-300">Sistem aktif · Live monitoring</span>
-        </div>
+        }`}>
       </header>
 
       {/* Hero */}
@@ -175,32 +152,26 @@ function Welcome() {
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          <ShieldCheck className="h-3.5 w-3.5 text-red-400" />
+          <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" />
           <span className="text-xs uppercase tracking-[0.18em] text-slate-300">
-            Warehouse Intelligence Platform
+            Aristides Logistik Indonesia
           </span>
         </div>
-
-        <h1
-          className={`max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-7xl lg:text-8xl welcome-ease transition-all duration-[1100ms] delay-200 ${
-            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-          }`}
-          style={{ textShadow: "0 4px 40px rgba(0,0,0,0.5)" }}
-        >
-          Pantau gudang.
-          <br />
-          <span className="bg-gradient-to-r from-red-400 via-rose-300 to-red-400 bg-clip-text welcome-title-shimmer text-transparent">
-            Tanpa kompromi.
-          </span>
-        </h1>
-
+        <div className={'flex flex-col items-center welcome-ease transition-all duration-[110ms] delay-200 ${mounted ? "opacity-100 translate-y-o" : "opacity-0 translate-y-6"}'}>
+          <div className="mb-8 flex justify-center">
+            <img src={companyLogo} alt="Company Logo" className="h-48 w-48 object-contain mb-12" />
+            {/* <h1 className="text-5xl font-bold tracking-tight text-white sm:text-7x1 lg:text-8x1">
+            {TEMPLATE.companyName}
+            </h1> */}
+          </div>
+        </div>
         <p
           className={`mt-8 max-w-2xl text-base text-slate-300 sm:text-lg leading-relaxed welcome-ease transition-all duration-[1100ms] delay-[400ms] ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          Sistem pemantauan dan arsip bukti kejadian real-time.
-          Deteksi barang, status kamera, dan lalu lintas kendaraan dalam satu pandangan.
+          Warehouse Intelligence Platform untuk pemantauan staging,
+          kesehatan CCTV, dan pergerakan kendaraan logistik.
         </p>
 
         <div
@@ -210,18 +181,12 @@ function Welcome() {
         >
           <Link
             to="/dashboard"
-            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(239,68,68,0.35)] welcome-ease transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(190,18,60,0.5)] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-base font-semibold text-slate-900 shadow-[0_8px_32px_rgba(0,0,0,0.35)] welcome-ease transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(0,0,0,0.5)] focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-red-200 via-white to-rose-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <span className="absolute inset-0 bg-gradient-to-r from-zinc-200 via-white to-zinc-200 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
             <span className="relative">Let&apos;s Go</span>
             <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1.5" />
           </Link>
-          <a
-            href="#features"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-4 text-sm text-slate-200 backdrop-blur-xl welcome-ease transition-all duration-500 hover:border-white/30 hover:bg-white/10"
-          >
-            Pelajari sistem
-          </a>
         </div>
 
         {/* Feature pills */}
@@ -234,14 +199,14 @@ function Welcome() {
           {[
             { icon: Activity, label: "Deteksi Barang", desc: "Real-time staging" },
             { icon: Radio, label: "Status Kamera", desc: "24/7 monitoring" },
-            { icon: ShieldCheck, label: "Log Kendaraan", desc: "Arsip lengkap" },
+            { icon: ShieldCheck, label: "Log Kendaraan", desc: "Traffic reporting" },
           ].map(({ icon: Icon, label, desc }) => (
             <div
               key={label}
-              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left backdrop-blur-xl welcome-ease transition-all duration-500 hover:border-white/20 hover:-translate-y-0.5 hover:bg-white/[0.08]"
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-5 text-left backdrop-blur-md welcome-ease transition-all duration-500 hover:border-white/20 hover:-translate-y-0.5 hover:bg-black/50"
             >
-              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-red-500/10 blur-2xl transition-all group-hover:bg-red-500/20" />
-              <Icon className="relative h-5 w-5 text-red-400" />
+              <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-white/5 blur-xl transition-all group-hover:bg-white/10" />
+              <Icon className="relative h-5 w-5 text-zinc-400" />
               <div className="relative mt-3 text-sm font-medium text-white">{label}</div>
               <div className="relative mt-0.5 text-xs text-slate-400">{desc}</div>
             </div>
