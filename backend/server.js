@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors({ origin:'http://localhost:5173' }));
+app.use(cors({ origin:'http://localhost:8081' }));
 app.use(express.json());
 
 app.use('/api/alerts', require('./routes/alerts'));
