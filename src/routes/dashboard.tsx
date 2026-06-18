@@ -96,9 +96,9 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicle_logs", "preview"],
+    queryKey: ["vehicle_log", "preview"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/vehicles/logs');
+      const res = await fetch('http://localhost:5000/api/vehicles/log');
       if (!res.ok) throw new Error('Gagal fetch vehicle logs');
       return res.json() as Promise<VehicleLog[]>;
     },
@@ -116,7 +116,7 @@ function Dashboard() {
   const { data: offlineCams = [] } = useQuery({
     queryKey: ["camera_offline_events", "preview"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/alerts?class_name=camera_offline');
+      const res = await fetch('http://localhost:5000/api/alerts?class_name=' + encodeURIComponent('KAMERA OFFLINE'));
       if (!res.ok) throw new Error('Gagal fetch camera offline');
       return res.json() as Promise<CameraOfflineEvent[]>;
     },

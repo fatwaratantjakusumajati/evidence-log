@@ -31,9 +31,9 @@ function VehicleLogsPage() {
   const [page, setPage] = useState(1);
 
   const { data: vehicles = [], isLoading, isError } = useQuery({
-    queryKey: ["vehicle_logs", "all"],
+    queryKey: ["vehicle_log", "all"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/vehicles/logs');
+      const res = await fetch('http://localhost:5000/api/vehicles/log');
       if (!res.ok) throw new Error('Gagal fetch vehicle logs');
       return res.json() as Promise<VehicleLog[]>;
     },

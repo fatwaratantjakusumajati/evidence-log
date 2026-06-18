@@ -20,20 +20,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET alert by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM alert_log WHERE id = $1', [req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: 'Tidak ditemukan' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // GET deteksi barang mingguan
 router.get('/stats/weekly', async (req, res) => {
   try {
@@ -46,18 +32,39 @@ router.get('/stats/weekly', async (req, res) => {
       ORDER BY DATE_TRUNC('day', created_at)`);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message});
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET status kamera
+// GET status kamera (jumlah kamera yang status terakhirnya OFFLINE)
 router.get('/stats/camera-status', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT COUNT(DISTINCT camera) AS mati FROM camera_log WHERE created_at >= NOW() - INTERVAL '1 day'
+    const result = await pool.query(`
+      SELECT COUNT(*) AS mati
+      FROM (
+        SELECT DISTINCT ON (camera) camera, class_name
+        FROM alert_log
+        ORDER BY camera, created_at DESC
+      ) latest_status
+      WHERE class_name = 'KAMERA OFFLINE'
     `);
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message});
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET alert by ID — HARUS PALING BAWAH supaya tidak menangkap /stats/...
+router.get('/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM alert_log WHERE id = $1', [req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: 'Tidak ditemukan' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

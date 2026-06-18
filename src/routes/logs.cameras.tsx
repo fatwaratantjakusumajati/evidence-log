@@ -29,7 +29,7 @@ function CamerasPage() {
   const { data: cams = [], isLoading, isError } = useQuery({
     queryKey: ["camera_offline_events", "all"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/alerts?class_name=camera_offline');
+      const res = await fetch('http://localhost:5000/api/alerts?class_name' + encodeURIComponent('KAMERA OFFLINE'));
       if (!res.ok) throw new Error('Gagal fetch camera offline');
       return res.json() as Promise<CameraOfflineEvent[]>;
     },
