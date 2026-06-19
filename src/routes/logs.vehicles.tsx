@@ -6,22 +6,29 @@ import { formatDateTime } from "@/lib/evidence";
 
 const PAGE_SIZE = 12;
 
+// [DISESUAIKAN] Field sekarang mengikuti skema asli tabel vehicle_log
 type VehicleLog = {
   id: number;
-  track_id: number;
-  plate_number: string;
-  vehicle_type: string;
+  timestamp: string;
+  jenis_kendaraan: string;
+  warna: string;
+  rgb_r: number;
+  rgb_g: number;
+  rgb_b: number;
   confidence: number;
-  snapshot_path: string;
-  entry_time: string;
-  status: string;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+  gambar_base64: string;
+  created_at: string;
 };
 
 export const Route = createFileRoute("/logs/vehicles")({
   head: () => ({
     meta: [
       { title: "Log Kendaraan · Dashboard Pemantauan" },
-      { name: "description", content: "Daftar lengkap log kendaraan keluar masuk warehouse." },
+      { name: "description", content: "Daftar lengkap log kendaraan yang terdeteksi CCTV." },
     ],
   }),
   component: VehicleLogsPage,
@@ -69,7 +76,7 @@ function VehicleLogsPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-8">
         <p className="mb-5 text-sm text-muted-foreground">
-          Riwayat lengkap kendaraan keluar/masuk dengan bukti foto, plat nomor, dan waktu.
+          Riwayat lengkap kendaraan yang terdeteksi CCTV, lengkap dengan bukti foto, jenis, dan warna.
         </p>
 
         {isLoading ? (
@@ -98,25 +105,32 @@ function VehicleLogsPage() {
               {paginated.map((v) => (
                 <li key={v.id} className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-soft)] transition-shadow hover:shadow-md">
                   <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                    {/* [DISESUAIKAN] snapshot_path -> gambar_base64 (data URI) */}
                     <img
-                      src={v.snapshot_path}
-                      alt={`Bukti kendaraan ${v.plate_number}`}
+                      src={`data:image/jpeg;base64,${v.gambar_base64}`}
+                      alt={`Kendaraan ${v.jenis_kendaraan}`}
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                     />
                   </div>
                   <div className="space-y-2 p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-muted px-2 py-0.5 font-mono text-sm font-semibold tracking-wider text-foreground">
-                        {v.plate_number}
+                    <div className="flex items-center justify-between gap-2">
+                      {/* [DISESUAIKAN] plate_number -> jenis_kendaraan */}
+                      <span className="text-sm font-semibold text-foreground">
+                        {v.jenis_kendaraan}
                       </span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-                        v.status === "masuk" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
-                      }`}>
-                        {v.status}
+                      {/* [DISESUAIKAN] status masuk/keluar -> badge warna kendaraan */}
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full border border-border"
+                          style={{ backgroundColor: `rgb(${v.rgb_r},${v.rgb_g},${v.rgb_b})` }}
+                        />
+                        {v.warna}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(v.entry_time)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateTime(v.timestamp)} · confidence {Number(v.confidence).toFixed(2)}
+                    </p>
                   </div>
                 </li>
               ))}

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -36,15 +37,22 @@ const TEMPLATE = {
   location: "",
 };
 
+// [DISESUAIKAN] Field sekarang mengikuti skema asli tabel vehicle_log
 type VehicleLog = {
   id: number;
-  track_id: number;
-  plate_number: string;
-  vehicle_type: string;
+  timestamp: string;
+  jenis_kendaraan: string;
+  warna: string;
+  rgb_r: number;
+  rgb_g: number;
+  rgb_b: number;
   confidence: number;
-  snapshot_path: string;
-  entry_time: string;
-  status: string;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+  gambar_base64: string;
+  created_at: string;
 };
 
 type StagingDetection = {
@@ -95,6 +103,18 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  // [FIX HYDRATION] Jam hanya di-set di client setelah mount,
+  // supaya HTML dari server tidak ikut menyimpan nilai Date.now()
+  // yang pasti berbeda dengan saat hydration di browser.
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+
+  useEffect(() => {
+    const update = () => setLastUpdate(new Date().toLocaleTimeString("id-ID"));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicle_log", "preview"],
     queryFn: async () => {
@@ -140,18 +160,21 @@ function Dashboard() {
     },
   });
 
+  // [DISESUAIKAN] endpoint /stats/hourly sekarang mengembalikan { hour, total }
+  // karena tabel tidak punya kolom status masuk/keluar.
   const { data: vehicleHourly = [] } = useQuery({
     queryKey: ["vehicle_hourly"],
     queryFn: async () => {
       const res = await fetch('http://localhost:5000/api/vehicles/stats/hourly');
       if (!res.ok) throw new Error('Gagal fetch vehicle hourly');
-      return res.json();
+      return res.json() as Promise<{ hour: string; total: number }[]>;
     },
   });
 
   const totalDetections = detectionData.reduce((s: number, d: any) => s + Number(d.barang), 0);
   const camerasDown = Number(cameraStats?.mati ?? 0);
-  const totalVehicles = vehicleHourly.reduce((s: number, v: any) => s + Number(v.masuk) + Number(v.keluar), 0);
+  // [DISESUAIKAN] total kendaraan dihitung dari total deteksi per jam (tidak ada lagi masuk/keluar)
+  const totalVehicles = vehicleHourly.reduce((s, v) => s + Number(v.total), 0);
 
   const pieData = [
     { name: "Aktif", value: TOTAL_CAMERAS - camerasDown, color: "#16a34a" },
@@ -192,7 +215,7 @@ function Dashboard() {
             </div>
             <div className="text-center ml-4">
               <span className="text-[11px] text-muted-foreground">
-                Last Update {new Date().toLocaleTimeString("id-ID")}
+                Last Update {lastUpdate ?? "--.--.--"}
               </span>
             </div>
           </div>
@@ -260,16 +283,15 @@ function Dashboard() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Log Kendaraan Hari Ini" subtitle="Masuk vs keluar per jam">
+          {/* [DISESUAIKAN] Chart sekarang menampilkan total deteksi per jam, bukan masuk vs keluar */}
+          <ChartCard title="Deteksi Kendaraan Hari Ini" subtitle="Jumlah kendaraan terdeteksi per jam">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={vehicleHourly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="masuk" stroke="#16a34a" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 7 }} />
-                <Line type="monotone" dataKey="keluar" stroke="#dc2626" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+                <Line type="monotone" dataKey="total" stroke="#3f3f46" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 7 }} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -284,7 +306,7 @@ function Dashboard() {
                 <Car className="h-4 w-4 text-primary" />
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">Log Kendaraan</h2>
-                  <p className="text-xs text-muted-foreground">Bukti keluar/masuk terbaru</p>
+                  <p className="text-xs text-muted-foreground">Deteksi kendaraan terbaru dari CCTV</p>
                 </div>
               </div>
               <Link to="/logs/vehicles" className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20">
@@ -301,15 +323,33 @@ function Dashboard() {
                 <ul className="space-y-3">
                   {(vehicles as VehicleLog[]).slice(0, PREVIEW_LIMIT).map((v) => (
                     <li key={v.id} className="flex items-center gap-3 rounded-md border border-border/60 p-2">
-                      <img src={v.snapshot_path} alt={`Bukti kendaraan ${v.plate_number}`} loading="lazy" className="h-16 w-20 shrink-0 rounded object-cover" />
+                      {/* [DISESUAIKAN] snapshot_path -> gambar_base64 (data URI) */}
+                      <img
+                        src={`data:image/jpeg;base64,${v.gambar_base64}`}
+                        alt={`Kendaraan ${v.jenis_kendaraan}`}
+                        loading="lazy"
+                        className="h-16 w-20 shrink-0 rounded object-cover"
+                      />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between">
-                          <span className="rounded bg-muted px-2 py-0.5 font-mono text-sm font-semibold tracking-wider text-foreground">{v.plate_number}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${v.status === "masuk" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-                            {v.status}
+                        <div className="flex items-center justify-between gap-2">
+                          {/* [DISESUAIKAN] plate_number -> jenis_kendaraan */}
+                          <span className="text-sm font-semibold text-foreground">
+                            {v.jenis_kendaraan}
+                          </span>
+                          {/* [DISESUAIKAN] status masuk/keluar -> tampilkan warna kendaraan */}
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground"
+                          >
+                            <span
+                              className="h-2.5 w-2.5 rounded-full border border-border"
+                              style={{ backgroundColor: `rgb(${v.rgb_r},${v.rgb_g},${v.rgb_b})` }}
+                            />
+                            {v.warna}
                           </span>
                         </div>
-                        <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(v.entry_time)}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {formatDateTime(v.timestamp)} · conf {Number(v.confidence).toFixed(2)}
+                        </p>
                       </div>
                     </li>
                   ))}
