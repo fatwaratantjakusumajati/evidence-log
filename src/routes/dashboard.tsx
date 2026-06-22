@@ -127,7 +127,7 @@ function Dashboard() {
   const { data: stagings = [] } = useQuery({
     queryKey: ["staging_detections", "preview"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/alerts');
+      const res = await fetch('http://localhost:5000/api/alerts?class_name=box');
       if (!res.ok) throw new Error('Gagal fetch alerts');
       return res.json() as Promise<StagingDetection[]>;
     },
@@ -227,21 +227,21 @@ function Dashboard() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             icon={<Package className="h-5 w-5" />}
-            label="Deteksi Barang (7 hari)"
+            label="Deteksi Staging (3 hari)"
             value={totalDetections.toLocaleString("id-ID")}
             hint="7 hari terakhir"
             tone="primary"
           />
           <KpiCard
             icon={<CameraOff className="h-5 w-5" />}
-            label="Kamera Mati"
+            label="Kamera Offline"
             value={String(camerasDown)}
             hint={`dari ${TOTAL_CAMERAS} kamera`}
             tone="destructive"
           />
           <KpiCard
             icon={<Truck className="h-5 w-5" />}
-            label="Lalu Lintas Kendaraan"
+            label="Aktivitas Kendaraan"
             value={String(totalVehicles)}
             hint="hari ini"
             tone="primary"

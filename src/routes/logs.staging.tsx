@@ -52,7 +52,7 @@ function StagingPage() {
   const { data: stagings = [], isLoading, isError } = useQuery({
     queryKey: ["staging_detections", "all"],
     queryFn: async () => {
-      const res = await fetch('http://localhost:5000/api/alerts');
+      const res = await fetch('http://localhost:5000/api/alerts?class_name=box');
       if (!res.ok) throw new Error('Gagal fetch alerts');
       return res.json() as Promise<StagingDetection[]>;
     },
