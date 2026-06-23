@@ -23,13 +23,16 @@ router.get('/', async (req, res) => {
 // GET deteksi barang mingguan
 router.get('/stats/weekly', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT 
+    const result = await pool.query(`
+      SELECT 
         TO_CHAR(created_at, 'Dy') AS day,
         COUNT(*) AS barang
       FROM alert_log
       WHERE created_at >= NOW() - INTERVAL '7 days'
+        AND class_name = ANY($1)   -- filter hanya kelas barang staging
       GROUP BY TO_CHAR(created_at, 'Dy'), DATE_TRUNC('day', created_at)
-      ORDER BY DATE_TRUNC('day', created_at)`);
+      ORDER BY DATE_TRUNC('day', created_at)
+    `, [['BARANG STAGING', 'NamaKelasLainJikaAda']]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

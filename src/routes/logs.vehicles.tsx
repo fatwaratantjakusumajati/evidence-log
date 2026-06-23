@@ -11,7 +11,7 @@ type VehicleLog = {
   id: number;
   timestamp: string;
   jenis_kendaraan: string;
-  warna: string;
+  // warna: string;
   rgb_r: number;
   rgb_g: number;
   rgb_b: number;
@@ -23,6 +23,21 @@ type VehicleLog = {
   gambar_base64: string;
   created_at: string;
 };
+
+function getConfidenceTone(confidence: number) {
+  if (confidence < 0.4) return { label: "Rendah", className: "bg-red-100 text-red-700" };
+  if (confidence < 0.7) return { label: "Sedang", className: "bg-yellow-100 text-yellow-700" };
+  return { label: "Tinggi", className: "bg-green-100 text-green-700" };
+}
+
+function ConfidenceBadge({ confidence }: { confidence: number }) {
+  const { label, className } = getConfidenceTone(confidence);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}>
+      {label} · {confidence.toFixed(2)}
+    </span>
+  );
+}
 
 export const Route = createFileRoute("/logs/vehicles")({
   head: () => ({
@@ -76,7 +91,7 @@ function VehicleLogsPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-8">
         <p className="mb-5 text-sm text-muted-foreground">
-          Riwayat lengkap kendaraan yang terdeteksi CCTV, lengkap dengan bukti foto, jenis, dan warna.
+          Riwayat lengkap kendaraan yang terdeteksi CCTV, lengkap dengan bukti foto dan jenis.
         </p>
 
         {isLoading ? (
@@ -120,17 +135,18 @@ function VehicleLogsPage() {
                         {v.jenis_kendaraan}
                       </span>
                       {/* [DISESUAIKAN] status masuk/keluar -> badge warna kendaraan */}
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground">
+                      {/* <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground">
                         <span
                           className="h-2.5 w-2.5 rounded-full border border-border"
                           style={{ backgroundColor: `rgb(${v.rgb_r},${v.rgb_g},${v.rgb_b})` }}
                         />
                         {v.warna}
-                      </span>
+                      </span> */}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateTime(v.timestamp)} · confidence {Number(v.confidence).toFixed(2)}
-                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">{formatDateTime(v.timestamp)}</p>
+                      <ConfidenceBadge confidence={Number(v.confidence)}/>
+                    </div>
                   </div>
                 </li>
               ))}

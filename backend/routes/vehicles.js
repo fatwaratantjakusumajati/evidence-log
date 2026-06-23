@@ -30,23 +30,31 @@ router.get('/log', async (req, res) => {
 });
 
 // ============================================================
-// GET log kendaraan per jam, untuk hari ini saja
+// GET log kendaraan per 3 jam (05:00–17:00), dipecah per jenis_kendaraan
 // Dipakai frontend: GET /api/vehicles/stats/hourly
-// Catatan: tabel ini TIDAK punya kolom status ('masuk'/'keluar'),
-// jadi statistik per jam hanya berupa TOTAL deteksi per jam.
 // ============================================================
 router.get('/stats/hourly', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        TO_CHAR(DATE_TRUNC('hour', timestamp), 'HH24:MI') AS hour,
+        (5 + FLOOR((EXTRACT(HOUR FROM timestamp) - 5) / 3) * 3)::int AS bucket_hour,
+        jenis_kendaraan,
         COUNT(*) AS total
       FROM vehicle_log
       WHERE timestamp >= CURRENT_DATE
-      GROUP BY DATE_TRUNC('hour', timestamp)
-      ORDER BY DATE_TRUNC('hour', timestamp)
+        AND EXTRACT(HOUR FROM timestamp) >= 5
+        AND EXTRACT(HOUR FROM timestamp) < 18
+      GROUP BY bucket_hour, jenis_kendaraan
+      ORDER BY bucket_hour
     `);
-    res.json(result.rows);
+
+    const data = result.rows.map((r) => ({
+      hour: `${String(r.bucket_hour).padStart(2, '0')}:00`,
+      jenis_kendaraan: r.jenis_kendaraan,
+      total: Number(r.total),
+    }));
+
+    res.json(data);
   } catch (err) {
     console.error('Error GET /stats/hourly:', err);
     res.status(500).json({ error: err.message });
