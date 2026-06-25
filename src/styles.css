@@ -55,6 +55,46 @@
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
+/* --- SOFT DARK MODE (EYE-COMFORT) --- */
+.dark {
+  /* Background Utama: Abu-abu gelap kebiruan yang lembut */
+  --background: oklch(0.18 0.006 250);
+  
+  /* Teks Utama: Off-white (abu sangat terang, bukan putih murni) */
+  --foreground: oklch(0.88 0.005 250);
+  
+  /* Kartu: Sedikit lebih terang dari background agar ada lapisan */
+  --card: oklch(0.22 0.006 250);
+  --card-foreground: oklch(0.88 0.005 250);
+  
+  --popover: oklch(0.22 0.006 250);
+  --popover-foreground: oklch(0.88 0.005 250);
+  
+  /* Biru Aksen: Dibuat lebih kalem, tidak neon */
+  --primary: oklch(0.55 0.10 250);
+  --primary-foreground: oklch(0.99 0 0);
+  
+  --secondary: oklch(0.26 0.006 250);
+  --secondary-foreground: oklch(0.88 0.005 250);
+  
+  --muted: oklch(0.24 0.006 250);
+  --muted-foreground: oklch(0.65 0.005 250); /* Teks abu medium, nyaman dibaca */
+  
+  --accent: oklch(0.26 0.006 250);
+  --accent-foreground: oklch(0.88 0.005 250);
+  
+  --destructive: oklch(0.55 0.15 20);
+  --destructive-foreground: oklch(0.88 0 0);
+  
+  /* Border: Garis batas sangat samar agar tidak kasar */
+  --border: oklch(0.28 0.006 250);
+  --input: oklch(0.28 0.006 250);
+  --ring: oklch(0.45 0.08 250);
+  
+  /* Shadow: Dibuat lebih halus */
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -66,5 +106,67 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  /* --- OVERRIDE HALUS UNTUK KOMPONEN DI DARK MODE --- */
+  :is(.dark) {
+    /* Ubah semua background putih menjadi warna kartu yang gelap */
+    & .bg-white, & .bg-white\/95, & .bg-white\/90, & .bg-card, & .bg-background {
+      background-color: var(--card) !important;
+      backdrop-filter: blur(0px) !important;
+    }
+    & .bg-slate-50, & .bg-slate-100, & .bg-gray-50, & .bg-muted {
+      background-color: var(--muted) !important;
+    }
+    & .border-border {
+      border-color: var(--border) !important;
+    }
+
+    /* Perbaiki teks - Hapus kontras menyilaukan */
+    & .text-slate-900, & .text-slate-800, & .text-slate-700, 
+    & .text-slate-600, & .text-foreground {
+      color: var(--foreground) !important;
+    }
+    & .text-slate-500, & .text-slate-400, & .text-muted-foreground {
+      color: var(--muted-foreground) !important;
+    }
+
+    /* --- PERBAIKAN BADGE (Hijau/Kuning/Merah) --- */
+    /* Ubah background badge menjadi gelap, dan teks menjadi terang */
+    & .bg-green-100 {
+      background-color: oklch(0.28 0.08 145) !important;
+      border-color: oklch(0.35 0.10 145) !important;
+    }
+    & .bg-yellow-100 {
+      background-color: oklch(0.30 0.08 90) !important;
+      border-color: oklch(0.38 0.10 90) !important;
+    }
+    & .bg-red-100 {
+      background-color: oklch(0.28 0.08 20) !important;
+      border-color: oklch(0.35 0.10 20) !important;
+    }
+    /* Teks badge dibuat lebih terang dan kalem */
+    & .text-green-700, & .text-green-600 { color: oklch(0.70 0.10 145) !important; }
+    & .text-yellow-700, & .text-yellow-600 { color: oklch(0.75 0.10 90) !important; }
+    & .text-red-700, & .text-red-600 { color: oklch(0.70 0.10 20) !important; }
+
+    /* --- PERBAIKAN ELEMEN LAIN --- */
+    /* Tombol "Lihat selengkapnya" jadi lebih halus */
+    & .bg-primary\/10 {
+      background-color: color-mix(in oklch, var(--primary) 15%, transparent) !important;
+      color: var(--primary) !important;
+    }
+    /* Progress bar keyakinan jadi gelap */
+    & .bg-gray-200 {
+      background-color: var(--muted) !important;
+    }
+    /* Garis chart (Recharts) dibuat samar agar tidak mengganggu mata */
+    & .recharts-cartesian-grid-horizontal line,
+    & .recharts-cartesian-grid-vertical line {
+      stroke: var(--border) !important;
+    }
+    & .recharts-text {
+      fill: var(--muted-foreground) !important;
+    }
   }
 }

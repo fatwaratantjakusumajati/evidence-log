@@ -18,6 +18,9 @@ export const Route = createFileRoute("/")({
   }),
   component: Welcome,
 });
+(Route as any).handle = {
+  breadcrumb: () => ({ title: "Home" }),
+};
 
 function Welcome() {
   const [scrollY, setScrollY] = useState(0);
@@ -60,6 +63,7 @@ function Welcome() {
               muted
               loop
               playsInline
+              preload="metadata"
               className="h-full w-full object-cover scale-105 blur-md brightness-50"
             />
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />

@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as LiveRouteImport } from './routes/live'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
@@ -16,6 +18,16 @@ import { Route as LogsStagingRouteImport } from './routes/logs.staging'
 import { Route as LogsCamerasRouteImport } from './routes/logs.cameras'
 import { Route as EntryIdRouteImport } from './routes/entry.$id'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveRoute = LiveRouteImport.update({
+  id: '/live',
+  path: '/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -50,6 +62,8 @@ const EntryIdRoute = EntryIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/live': typeof LiveRoute
+  '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/live': typeof LiveRoute
+  '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
@@ -67,6 +83,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/live': typeof LiveRoute
+  '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
@@ -77,6 +95,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/live'
+    | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
@@ -85,6 +105,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/live'
+    | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
@@ -93,6 +115,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/live'
+    | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
@@ -102,6 +126,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  LiveRoute: typeof LiveRoute
+  SettingsRoute: typeof SettingsRoute
   EntryIdRoute: typeof EntryIdRoute
   LogsCamerasRoute: typeof LogsCamerasRoute
   LogsStagingRoute: typeof LogsStagingRoute
@@ -110,6 +136,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live': {
+      id: '/live'
+      path: '/live'
+      fullPath: '/live'
+      preLoaderRoute: typeof LiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -158,6 +198,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  LiveRoute: LiveRoute,
+  SettingsRoute: SettingsRoute,
   EntryIdRoute: EntryIdRoute,
   LogsCamerasRoute: LogsCamerasRoute,
   LogsStagingRoute: LogsStagingRoute,
