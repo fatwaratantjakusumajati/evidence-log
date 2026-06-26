@@ -95,18 +95,23 @@ router.get('/stats/weekly', async (req, res) => {
 // ============================================================
 // GET stats/camera-status : Status Kamera Mati (dengan Filter Tanggal) - FIXED
 // ============================================================
+// ============================================================
+// GET stats/camera-status : Status Kamera Mati (dengan Filter Tanggal)
+// PERBAIKAN: Hanya menghitung kamera mati yang terjadi baru-baru ini
+// ============================================================
 router.get('/stats/camera-status', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     let dateClause = ``;
     let params = [];
 
+    // Jika user memilih rentang tanggal (Periode di dashboard)
     if (start_date && end_date) {
-      // Jika user memilih tanggal, gunakan filter tanggal user
       dateClause = `AND created_at >= $1 AND created_at <= $2`;
       params = [start_date, end_date + ' 23:59:59'];
     } else {
-      // Jika tidak ada filter (default dashboard), hanya hitung offline dalam 1 jam terakhir
+      // Default: Hanya hitung kamera yang status OFFLINE terakhirnya terjadi dalam 1 jam terakhir
+      // Ubah INTERVAL '1 hour' menjadi '1 day' jika Anda ingin toleransi lebih lama
       dateClause = `AND created_at >= NOW() - INTERVAL '1 hour'`;
     }
 
@@ -115,9 +120,10 @@ router.get('/stats/camera-status', async (req, res) => {
       FROM (
         SELECT DISTINCT ON (camera) camera, class_name
         FROM alert_log
-        WHERE class_name = 'KAMERA OFFLINE' ${dateClause}
+        WHERE class_name IN ('KAMERA OFFLINE', 'KAMERA ONLINE') ${dateClause}
         ORDER BY camera, created_at DESC
       ) latest_status
+      WHERE class_name = 'KAMERA OFFLINE'
     `;
 
     const result = await pool.query(query, params);

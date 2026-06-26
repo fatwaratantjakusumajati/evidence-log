@@ -35,6 +35,7 @@ type VehicleLog = {
   id: number;
   timestamp: string;
   jenis_kendaraan: string;
+  camera_name?: string;
   rgb_r: number;
   rgb_g: number;
   rgb_b: number;
@@ -140,9 +141,9 @@ function formatDuration(fromIso: string, toIso?: string | null) {
 }
 
 function getConfidenceTone(confidence: number) {
-  if (confidence < 0.4) return { label: "Rendah", className: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800" };
-  if (confidence < 0.7) return { label: "Sedang", className: "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800" };
-  return { label: "Tinggi", className: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800" };
+  if (confidence < 0.4) return { label: "Rendah", className: "bg-destructive/10 text-destructive border-destructive/20" };
+  if (confidence < 0.7) return { label: "Sedang", className: "bg-warning/10 text-warning border-warning/20" };
+  return { label: "Tinggi", className: "bg-success/10 text-success border-success/20" };
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
@@ -211,11 +212,16 @@ function Dashboard() {
   }, [queryClient, startDate, endDate]);
 
   // --- QUERIES ---
+  // --- PERBAIKAN: Tambahkan filterClass ke queryKey dan tambahkan parameter jenis ke URL ---
   const { data: vehicles = [] } = useQuery<VehicleLog[]>({
-    queryKey: ["vehicle_log", "preview"],
+    queryKey: ["vehicle_log", "preview", filterClass],
     queryFn: async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/vehicles/log?limit=4');
+        let url = 'http://localhost:5000/api/vehicles/log?limit=20';
+        if (filterClass !== 'all') {
+          url += `&jenis=${encodeURIComponent(filterClass)}`;
+        }
+        const res = await fetch(url);
         if (!res.ok) return [];
         const json = await res.json();
         return json.data || (Array.isArray(json) ? json : []);
@@ -295,25 +301,26 @@ function Dashboard() {
   const totalDetections = detectionData.reduce((s, d) => s + Number(d.barang), 0);
   const camerasDown = Number(cameraStats?.mati ?? 0);
   const totalVehicles = vehicleIntervalRaw.reduce((s, r) => s + r.total, 0);
-  const filteredVehicles = filterClass === 'all' ? (vehicles as VehicleLog[]) : (vehicles as VehicleLog[]).filter(v => v.jenis_kendaraan === filterClass);
+  // --- PERBAIKAN: Filter tidak perlu lagi dilakukan di frontend, karena data sudah sesuai filter dari backend ---
+  const filteredVehicles = vehicles; 
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-zinc-950 flex flex-col">
+    <main className="min-h-screen bg-background flex flex-col">
       <section className="mx-auto max-w-7xl w-full px-6 py-6">
         
-        {/* HEADER DASHBOARD - TANPA TOMBOL BACK, LEBIH BERSIH */}
+        {/* HEADER DASHBOARD */}
         <div className="flex flex-col gap-1 mb-6 pt-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard Pemantauan</h1>
           <p className="text-sm text-muted-foreground">Aktivitas staging, kendaraan, & kamera</p>
         </div>
 
-        {/* FILTER TANGGAL YANG RAMPING */}
-        <div className="mb-6 flex flex-wrap items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded-xl border border-border/60 dark:border-zinc-800 shadow-sm">
+        {/* FILTER TANGGAL */}
+        <div className="mb-6 flex flex-wrap items-center gap-2 bg-card p-2 rounded-xl border border-border/60 shadow-sm">
           <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Periode:</span>
           <div className="flex items-center gap-1">
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 rounded-lg border border-border/60 dark:border-zinc-800 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary" />
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 rounded-lg border border-border/60 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary" />
             <span className="text-muted-foreground text-[10px]">—</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 rounded-lg border border-border/60 dark:border-zinc-800 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary" />
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 rounded-lg border border-border/60 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary" />
           </div>
           {(startDate || endDate) && (
             <button onClick={() => { setStartDate(''); setEndDate(''); }} className="h-7 rounded-full bg-destructive/10 px-2.5 text-[10px] font-medium text-destructive hover:bg-destructive/20 transition-colors">
@@ -331,11 +338,11 @@ function Dashboard() {
         </div>
 
         {/* CHART ROW */}
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-md transition-all">
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-1 rounded-xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all">
             <div className="mb-3">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <span className="inline-block w-1 h-4 bg-blue-500 rounded-full"></span>
+                <span className="inline-block w-1 h-4 bg-primary rounded-full"></span>
                 Deteksi Barang (Harian)
               </h3>
               <p className="text-xs text-muted-foreground">Jumlah barang terdeteksi per hari</p>
@@ -351,18 +358,33 @@ function Dashboard() {
             </ResponsiveContainer>
           </div>
 
-          <div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-md transition-all">
+          <div className="lg:col-span-2 rounded-xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all">
             <div className="mb-3">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <span className="inline-block w-1 h-4 bg-orange-500 rounded-full"></span>
+                <span className="inline-block w-1 h-4 bg-primary rounded-full"></span>
                 Deteksi Kendaraan
               </h3>
-              <p className="text-xs text-muted-foreground">Per 1 jam (00:00–23:00), per jenis</p>
+              <p className="text-xs text-muted-foreground">Alokasi waktu tiap jam</p>
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={vehicleHourly} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => v.replace(':00', '')} ticks={REPORT_HOURS} tick={({ x, y, payload }) => (<g transform={`translate(${x},${y}) rotate(-45)`}><text x={0} y={0} dy={10} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={10}>{payload.value.replace(':00', '')}</text></g>)} />
+                <XAxis 
+                  dataKey="hour" 
+                  stroke="hsl(var(--muted-foreground))" 
+                  fontSize={10} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickFormatter={(v) => v.replace(':00', '')} 
+                  ticks={REPORT_HOURS} 
+                  tick={({ x, y, payload }) => (
+                    <g transform={`translate(${x},${y}) rotate(-45)`}>
+                      <text x={0} y={0} dy={10} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={10}>
+                        {payload.value.replace(':00', '')}
+                      </text>
+                    </g>
+                  )}
+                />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(v: number, n: string) => [`${v} kendaraan`, n]} labelFormatter={(l) => `Pukul ${l}`} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
@@ -375,18 +397,23 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* LOGS SECTION - DENGAN SEMUA FITUR DETAIL LENGKAP */}
+        {/* LOGS SECTION */}
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-md transition-all">
+          <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-semibold text-foreground flex items-center gap-2"><Car className="h-4 w-4" /> Log Kendaraan</span>
+              <span className="text-sm font-semibold text-foreground flex items-center gap-2"><Car className="h-4 w-5" /> Log Kendaraan</span>
               <Link to="/logs/vehicles" className="text-xs text-primary hover:underline">Lihat semua →</Link>
             </div>
-            {vehicles.length === 0 ? (<div className="text-center py-8 text-sm text-muted-foreground">Belum ada log kendaraan.</div>) : (
+            {filteredVehicles.length === 0 ? (<div className="text-center py-8 text-sm text-muted-foreground">Belum ada log kendaraan.</div>) : (
               <>
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Menampilkan {Math.min(filteredVehicles.length, PREVIEW_LIMIT)}</p>
-                  <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="rounded-md border border-border/60 dark:border-zinc-800 bg-background dark:bg-zinc-900 px-2 py-1 text-xs outline-none"><option value="all">Semua</option><option value="Mobil">Mobil</option><option value="Truk">Truk</option><option value="Sepeda Motor">Motor</option></select>
+                  <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="rounded-md border border-border/60 bg-background px-2 py-1 text-xs outline-none">
+                    <option value="all">Semua</option>
+                    <option value="Mobil">Mobil</option>
+                    <option value="Truk">Truk</option>
+                    <option value="Sepeda Motor">Motor</option>
+                  </select>
                 </div>
                 <div className="space-y-3">
                   {filteredVehicles.slice(0, PREVIEW_LIMIT).map((v) => {
@@ -395,16 +422,13 @@ function Dashboard() {
                     const area = width * height;
                     const isMotor = v.jenis_kendaraan.includes('Motor');
                     const isTruk = v.jenis_kendaraan.includes('Truk');
-                    const IconComponent = isMotor ? Bike : isTruk ? Truck : Car;
-                    const iconBgClass = isMotor ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : isTruk ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+                    // const IconComponent = isMotor ? Bike : isTruk ? Truck : Car;
+                    const iconBgClass = isMotor ? 'bg-success/10 text-success' : isTruk ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary';
 
                     return (
-                      <div key={v.id} className="flex gap-3 border-b border-border/40 dark:border-zinc-800 pb-3 last:border-0">
+                      <div key={v.id} className="flex gap-3 border-b border-border/40 pb-3 last:border-0">
                         <div className="relative flex-shrink-0">
                           <img src={`data:image/jpeg;base64,${v.gambar_base64}`} className="h-14 w-20 rounded object-cover bg-muted" />
-                          <div className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ${iconBgClass} border-2 border-white dark:border-zinc-800`}>
-                            <IconComponent className="h-3 w-3" />
-                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
@@ -413,12 +437,11 @@ function Dashboard() {
                           </div>
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground mt-0.5">
                             <span>{formatDateTime(v.timestamp)}</span>
-                            <span>•</span>
-                            <span>{timeAgo(v.timestamp)}</span>
-                            <span>•</span>
-                            <span>📐 {width}×{height} ({area.toLocaleString()} px²)</span>
+                            {v.camera_name && <span>• Lokasi: {v.camera_name}</span>}
+                            <span>• {timeAgo(v.timestamp)}</span>
+                            <span>• 📐 {width}×{height} ({area.toLocaleString()} px²)</span>
                           </div>
-                          <div className="mt-1 h-1.5 w-full max-w-[150px] rounded-full bg-gray-200 dark:bg-zinc-700 overflow-hidden">
+                          <div className="mt-1 h-1.5 w-full max-w-[150px] rounded-full bg-muted overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${Math.min(Number(v.confidence) * 100, 100)}%`, backgroundColor: Number(v.confidence) >= 0.7 ? '#22c55e' : Number(v.confidence) >= 0.4 ? '#eab308' : '#ef4444' }} />
                           </div>
                         </div>
@@ -430,8 +453,7 @@ function Dashboard() {
             )}
           </div>
 
-          {/* STAGING */}
-          <div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-md transition-all">
+          <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold text-foreground flex items-center gap-2"><Boxes className="h-4 w-4" /> Deteksi Staging</span>
               <Link to="/logs/staging" className="text-xs text-primary hover:underline">Lihat semua →</Link>
@@ -439,7 +461,7 @@ function Dashboard() {
             {stagings.length === 0 ? (<div className="text-center py-8 text-sm text-muted-foreground">Belum ada staging terdeteksi.</div>) : (
               <div className="space-y-3">
                 {stagings.slice(0, PREVIEW_LIMIT).map((s) => (
-                  <div key={s.id} className="flex gap-3 border-b border-border/40 dark:border-zinc-800 pb-3 last:border-0">
+                  <div key={s.id} className="flex gap-3 border-b border-border/40 pb-3 last:border-0">
                     <img src={`data:image/jpeg;base64,${s.foto_base64}`} className="h-14 w-20 rounded object-cover bg-muted" />
                     <div>
                       <p className="text-sm font-medium">{s.class_name ?? 'Box'}</p>
@@ -453,7 +475,7 @@ function Dashboard() {
         </div>
 
         {/* KAMERA MATI */}
-        <div className="mt-6 rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-md transition-all">
+        <div className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-semibold text-foreground flex items-center gap-2"><CameraOff className="h-4 w-4" /> Laporan Kamera Mati</span>
             <Link to="/logs/cameras" className="text-xs text-primary hover:underline">Lihat semua →</Link>
@@ -461,7 +483,7 @@ function Dashboard() {
           {offlineCams.length === 0 ? (<div className="text-center py-8 text-sm text-muted-foreground">Tidak ada kamera mati.</div>) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {offlineCams.slice(0, PREVIEW_LIMIT).map((c) => (
-                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 dark:border-zinc-800 hover:border-red-200 dark:hover:border-red-900/50 transition-colors">
+                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 hover:bg-destructive/10 transition-colors">
                   <span className="text-sm font-medium">{c.camera}</span>
                   <span className="text-xs text-muted-foreground">{formatDateTime(c.created_at)}</span>
                 </div>
@@ -470,7 +492,7 @@ function Dashboard() {
           )}
         </div>
       </section>
-      <footer className="border-t border-border dark:border-zinc-800 bg-white dark:bg-zinc-950 py-4 text-center text-xs text-muted-foreground">PT Aristides Logistik Indonesia · Dashboard Pemantauan</footer>
+      <footer className="border-t border-border/60 bg-card py-4 text-center text-xs text-muted-foreground">PT Aristides Logistik Indonesia · Dashboard Pemantauan</footer>
     </main>
   );
 }
@@ -485,7 +507,7 @@ function KpiCard({ icon, label, value, hint, tone = "primary" }: { icon: React.R
     info: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400" 
   };
   const toneClass = toneMap[tone] || toneMap.primary;
-  return (<div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm transition-all hover:shadow-md"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${toneClass}`}>{icon}</div></div><p className="text-3xl font-bold tracking-tight text-foreground">{value}</p><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>);
+  return (<div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition-all hover:shadow-md"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${toneClass}`}>{icon}</div></div><p className="text-3xl font-bold tracking-tight text-foreground">{value}</p><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>);
 }
 
 function KpiCardBreakdown({ icon, label, breakdown, hint, tone = "primary" }: { icon: React.ReactNode; label: string; breakdown: { mobil: number; truk: number; motor: number }; hint?: string; tone?: "primary" | "destructive" | "success" | "warning" | "info"; }) {
@@ -497,5 +519,9 @@ function KpiCardBreakdown({ icon, label, breakdown, hint, tone = "primary" }: { 
     warning: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
   };
   const toneClass = toneMap[tone] || toneMap.primary;
-  return (<div className="rounded-xl border border-border/60 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-sm transition-all hover:shadow-md"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${toneClass}`}>{icon}</div></div><div className="mt-3 flex items-center justify-around text-center"><div><p className="text-xl font-bold text-foreground">{breakdown.mobil}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Car className="h-3 w-3" /> Mobil</p></div><div><p className="text-xl font-bold text-foreground">{breakdown.truk}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Truck className="h-3 w-3" /> Truk</p></div><div><p className="text-xl font-bold text-foreground">{breakdown.motor}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Bike className="h-3 w-3" /> Motor</p></div></div><p className="mt-2 text-center text-xs text-muted-foreground">{hint}</p></div>);
+  return (<div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition-all hover:shadow-md"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${toneClass}`}>{icon}</div></div><div className="mt-3 flex items-center justify-around text-center">
+      <div><p className="text-xl font-bold text-foreground">{breakdown.mobil}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Car className="h-3 w-3 text-blue-600 dark:text-blue-400" /> Mobil</p></div>
+      <div><p className="text-xl font-bold text-foreground">{breakdown.truk}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Truck className="h-3 w-3 text-orange-600 dark:text-orange-400" /> Truk</p></div>
+      <div><p className="text-xl font-bold text-foreground">{breakdown.motor}</p><p className="text-xs text-muted-foreground flex items-center justify-center gap-1"><Bike className="h-3 w-3 text-green-600 dark:text-green-400" /> Motor</p></div>
+    </div><p className="mt-2 text-center text-xs text-muted-foreground">{hint}</p></div>);
 }

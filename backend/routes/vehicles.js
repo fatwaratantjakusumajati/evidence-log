@@ -4,6 +4,7 @@ const pool = require('../db');
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const { start } = require('repl');
 
 console.log('✅ Vehicles API routes loaded');
 
@@ -41,13 +42,16 @@ router.patch('/log/:id/flag', async (req, res) => {
 router.get('/stats/hourly', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
-    let dateFilter = `timestamp >= CURRENT_DATE`; // Default hari ini
+    let dateFilter = `timestamp >= CURRENT_DATE`;
     if (start_date && end_date) {
       dateFilter = `timestamp >= '${start_date}' AND timestamp <= '${end_date} 23:59:59'`;
     }
 
     const query = `
-      SELECT EXTRACT(HOUR FROM timestamp)::int AS bucket_hour, jenis_kendaraan, COUNT(*) AS total
+      SELECT
+        EXTRACT(HOUR FROM timestamp)::int AS bucket_hour,
+        jenis_kendaraan,
+        COUNT(*) AS total
       FROM vehicle_log
       WHERE ${dateFilter}
       GROUP BY bucket_hour, jenis_kendaraan
@@ -55,9 +59,10 @@ router.get('/stats/hourly', async (req, res) => {
     `;
     const result = await pool.query(query);
     res.json(result.rows.map((r) => ({ hour: `${String(r.bucket_hour).padStart(2, '0')}:00`, jenis_kendaraan: r.jenis_kendaraan, total: Number(r.total) })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
-
 // ------------------ EKSPOR PDF (DENGAN RINGKASAN EKSEKUTIF + FOTO) ------------------
 router.get('/export-pdf', async (req, res) => {
   try {
