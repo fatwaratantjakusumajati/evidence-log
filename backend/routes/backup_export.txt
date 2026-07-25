@@ -1,0 +1,1192 @@
+const express = require("express");
+const router = express.Router();
+const pool = require("../db");
+const puppeteer = require("puppeteer");
+const fs = require("fs");
+const path = require("path");
+
+console.log("✅ Export API routes loaded (FINAL PREMIUM VERSION)");
+
+// ============================================================
+// CARI LOGO
+// ============================================================
+const possiblePaths = [
+  path.join(process.cwd(), "assets", "aristides-logo.png"),
+  path.join(process.cwd(), "assets", "aristides-logo.jpg"),
+  path.join(process.cwd(), "assets", "aristides-logo.jpeg"),
+  path.join(process.cwd(), "assets", "aristides-logo.webp"),
+  path.join(process.cwd(), "assets", "logo.png"),
+  path.join(process.cwd(), "assets", "logo.jpg"),
+];
+
+let logoPathFound = null;
+for (const p of possiblePaths) {
+  if (fs.existsSync(p)) {
+    logoPathFound = p;
+    break;
+  }
+}
+
+let logoBase64 = "";
+if (logoPathFound) {
+  try {
+    const logoBuffer = fs.readFileSync(logoPathFound);
+    logoBase64 =
+      "data:image/" +
+      path.extname(logoPathFound).replace(".", "") +
+      ";base64," +
+      logoBuffer.toString("base64");
+  } catch (err) {
+    console.error("Error loading logo:", err);
+  }
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const A4_WIDTH_PX = 794;
+const A4_HEIGHT_PX = 1123;
+
+// ============================================================
+// RESIZE IMAGE
+// ============================================================
+function resizeBase64Image(base64String) {
+  if (!base64String || base64String.length < 100) return "";
+  if (base64String.length > 150000) return "";
+  return base64String;
+}
+
+// ============================================================
+// HELPER: CEK PELANGGARAN JAM KERJA
+// ============================================================
+function hitungPelanggaran(attendanceData) {
+  var pelanggaran = 0;
+
+  attendanceData.forEach(function (a) {
+    var waktu = new Date(a.timestamp);
+    var jam = waktu.getHours();
+    var menit = waktu.getMinutes();
+    var totalMenit = jam * 60 + menit;
+
+    if (a.event_type === "ARRIVAL") {
+      // Telat: masuk setelah 07:00
+      if (totalMenit > 7 * 60) {
+        pelanggaran++;
+      }
+    }
+
+    if (a.event_type === "BREAK_OUT") {
+      // Cek apakah istirahat di luar waktu yang ditentukan
+      // Istirahat 3x: 09:00-09:20 (540-560), 12:00-12:45 (720-765), 15:00-15:20 (900-920)
+      // Istirahat 1x: 12:00-13:00 (720-780)
+      var isValidBreak = false;
+
+      // Cek apakah dalam rentang istirahat yang valid
+      if (totalMenit >= 540 && totalMenit <= 560) isValidBreak = true; // 09:00-09:20
+      if (totalMenit >= 720 && totalMenit <= 765) isValidBreak = true; // 12:00-12:45
+      if (totalMenit >= 900 && totalMenit <= 920) isValidBreak = true; // 15:00-15:20
+      if (totalMenit >= 720 && totalMenit <= 780) isValidBreak = true; // 12:00-13:00 (istirahat 1x)
+
+      if (!isValidBreak) {
+        pelanggaran++;
+      }
+    }
+
+    if (a.event_type === "DEPARTURE") {
+      // Pulang sebelum 16:00
+      if (totalMenit < 16 * 60) {
+        pelanggaran++;
+      }
+    }
+  });
+
+  return pelanggaran;
+}
+
+// ============================================================
+// SVG CHARTS
+// ============================================================
+function generateBarChart(data, labelKey, valueKey, maxValue, color) {
+  const totalData = data.reduce((sum, d) => sum + (d[valueKey] || 0), 0);
+  if (!data || data.length === 0 || totalData === 0) {
+    return '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px;">📊 No data available</div>';
+  }
+
+  var width = 340,
+    height = 130,
+    pad = 30;
+  var cw = width - pad * 2,
+    ch = height - pad * 2;
+  var shown = data.slice(-8);
+  var slot = cw / shown.length;
+  var bw = Math.min(slot - 10, 28);
+  var bars = "",
+    labels = "";
+
+  for (var i = 0; i < shown.length; i++) {
+    var d = shown[i];
+    var val = d[valueKey] || 0;
+    var bh = maxValue > 0 ? (val / maxValue) * ch : 0;
+    var x = pad + i * slot + (slot - bw) / 2;
+    var y = pad + ch - bh;
+
+    bars +=
+      '<rect x="' +
+      x.toFixed(1) +
+      '" y="' +
+      y.toFixed(1) +
+      '" width="' +
+      bw.toFixed(1) +
+      '" height="' +
+      Math.max(bh, 1).toFixed(1) +
+      '" fill="' +
+      color +
+      '" rx="4" opacity="0.85"/>';
+    bars +=
+      '<text x="' +
+      (x + bw / 2).toFixed(1) +
+      '" y="' +
+      (y - 6) +
+      '" text-anchor="middle" font-size="10" font-weight="bold" fill="' +
+      color +
+      '">' +
+      val +
+      "</text>";
+    labels +=
+      '<text x="' +
+      (x + bw / 2).toFixed(1) +
+      '" y="' +
+      (pad + ch + 16) +
+      '" text-anchor="middle" font-size="9" fill="#64748b">' +
+      d[labelKey] +
+      "</text>";
+  }
+
+  return (
+    '<svg width="' +
+    width +
+    '" height="' +
+    (height + 20) +
+    '" viewBox="0 0 ' +
+    width +
+    " " +
+    (height + 20) +
+    '" style="width:100%;height:auto;display:block;">' +
+    bars +
+    labels +
+    "</svg>"
+  );
+}
+
+function generateDonutChart(total, offline) {
+  var online = total - offline;
+  var percent = total > 0 ? Math.round((online / total) * 100) : 0;
+  var r = 38,
+    circ = 2 * Math.PI * r;
+  var offset = circ - (percent / 100) * circ;
+  var color = offline > 0 ? "#f59e0b" : "#10b981";
+
+  if (total === 0) {
+    return '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px;">📡 No data</div>';
+  }
+
+  return (
+    '<div style="display:flex;align-items:center;gap:16px;padding:8px 0;">' +
+    '<svg width="110" height="100" viewBox="0 0 110 100">' +
+    '<circle cx="55" cy="45" r="' +
+    r +
+    '" fill="none" stroke="#f1f5f9" stroke-width="10"/>' +
+    '<circle cx="55" cy="45" r="' +
+    r +
+    '" fill="none" stroke="' +
+    color +
+    '" stroke-width="10" stroke-dasharray="' +
+    circ +
+    '" stroke-dashoffset="' +
+    offset +
+    '" transform="rotate(-90 55 45)" stroke-linecap="round"/>' +
+    '<text x="55" y="42" text-anchor="middle" font-size="20" font-weight="bold" fill="#1e293b">' +
+    total +
+    "</text>" +
+    '<text x="55" y="58" text-anchor="middle" font-size="9" fill="#64748b">CAMERAS</text>' +
+    "</svg>" +
+    '<div style="display:flex;flex-direction:column;gap:10px;font-size:11px;">' +
+    '<div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block;"></span>Online: <strong>' +
+    online +
+    "</strong></div>" +
+    '<div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;"></span>Offline: <strong>' +
+    offline +
+    "</strong></div>" +
+    "</div></div>"
+  );
+}
+
+// ============================================================
+// HELPER: TANGGAL
+// ============================================================
+function getDateRange(type, value) {
+  var now = new Date();
+  switch (type) {
+    case "daily": {
+      var d = value ? new Date(value) : now;
+      var start = new Date(d);
+      start.setHours(0, 0, 0, 0);
+      var end = new Date(d);
+      end.setHours(23, 59, 59, 999);
+      return { start: start, end: end };
+    }
+    case "weekly": {
+      var d = value ? new Date(value) : now;
+      var day = d.getDay();
+      var diff = day === 0 ? -6 : 1 - day;
+      var start = new Date(d);
+      start.setDate(d.getDate() + diff);
+      start.setHours(0, 0, 0, 0);
+      var end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start: start, end: end };
+    }
+    case "monthly": {
+      var base = value ? new Date(value + "-01") : now;
+      var start = new Date(base.getFullYear(), base.getMonth(), 1);
+      var end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 99);
+      return { start: start, end: end };
+    }
+    default:
+      return null;
+  }
+}
+
+function formatSqlDate(date) {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
+// ============================================================
+// PDF RENDERER
+// ============================================================
+async function renderPdf(html) {
+  console.log("📄 Rendering PDF... HTML: " + (html.length / 1024).toFixed(1) + " KB");
+
+  var browser = await puppeteer.launch({
+    headless: "new",
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+  });
+
+  try {
+    var page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(0);
+    await page.setDefaultTimeout(0);
+    await page.setViewport({ width: A4_WIDTH_PX, height: A4_HEIGHT_PX, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    var pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0", bottom: "0", left: "0", right: "0" },
+    });
+
+    console.log("✅ PDF: " + (pdfBuffer.length / 1024).toFixed(1) + " KB");
+    return pdfBuffer;
+  } finally {
+    await browser.close();
+  }
+}
+
+// ============================================================
+// BUILD HTML - CLEAN SINGLE HEADER DESIGN
+// ============================================================
+function buildMainHTML(data) {
+  var title = data.title || "";
+  var subtitle = data.subtitle || "";
+  var logo = data.logoBase64 || "";
+  var kpiCards = data.kpiCards || "";
+  var chartsRow = data.chartsRow || "";
+  var cameraSection = data.cameraSection || "";
+  var attendanceSection = data.attendanceSection || "";
+  var vehicleSection = data.vehicleSection || "";
+  var stagingSection = data.stagingSection || "";
+
+  return (
+    '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="utf-8" />\n<style>\n' +
+    "*{box-sizing:border-box;margin:0;padding:0;}\n" +
+    "html,body{margin:0;padding:0;background:#f5f6fa;}\n" +
+    "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a2e;width:" +
+    A4_WIDTH_PX +
+    "px;}\n" +
+    ".app{width:100%;min-height:" +
+    A4_HEIGHT_PX +
+    "px;background:#f5f6fa;}\n" +
+    "/* PAGE */\n" +
+    ".page{padding:24px 28px 20px 28px;page-break-after:always;background:#f5f6fa;}\n" +
+    ".page:last-child{page-break-after:avoid;}\n" +
+    "/* MAIN HEADER - SOFT LIGHT */\n" +
+    ".main-header{background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 50%,#f5f3ff 100%);border-radius:16px;padding:22px 28px;margin-bottom:22px;display:flex;align-items:center;gap:18px;box-shadow:0 2px 12px rgba(99,102,241,.1);border:1px solid #e0e7ff;}\n" +
+    ".header-logo{width:52px;height:52px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.06);}\n" +
+    ".header-logo img{width:80%;height:80%;object-fit:contain;}\n" +
+    ".header-info{flex:1;}\n" +
+    ".header-info .company{font-size:11px;font-weight:600;color:#6366f1;letter-spacing:.5px;text-transform:uppercase;}\n" +
+    ".header-info h1{font-size:22px;font-weight:800;margin:3px 0;letter-spacing:-.3px;color:#1e293b;}\n" +
+    ".header-info .period{font-size:10px;color:#64748b;}\n" +
+    ".header-badge{background:#6366f1;color:#fff;padding:8px 14px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}\n" +
+    "/* NAV TABS */\n" +
+    ".navtabs{display:flex;background:#fff;border-radius:12px;padding:4px;margin-bottom:20px;gap:2px;box-shadow:0 2px 8px rgba(0,0,0,.04);}\n" +
+    ".navtab{flex:1;text-align:center;color:#64748b;text-decoration:none;padding:10px 8px;font-size:10px;font-weight:600;white-space:nowrap;border-radius:10px;transition:all .2s;}\n" +
+    ".navtab:hover{background:#f1f5f9;color:#1e293b;}\n" +
+    ".navtab.active{background:#6366f1;color:#fff;}\n" +
+    "/* KPI CARDS */\n" +
+    ".kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}\n" +
+    ".kpi-card{background:#fff;border-radius:14px;padding:20px 14px;box-shadow:0 2px 8px rgba(0,0,0,.03);text-align:center;position:relative;overflow:hidden;}\n" +
+    ".kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;}\n" +
+    ".kpi-card.c1::before{background:linear-gradient(90deg,#6366f1,#818cf8);}\n" +
+    ".kpi-card.c2::before{background:linear-gradient(90deg,#10b981,#34d399);}\n" +
+    ".kpi-card.c3::before{background:linear-gradient(90deg,#ef4444,#f87171);}\n" +
+    ".kpi-card.c4::before{background:linear-gradient(90deg,#8b5cf6,#a78bfa);}\n" +
+    ".kpi-card.c5::before{background:linear-gradient(90deg,#f59e0b,#fbbf24);}\n" +
+    ".kpi-icon{width:auto;min-width:40px;max-width:70px;padding:0 6px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin:0 auto 10px;gap:2px;}\n" +
+    ".kpi-val{font-size:28px;font-weight:800;color:#1a1a2e;letter-spacing:-.5px;}\n" +
+    ".kpi-lbl{font-size:10px;color:#64748b;font-weight:600;margin-top:3px;}\n" +
+    ".kpi-sub{font-size:9px;color:#94a3b8;margin-top:2px;}\n" +
+    "/* CHARTS */\n" +
+    ".chart-row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}\n" +
+    ".card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.03);}\n" +
+    ".card-hd{font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;}\n" +
+    "/* SECTION */\n" +
+    ".sec-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px;margin-top:6px;}\n" +
+    ".sec-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;}\n" +
+    ".sec-title{font-size:15px;font-weight:700;color:#1a1a2e;}\n" +
+    ".sec-back{margin-left:auto;font-size:9px;color:#6366f1;text-decoration:none;font-weight:600;padding:4px 10px;background:#eef2ff;border-radius:8px;}\n" +
+    "/* TABLE */\n" +
+    ".tbl-wrap{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.03);}\n" +
+    "table{width:100%;border-collapse:collapse;font-size:10px;}\n" +
+    "thead th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;}\n" +
+    "tbody td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:500;}\n" +
+    "tbody tr:last-child td{border-bottom:none;}\n" +
+    "tbody tr:nth-child(even) td{background:#fafcfd;}\n" +
+    "/* BADGES */\n" +
+    ".badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}\n" +
+    ".badge-g{background:#dcfce7;color:#166534;}\n" +
+    ".badge-y{background:#fef9c3;color:#854d0e;}\n" +
+    ".badge-r{background:#fee2e2;color:#991b1b;}\n" +
+    ".badge-b{background:#dbeafe;color:#1e40af;}\n" +
+    "/* PHOTO GRID */\n" +
+    ".photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}\n" +
+    ".photo-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.03);}\n" +
+    ".photo-img{height:110px;background:#f1f5f9;overflow:hidden;}\n" +
+    ".photo-img img{width:100%;height:100%;object-fit:cover;}\n" +
+    ".photo-noimg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#94a3b8;font-size:11px;font-weight:500;}\n" +
+    ".photo-info{padding:12px 14px;}\n" +
+    ".photo-title{font-size:12px;font-weight:700;color:#1a1a2e;margin-bottom:6px;}\n" +
+    ".photo-detail{font-size:9px;color:#64748b;margin-bottom:3px;display:flex;}\n" +
+    ".photo-lbl{font-weight:600;color:#475569;min-width:50px;}\n" +
+    ".photo-conf{display:inline-block;margin-top:5px;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:8px;font-weight:700;color:#6366f1;}\n" +
+    "/* EMPTY */\n" +
+    ".empty{text-align:center;padding:32px;background:#fff;border-radius:12px;color:#94a3b8;font-size:11px;font-weight:500;}\n" +
+    "/* NAV BUTTONS */\n" +
+    ".nav-btns{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid #e2e8f0;}\n" +
+    ".nav-btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#6366f1;color:#fff;text-decoration:none;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}\n" +
+    ".nav-btn2{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#f1f5f9;color:#475569;text-decoration:none;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}\n" +
+    ".page-ind{font-size:10px;color:#94a3b8;font-weight:600;}\n" +
+    ".footer{text-align:center;padding:8px 0;font-size:8px;color:#94a3b8;font-weight:600;}\n" +
+    "@page{size:A4;margin:0;}\n" +
+    '</style>\n</head>\n<body>\n<div class="app">\n' +
+    // PAGE 1: DASHBOARD
+    '<div class="page" id="pg1">\n' +
+    '<div class="main-header">' +
+    '<div class="header-logo">' +
+    (logo
+      ? '<img src="' + logo + '" alt="Logo" />'
+      : '<span style="color:#fff;font-weight:bold;font-size:20px;">A</span>') +
+    "</div>" +
+    '<div class="header-info"><div class="company">PT Aristides Logistik Indonesia</div><h1>' +
+    title +
+    '</h1><div class="period">' +
+    subtitle +
+    "</div></div>" +
+    '<div class="header-badge">📋 REPORT</div>' +
+    "</div>\n" +
+    '<div class="navtabs">' +
+    '<a href="#pg1" class="navtab active">📊 Dashboard</a>' +
+    '<a href="#pg2" class="navtab">📡 Camera</a>' +
+    '<a href="#pg3" class="navtab">👥 Attendance</a>' +
+    '<a href="#pg4" class="navtab">🚛 Vehicle</a>' +
+    '<a href="#pg5" class="navtab">📦 Staging</a>' +
+    "</div>\n" +
+    kpiCards +
+    "\n" +
+    chartsRow +
+    "\n" +
+    '<div class="nav-btns"><span class="page-ind">Page 1 of 5</span><a href="#pg2" class="nav-btn">Next →</a></div>\n' +
+    '<div class="footer">🛡️ PT Aristides Logistik Indonesia &middot; Confidential</div>\n' +
+    "</div>\n" +
+    // PAGE 2-5 (sama, hanya beda konten)
+    '<div class="page" id="pg2">\n' +
+    '<div class="main-header">' +
+    '<div class="header-logo">' +
+    (logo ? '<img src="' + logo + '" />' : '<span style="color:#fff;">A</span>') +
+    "</div>" +
+    '<div class="header-info"><div class="company">PT Aristides Logistik Indonesia</div><h1>Camera Status</h1><div class="period">Real-time monitoring</div></div>' +
+    '<div class="header-badge">📡 CAMERA</div>' +
+    "</div>\n" +
+    '<div class="navtabs">' +
+    '<a href="#pg1" class="navtab">📊 Dashboard</a>' +
+    '<a href="#pg2" class="navtab active">📡 Camera</a>' +
+    '<a href="#pg3" class="navtab">👥 Attendance</a>' +
+    '<a href="#pg4" class="navtab">🚛 Vehicle</a>' +
+    '<a href="#pg5" class="navtab">📦 Staging</a>' +
+    "</div>\n" +
+    '<div class="sec-hd"><div class="sec-icon" style="background:linear-gradient(135deg,#ef4444,#f87171);">📡</div><div class="sec-title">Camera Offline Report</div><a href="#pg1" class="sec-back">↑ Dashboard</a></div>\n' +
+    cameraSection +
+    "\n" +
+    '<div class="nav-btns"><a href="#pg1" class="nav-btn2">← Back</a><span class="page-ind">Page 2 of 5</span><a href="#pg3" class="nav-btn">Next →</a></div>\n' +
+    "</div>\n" +
+    '<div class="page" id="pg3">\n' +
+    '<div class="main-header">' +
+    '<div class="header-logo">' +
+    (logo ? '<img src="' + logo + '" />' : '<span style="color:#fff;">A</span>') +
+    "</div>" +
+    '<div class="header-info"><div class="company">PT Aristides Logistik Indonesia</div><h1>Attendance Log</h1><div class="period">Employee records</div></div>' +
+    '<div class="header-badge">👥 ATTENDANCE</div>' +
+    "</div>\n" +
+    '<div class="navtabs">' +
+    '<a href="#pg1" class="navtab">📊 Dashboard</a>' +
+    '<a href="#pg2" class="navtab">📡 Camera</a>' +
+    '<a href="#pg3" class="navtab active">👥 Attendance</a>' +
+    '<a href="#pg4" class="navtab">🚛 Vehicle</a>' +
+    '<a href="#pg5" class="navtab">📦 Staging</a>' +
+    "</div>\n" +
+    '<div class="sec-hd"><div class="sec-icon" style="background:linear-gradient(135deg,#10b981,#34d399);">👥</div><div class="sec-title">Attendance Records</div><a href="#pg1" class="sec-back">↑ Dashboard</a></div>\n' +
+    attendanceSection +
+    "\n" +
+    '<div class="nav-btns"><a href="#pg2" class="nav-btn2">← Back</a><span class="page-ind">Page 3 of 5</span><a href="#pg4" class="nav-btn">Next →</a></div>\n' +
+    "</div>\n" +
+    '<div class="page" id="pg4">\n' +
+    '<div class="main-header">' +
+    '<div class="header-logo">' +
+    (logo ? '<img src="' + logo + '" />' : '<span style="color:#fff;">A</span>') +
+    "</div>" +
+    '<div class="header-info"><div class="company">PT Aristides Logistik Indonesia</div><h1>Vehicle Log</h1><div class="period">Detection records</div></div>' +
+    '<div class="header-badge">🚛 VEHICLE</div>' +
+    "</div>\n" +
+    '<div class="navtabs">' +
+    '<a href="#pg1" class="navtab">📊 Dashboard</a>' +
+    '<a href="#pg2" class="navtab">📡 Camera</a>' +
+    '<a href="#pg3" class="navtab">👥 Attendance</a>' +
+    '<a href="#pg4" class="navtab active">🚛 Vehicle</a>' +
+    '<a href="#pg5" class="navtab">📦 Staging</a>' +
+    "</div>\n" +
+    '<div class="sec-hd"><div class="sec-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);">🚛</div><div class="sec-title">Vehicle Records</div><a href="#pg1" class="sec-back">↑ Dashboard</a></div>\n' +
+    vehicleSection +
+    "\n" +
+    '<div class="nav-btns"><a href="#pg3" class="nav-btn2">← Back</a><span class="page-ind">Page 4 of 5</span><a href="#pg5" class="nav-btn">Next →</a></div>\n' +
+    "</div>\n" +
+    '<div class="page" id="pg5">\n' +
+    '<div class="main-header">' +
+    '<div class="header-logo">' +
+    (logo ? '<img src="' + logo + '" />' : '<span style="color:#fff;">A</span>') +
+    "</div>" +
+    '<div class="header-info"><div class="company">PT Aristides Logistik Indonesia</div><h1>Staging Detection</h1><div class="period">Box detection records</div></div>' +
+    '<div class="header-badge">📦 STAGING</div>' +
+    "</div>\n" +
+    '<div class="navtabs">' +
+    '<a href="#pg1" class="navtab">📊 Dashboard</a>' +
+    '<a href="#pg2" class="navtab">📡 Camera</a>' +
+    '<a href="#pg3" class="navtab">👥 Attendance</a>' +
+    '<a href="#pg4" class="navtab">🚛 Vehicle</a>' +
+    '<a href="#pg5" class="navtab active">📦 Staging</a>' +
+    "</div>\n" +
+    '<div class="sec-hd"><div class="sec-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);">📦</div><div class="sec-title">Staging Records</div><a href="#pg1" class="sec-back">↑ Dashboard</a></div>\n' +
+    stagingSection +
+    "\n" +
+    '<div class="nav-btns"><a href="#pg4" class="nav-btn2">← Back</a><span class="page-ind">Page 5 of 5</span><a href="#pg1" class="nav-btn">Home ↺</a></div>\n' +
+    "</div>\n" +
+    "</div>\n</body>\n</html>"
+  );
+}
+
+// ============================================================
+// GENERATE REPORT
+// ============================================================
+async function generateReport(params) {
+  var startDate = params.startDate;
+  var endDate = params.endDate;
+  var title = params.title;
+  var subtitle = params.subtitle;
+  var filename = params.filename;
+  var res = params.res;
+
+  try {
+    var queries = await Promise.all([
+      pool.query(
+        "SELECT jenis_kendaraan, COUNT(*) as total FROM vehicle_log WHERE timestamp >= $1 AND timestamp <= $2 GROUP BY jenis_kendaraan",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT COUNT(*) as total FROM alert_log WHERE LOWER(class_name) = 'box' AND created_at >= $1 AND created_at <= $2",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT COUNT(*) as total FROM alert_log WHERE class_name = 'KAMERA OFFLINE' AND created_at >= $1 AND created_at <= $2",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT timestamp, jenis_kendaraan, warna, confidence, gambar_base64, status_muatan FROM vehicle_log WHERE timestamp >= $1 AND timestamp <= $2 ORDER BY timestamp DESC LIMIT 100",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT created_at, camera, class_name, foto_base64 FROM alert_log WHERE LOWER(class_name) = 'box' AND created_at >= $1 AND created_at <= $2 ORDER BY created_at DESC LIMIT 100",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT camera, created_at FROM alert_log WHERE class_name = 'KAMERA OFFLINE' AND created_at >= $1 AND created_at <= $2 ORDER BY created_at DESC LIMIT 100",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*) as total FROM vehicle_log WHERE timestamp >= $1 AND timestamp <= $2 GROUP BY hour ORDER BY hour",
+        [startDate, endDate],
+      ),
+      pool.query(
+        "SELECT TO_CHAR(created_at, 'Dy') AS day, COUNT(*) AS total FROM alert_log WHERE created_at >= NOW() - INTERVAL '7 days' AND LOWER(class_name) = 'box' GROUP BY TO_CHAR(created_at, 'Dy'), DATE_TRUNC('day', created_at) ORDER BY DATE_TRUNC('day', created_at)",
+      ),
+      pool.query(
+        'SELECT e."timestamp", e.event_type, e.confidence, emp.name AS employee_name, emp.employee_id AS nik FROM attendance_event e LEFT JOIN employees emp ON e.employee_id = emp.employee_id WHERE e."timestamp" >= $1 AND e."timestamp" <= $2 ORDER BY e."timestamp" DESC LIMIT 100',
+        [startDate, endDate],
+      ),
+    ]);
+
+    var vehicleStat = queries[0];
+    var stagingStat = queries[1];
+    var cameraStat = queries[2];
+    var vehiclePhotos = queries[3];
+    var stagingPhotos = queries[4];
+    var cameraOffline = queries[5];
+    var hourlyVehicles = queries[6];
+    var stagingWeekly = queries[7];
+    var attendanceData = queries[8];
+
+    // Total kendaraan
+    var totalKendaraan = 0;
+    vehicleStat.rows.forEach(function (v) {
+      totalKendaraan += Number(v.total);
+    });
+
+    // Attendance stats
+    var totalArrival = 0;
+    attendanceData.rows.forEach(function (a) {
+      if (a.event_type === "ARRIVAL") totalArrival++;
+    });
+
+    // HITUNG PELANGGARAN JAM KERJA
+    var totalPelanggaran = hitungPelanggaran(attendanceData.rows);
+
+    var totalStaging = Number(stagingStat.rows[0]?.total || 0);
+    var totalCameraOff = Number(cameraStat.rows[0]?.total || 0);
+    var DEFAULT_TOTAL_CAMERAS = 22;
+    var totalOnline = DEFAULT_TOTAL_CAMERAS - totalCameraOff;
+    var maxWeekly = stagingWeekly.rows.reduce(function (max, r) {
+      return Math.max(max, Number(r.total));
+    }, 0);
+    var maxHourly = hourlyVehicles.rows.reduce(function (max, r) {
+      return Math.max(max, Number(r.total));
+    }, 0);
+
+    // KPI CARDS
+    var kpiCards =
+      '<div class="kpi-row">' +
+      '<div class="kpi-card c1"><div class="kpi-icon" style="background:linear-gradient(135deg,#6366f1,#818cf8);">🚛</div><div class="kpi-val">' +
+      totalKendaraan +
+      '</div><div class="kpi-lbl">Total Kendaraan</div><div class="kpi-sub">Mobil+Truk+Motor</div></div>' +
+      '<div class="kpi-card c2"><div class="kpi-icon" style="background:linear-gradient(135deg,#10b981,#34d399);">✅</div><div class="kpi-val">' +
+      totalArrival +
+      '</div><div class="kpi-lbl">Kehadiran</div><div class="kpi-sub">Karyawan Hadir</div></div>' +
+      '<div class="kpi-card c3"><div class="kpi-icon" style="background:linear-gradient(135deg,#ef4444,#f87171);">⚠️</div><div class="kpi-val">' +
+      totalPelanggaran +
+      '</div><div class="kpi-lbl">Pelanggaran</div><div class="kpi-sub">Jam Kerja</div></div>' +
+      '<div class="kpi-card c4"><div class="kpi-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);">📦</div><div class="kpi-val">' +
+      totalStaging +
+      '</div><div class="kpi-lbl">Staging</div><div class="kpi-sub">Box Terdeteksi</div></div>' +
+      '<div class="kpi-card c5"><div class="kpi-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);">📡</div><div class="kpi-val">' +
+      totalOnline +
+      "/" +
+      DEFAULT_TOTAL_CAMERAS +
+      '</div><div class="kpi-lbl">Camera Online</div><div class="kpi-sub">' +
+      totalCameraOff +
+      " Offline</div></div>" +
+      "</div>";
+
+    // Charts
+    var hourlyData = hourlyVehicles.rows.map(function (r) {
+      return { label: String(r.hour).padStart(2, "0") + ":00", total: Number(r.total) };
+    });
+    var stagingData = stagingWeekly.rows.map(function (r) {
+      return { label: r.day, total: Number(r.total) };
+    });
+    var chartHours = generateBarChart(hourlyData, "label", "total", maxHourly, "#6366f1");
+    var chartStaging = generateBarChart(stagingData, "label", "total", maxWeekly, "#8b5cf6");
+    var donutChart = generateDonutChart(DEFAULT_TOTAL_CAMERAS, totalCameraOff);
+
+    var chartsRow =
+      '<div class="chart-row">' +
+      '<div class="card"><div class="card-hd">⏰ Vehicles per Hour</div>' +
+      chartHours +
+      "</div>" +
+      '<div class="card"><div class="card-hd">📊 Staging History (7 Days)</div>' +
+      chartStaging +
+      "</div>" +
+      "</div>" +
+      '<div class="chart-row">' +
+      '<div class="card"><div class="card-hd">📡 Camera Status</div>' +
+      donutChart +
+      "</div>" +
+      '<div class="card"><div class="card-hd">📋 Activity Summary</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;font-size:11px;padding:8px 0;">' +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>🚛 Total Kendaraan</span><strong>' +
+      totalKendaraan +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>✅ Kehadiran</span><strong style="color:#10b981;">' +
+      totalArrival +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>⚠️ Pelanggaran Jam Kerja</span><strong style="color:#ef4444;">' +
+      totalPelanggaran +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>📦 Staging</span><strong style="color:#8b5cf6;">' +
+      totalStaging +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;"><span>📡 Camera Online</span><strong style="color:#f59e0b;">' +
+      totalOnline +
+      "/" +
+      DEFAULT_TOTAL_CAMERAS +
+      "</strong></div>" +
+      "</div></div></div>";
+
+    // Camera, Attendance, Vehicle, Staging sections (sama seperti sebelumnya)
+    var cameraSection =
+      cameraOffline.rows.length > 0
+        ? '<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Camera</th><th>Time</th></tr></thead><tbody>' +
+          cameraOffline.rows
+            .map(function (c, i) {
+              return (
+                "<tr><td><strong>" +
+                (i + 1) +
+                "</strong></td><td>🔴 " +
+                c.camera +
+                "</td><td>" +
+                new Date(c.created_at).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table></div>"
+        : '<div class="empty">✅ All cameras normal</div>';
+
+    var attendanceSection =
+      attendanceData.rows.length > 0
+        ? '<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Name</th><th>NIK</th><th>Status</th><th>Time</th><th>Conf</th></tr></thead><tbody>' +
+          attendanceData.rows
+            .map(function (a, i) {
+              var badge =
+                a.event_type === "ARRIVAL"
+                  ? "badge-g"
+                  : a.event_type === "DEPARTURE"
+                    ? "badge-y"
+                    : a.event_type === "BREAK_OUT"
+                      ? "badge-r"
+                      : "badge-b";
+              var label =
+                a.event_type === "ARRIVAL"
+                  ? "Masuk"
+                  : a.event_type === "DEPARTURE"
+                    ? "Pulang"
+                    : a.event_type === "BREAK_OUT"
+                      ? "Istirahat"
+                      : "Kembali";
+              return (
+                "<tr><td>" +
+                (i + 1) +
+                "</td><td><strong>" +
+                (a.employee_name || "Unknown") +
+                "</strong></td><td>" +
+                (a.nik || "-") +
+                '</td><td><span class="badge ' +
+                badge +
+                '">' +
+                label +
+                "</span></td><td>" +
+                new Date(a.timestamp).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</td><td>" +
+                (a.confidence ? (a.confidence * 100).toFixed(1) + "%" : "-") +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table></div>"
+        : '<div class="empty">📋 No attendance records</div>';
+
+    var vehicleSection =
+      vehiclePhotos.rows.length > 0
+        ? '<div class="photo-grid">' +
+          vehiclePhotos.rows
+            .map(function (v) {
+              var img = resizeBase64Image(v.gambar_base64);
+              return (
+                '<div class="photo-card"><div class="photo-img">' +
+                (img
+                  ? '<img src="data:image/jpeg;base64,' + img + '" />'
+                  : '<div class="photo-noimg">📷 No Image</div>') +
+                '</div><div class="photo-info"><div class="photo-title">🚛 ' +
+                (v.jenis_kendaraan || "Vehicle") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Color</span> ' +
+                (v.warna || "N/A") +
+                "</div>" +
+                (v.status_muatan
+                  ? '<div class="photo-detail"><span class="photo-lbl">Load</span> ' +
+                    v.status_muatan +
+                    "</div>"
+                  : "") +
+                '<div class="photo-detail"><span class="photo-lbl">Time</span> ' +
+                new Date(v.timestamp).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                '</div><div class="photo-conf">✓ ' +
+                (v.confidence ? (v.confidence * 100).toFixed(1) : "0") +
+                "%</div></div></div>"
+              );
+            })
+            .join("") +
+          "</div>"
+        : '<div class="empty">🚛 No vehicle records</div>';
+
+    var stagingSection =
+      stagingPhotos.rows.length > 0
+        ? '<div class="photo-grid">' +
+          stagingPhotos.rows
+            .map(function (s) {
+              var img = resizeBase64Image(s.foto_base64);
+              return (
+                '<div class="photo-card"><div class="photo-img">' +
+                (img
+                  ? '<img src="data:image/jpeg;base64,' + img + '" />'
+                  : '<div class="photo-noimg">📷 No Image</div>') +
+                '</div><div class="photo-info"><div class="photo-title">📦 ' +
+                (s.class_name || "Box") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Camera</span> ' +
+                (s.camera || "N/A") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Time</span> ' +
+                new Date(s.created_at).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</div></div></div>"
+              );
+            })
+            .join("") +
+          "</div>"
+        : '<div class="empty">📦 No staging records</div>';
+
+    var html = buildMainHTML({
+      title: title,
+      subtitle: subtitle,
+      logoBase64: logoBase64,
+      kpiCards: kpiCards,
+      chartsRow: chartsRow,
+      cameraSection: cameraSection,
+      attendanceSection: attendanceSection,
+      vehicleSection: vehicleSection,
+      stagingSection: stagingSection,
+    });
+
+    console.log("📏 HTML: " + (html.length / 1024).toFixed(1) + " KB");
+    var pdfBuffer = await renderPdf(html);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="' + filename + '"');
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Generate report error:", err);
+    res.status(500).json({ error: "Gagal generate laporan" });
+  }
+}
+
+// ============================================================
+// ENDPOINTS
+// ============================================================
+
+router.get("/full-report", async function (req, res) {
+  try {
+    var queries = await Promise.all([
+      pool.query(
+        "SELECT jenis_kendaraan, COUNT(*) as total FROM vehicle_log GROUP BY jenis_kendaraan",
+      ),
+      pool.query("SELECT COUNT(*) as total FROM alert_log WHERE LOWER(class_name) = 'box'"),
+      pool.query("SELECT COUNT(*) as total FROM alert_log WHERE class_name = 'KAMERA OFFLINE'"),
+      pool.query(
+        "SELECT timestamp, jenis_kendaraan, warna, confidence, gambar_base64, status_muatan FROM vehicle_log ORDER BY timestamp DESC LIMIT 100",
+      ),
+      pool.query(
+        "SELECT created_at, camera, class_name, foto_base64 FROM alert_log WHERE LOWER(class_name) = 'box' ORDER BY created_at DESC LIMIT 100",
+      ),
+      pool.query(
+        "SELECT camera, created_at FROM alert_log WHERE class_name = 'KAMERA OFFLINE' ORDER BY created_at DESC LIMIT 100",
+      ),
+      pool.query(
+        "SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*) as total FROM vehicle_log GROUP BY hour ORDER BY hour",
+      ),
+      pool.query(
+        "SELECT TO_CHAR(created_at, 'Dy') AS day, COUNT(*) AS total FROM alert_log WHERE created_at >= NOW() - INTERVAL '7 days' AND LOWER(class_name) = 'box' GROUP BY TO_CHAR(created_at, 'Dy'), DATE_TRUNC('day', created_at) ORDER BY DATE_TRUNC('day', created_at)",
+      ),
+      pool.query(
+        'SELECT e."timestamp", e.event_type, e.confidence, emp.name AS employee_name, emp.employee_id AS nik FROM attendance_event e LEFT JOIN employees emp ON e.employee_id = emp.employee_id ORDER BY e."timestamp" DESC LIMIT 100',
+      ),
+    ]);
+
+    var totalKendaraan = 0;
+    queries[0].rows.forEach(function (v) {
+      totalKendaraan += Number(v.total);
+    });
+
+    var totalArrival = 0;
+    queries[8].rows.forEach(function (a) {
+      if (a.event_type === "ARRIVAL") totalArrival++;
+    });
+    var totalPelanggaran = hitungPelanggaran(queries[8].rows);
+    var totalStaging = Number(queries[1].rows[0]?.total || 0);
+    var totalCameraOff = Number(queries[2].rows[0]?.total || 0);
+    var DEFAULT_TOTAL_CAMERAS = 22;
+    var totalOnline = DEFAULT_TOTAL_CAMERAS - totalCameraOff;
+    var maxWeekly = queries[7].rows.reduce(function (max, r) {
+      return Math.max(max, Number(r.total));
+    }, 0);
+    var maxHourly = queries[6].rows.reduce(function (max, r) {
+      return Math.max(max, Number(r.total));
+    }, 0);
+
+    var kpiCards =
+      '<div class="kpi-row">' +
+      '<div class="kpi-card c1"><div class="kpi-icon" style="background:linear-gradient(135deg,#6366f1,#818cf8);">🚚💨</div><div class="kpi-val">' +
+      totalKendaraan +
+      '</div><div class="kpi-lbl">Total Kendaraan</div><div class="kpi-sub">Mobil+Truk+Motor</div></div>' +
+      '<div class="kpi-card c2"><div class="kpi-icon" style="background:linear-gradient(135deg,#10b981,#34d399);">👷✅</div><div class="kpi-val">' +
+      totalArrival +
+      '</div><div class="kpi-lbl">Kehadiran</div><div class="kpi-sub">Karyawan Hadir</div></div>' +
+      '<div class="kpi-card c3"><div class="kpi-icon" style="background:linear-gradient(135deg,#ef4444,#f87171);">👷❌</div><div class="kpi-val">' +
+      totalPelanggaran +
+      '</div><div class="kpi-lbl">Pelanggaran</div><div class="kpi-sub">Jam Kerja</div></div>' +
+      '<div class="kpi-card c4"><div class="kpi-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);">📦🚨</div><div class="kpi-val">' +
+      totalStaging +
+      '</div><div class="kpi-lbl">Staging</div><div class="kpi-sub">Box Terdeteksi</div></div>' +
+      '<div class="kpi-card c5"><div class="kpi-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);">📷📡</div><div class="kpi-val">' +
+      totalOnline +
+      "/" +
+      DEFAULT_TOTAL_CAMERAS +
+      '</div><div class="kpi-lbl">Camera Online</div><div class="kpi-sub">' +
+      totalCameraOff +
+      " Offline</div></div>" +
+      "</div>";
+
+    var hourlyData = queries[6].rows.map(function (r) {
+      return { label: String(r.hour).padStart(2, "0") + ":00", total: Number(r.total) };
+    });
+    var stagingData = queries[7].rows.map(function (r) {
+      return { label: r.day, total: Number(r.total) };
+    });
+
+    var chartsRow =
+      '<div class="chart-row">' +
+      '<div class="card"><div class="card-hd">⏰ Vehicles per Hour</div>' +
+      generateBarChart(hourlyData, "label", "total", maxHourly, "#6366f1") +
+      "</div>" +
+      '<div class="card"><div class="card-hd">📊 Staging History (7 Days)</div>' +
+      generateBarChart(stagingData, "label", "total", maxWeekly, "#8b5cf6") +
+      "</div>" +
+      '</div><div class="chart-row">' +
+      '<div class="card"><div class="card-hd">📡 Camera Status</div>' +
+      generateDonutChart(DEFAULT_TOTAL_CAMERAS, totalCameraOff) +
+      "</div>" +
+      '<div class="card"><div class="card-hd">📋 Activity Summary</div><div style="display:flex;flex-direction:column;gap:8px;font-size:11px;padding:8px 0;">' +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>🚛 Total Kendaraan</span><strong>' +
+      totalKendaraan +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>✅ Kehadiran</span><strong style="color:#10b981;">' +
+      totalArrival +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>⚠️ Pelanggaran</span><strong style="color:#ef4444;">' +
+      totalPelanggaran +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span>📦 Staging</span><strong style="color:#8b5cf6;">' +
+      totalStaging +
+      "</strong></div>" +
+      '<div style="display:flex;justify-content:space-between;padding:6px 0;"><span>📡 Camera Online</span><strong style="color:#f59e0b;">' +
+      totalOnline +
+      "/" +
+      DEFAULT_TOTAL_CAMERAS +
+      "</strong></div>" +
+      "</div></div></div>";
+
+    var cameraSection =
+      queries[5].rows.length > 0
+        ? '<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Camera</th><th>Time</th></tr></thead><tbody>' +
+          queries[5].rows
+            .map(function (c, i) {
+              return (
+                "<tr><td><strong>" +
+                (i + 1) +
+                "</strong></td><td>🔴 " +
+                c.camera +
+                "</td><td>" +
+                new Date(c.created_at).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table></div>"
+        : '<div class="empty">✅ All cameras normal</div>';
+
+    var attendanceSection =
+      queries[8].rows.length > 0
+        ? '<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Name</th><th>NIK</th><th>Status</th><th>Time</th><th>Conf</th></tr></thead><tbody>' +
+          queries[8].rows
+            .map(function (a, i) {
+              var badge =
+                a.event_type === "ARRIVAL"
+                  ? "badge-g"
+                  : a.event_type === "DEPARTURE"
+                    ? "badge-y"
+                    : a.event_type === "BREAK_OUT"
+                      ? "badge-r"
+                      : "badge-b";
+              var label =
+                a.event_type === "ARRIVAL"
+                  ? "Masuk"
+                  : a.event_type === "DEPARTURE"
+                    ? "Pulang"
+                    : a.event_type === "BREAK_OUT"
+                      ? "Istirahat"
+                      : "Kembali";
+              return (
+                "<tr><td>" +
+                (i + 1) +
+                "</td><td><strong>" +
+                (a.employee_name || "Unknown") +
+                "</strong></td><td>" +
+                (a.nik || "-") +
+                '</td><td><span class="badge ' +
+                badge +
+                '">' +
+                label +
+                "</span></td><td>" +
+                new Date(a.timestamp).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</td><td>" +
+                (a.confidence ? (a.confidence * 100).toFixed(1) + "%" : "-") +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</tbody></table></div>"
+        : '<div class="empty">📋 No attendance records</div>';
+
+    var vehicleSection =
+      queries[3].rows.length > 0
+        ? '<div class="photo-grid">' +
+          queries[3].rows
+            .map(function (v) {
+              var img = resizeBase64Image(v.gambar_base64);
+              return (
+                '<div class="photo-card"><div class="photo-img">' +
+                (img
+                  ? '<img src="data:image/jpeg;base64,' + img + '" />'
+                  : '<div class="photo-noimg">📷 No Image</div>') +
+                '</div><div class="photo-info"><div class="photo-title">🚛 ' +
+                (v.jenis_kendaraan || "Vehicle") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Color</span> ' +
+                (v.warna || "N/A") +
+                "</div>" +
+                (v.status_muatan
+                  ? '<div class="photo-detail"><span class="photo-lbl">Load</span> ' +
+                    v.status_muatan +
+                    "</div>"
+                  : "") +
+                '<div class="photo-detail"><span class="photo-lbl">Time</span> ' +
+                new Date(v.timestamp).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                '</div><div class="photo-conf">✓ ' +
+                (v.confidence ? (v.confidence * 100).toFixed(1) : "0") +
+                "%</div></div></div>"
+              );
+            })
+            .join("") +
+          "</div>"
+        : '<div class="empty">🚛 No vehicle records</div>';
+
+    var stagingSection =
+      queries[4].rows.length > 0
+        ? '<div class="photo-grid">' +
+          queries[4].rows
+            .map(function (s) {
+              var img = resizeBase64Image(s.foto_base64);
+              return (
+                '<div class="photo-card"><div class="photo-img">' +
+                (img
+                  ? '<img src="data:image/jpeg;base64,' + img + '" />'
+                  : '<div class="photo-noimg">📷 No Image</div>') +
+                '</div><div class="photo-info"><div class="photo-title">📦 ' +
+                (s.class_name || "Box") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Camera</span> ' +
+                (s.camera || "N/A") +
+                '</div><div class="photo-detail"><span class="photo-lbl">Time</span> ' +
+                new Date(s.created_at).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }) +
+                "</div></div></div>"
+              );
+            })
+            .join("") +
+          "</div>"
+        : '<div class="empty">📦 No staging records</div>';
+
+    var html = buildMainHTML({
+      title: "System Monitoring Report",
+      subtitle:
+        "Generated: " +
+        new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" }),
+      logoBase64: logoBase64,
+      kpiCards: kpiCards,
+      chartsRow: chartsRow,
+      cameraSection: cameraSection,
+      attendanceSection: attendanceSection,
+      vehicleSection: vehicleSection,
+      stagingSection: stagingSection,
+    });
+
+    var pdfBuffer = await renderPdf(html);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="monitoring_report.pdf"');
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Full report error:", err);
+    res.status(500).json({ error: "Gagal generate laporan" });
+  }
+});
+
+router.get("/daily", async function (req, res) {
+  var date = req.query.date;
+  var startDate, endDate;
+  if (date) {
+    startDate = date;
+    endDate = date + " 23:59:59";
+  } else {
+    var today = new Date();
+    startDate =
+      today.getFullYear() +
+      "-" +
+      String(today.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(today.getDate()).padStart(2, "0");
+    endDate = startDate + " 23:59:59";
+  }
+  await generateReport({
+    startDate: startDate,
+    endDate: endDate,
+    title: "Daily Report",
+    subtitle: new Date(startDate).toLocaleDateString("id-ID", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    filename: "daily_" + startDate + ".pdf",
+    res: res,
+  });
+});
+
+router.get("/weekly", async function (req, res) {
+  var range = getDateRange("weekly", req.query.date);
+  await generateReport({
+    startDate: formatSqlDate(range.start),
+    endDate: formatSqlDate(range.end),
+    title: "Weekly Report",
+    subtitle:
+      range.start.toLocaleDateString("id-ID", { day: "numeric", month: "long" }) +
+      " - " +
+      range.end.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
+    filename: "weekly_" + formatSqlDate(range.start) + ".pdf",
+    res: res,
+  });
+});
+
+router.get("/monthly", async function (req, res) {
+  var range = getDateRange("monthly", req.query.month);
+  await generateReport({
+    startDate: formatSqlDate(range.start),
+    endDate: formatSqlDate(range.end),
+    title: "Monthly Report",
+    subtitle: range.start.toLocaleDateString("id-ID", { month: "long", year: "numeric" }),
+    filename: "monthly_" + formatSqlDate(range.start) + ".pdf",
+    res: res,
+  });
+});
+
+router.get("/report", async function (req, res) {
+  var type = req.query.type || "daily";
+  if (type === "full") return res.redirect("/api/export/full-report");
+  if (type === "daily") return res.redirect("/api/export/daily?date=" + (req.query.date || ""));
+  if (type === "weekly") return res.redirect("/api/export/weekly?date=" + (req.query.date || ""));
+  if (type === "monthly")
+    return res.redirect("/api/export/monthly?month=" + (req.query.month || ""));
+  res.status(400).json({ error: "Invalid report type" });
+});
+
+router.get("/attendance/log", async function (req, res) {
+  try {
+    var conditions = [],
+      params = [];
+    if (req.query.start_date) {
+      params.push(req.query.start_date);
+      conditions.push('e."timestamp" >= $' + params.length);
+    }
+    if (req.query.end_date) {
+      params.push(req.query.end_date);
+      conditions.push('e."timestamp" <= $' + params.length);
+    }
+    var whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    var query =
+      'SELECT e.id, e."timestamp", e.event_type, e.direction, e.confidence, e.camera_id, e.is_visitor, e.snapshot_path, emp.name AS employee_name, emp.employee_id AS nik FROM attendance_event e LEFT JOIN employees emp ON e.employee_id = emp.employee_id ' +
+      whereClause +
+      ' ORDER BY e."timestamp" DESC LIMIT $' +
+      (params.length + 1);
+    var result = await pool.query(query, params.concat([req.query.limit || 20]));
+    res.json({ data: result.rows, total: result.rowCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+router.get("/attendance/stats/daily", async function (req, res) {
+  try {
+    var query =
+      "WITH daily_counts AS (SELECT event_type, COUNT(*) as total FROM attendance_event WHERE \"timestamp\"::date = CURRENT_DATE GROUP BY event_type) SELECT COALESCE(SUM(CASE WHEN event_type = 'ARRIVAL' THEN total ELSE 0 END), 0) as total_arrival, COALESCE(SUM(CASE WHEN event_type = 'DEPARTURE' THEN total ELSE 0 END), 0) as total_departure, COALESCE(SUM(CASE WHEN event_type = 'BREAK_OUT' THEN total ELSE 0 END), 0) as total_break_out, COALESCE(SUM(CASE WHEN event_type = 'BREAK_IN' THEN total ELSE 0 END), 0) as total_break_in FROM daily_counts";
+    var result = await pool.query(query);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

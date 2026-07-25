@@ -1,23 +1,54 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
+const pool = require("../db");
+const { error } = require("node:console");
 
-// GET: Ambil semua kontak WhatsApp
-router.get('/', async (req, res) => {
+// GET: Ambil semua kontak WhatsApp (dengan pagination)
+router.get("/", async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM wa_recipients ORDER BY id ASC');
-    res.json(result.rows);
+    const { page = 1, limit = 5 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const dataQuery = "SELECT * FROM wa_recipients ORDER BY id ASC LIMIT $1 OFFSET $2";
+    const countQuery = "SELECT COUNT(*) AS total FROM wa_recipients";
+
+    const [dataResult, totalResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
+
+    const total = parseInt(totalResult.rows[0].total, 10);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.max(1, Math.ceil(total / Number(limit))),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // POST: Tambah kontak WhatsApp baru
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { nama, nomor, aktif } = req.body;
+    if (!nama?.trim() || !nomor?.trim()) {
+      return res.status(400).json({ error: "Nama dan nomor wajib diisi" });
+    }
+    if (!/^[0-9]{10,15}$/.test(nomor.trim())) {
+      return res.status(400).json({ error: "Format nomor WA tidak valid (10-15 digit) " });
+    }
     const isActive = aktif !== undefined ? aktif : true;
-    await pool.query('INSERT INTO wa_recipients (nama, nomor, aktif) VALUES ($1, $2, $3)', [nama, nomor, isActive]);
+    await pool.query("INSERT INTO wa_recipients (nama, nomor, aktif) VALUES ($1, $2, $3)", [
+      nama,
+      nomor,
+      nama.trim(),
+      nomor.trim(),
+      isActive,
+    ]);
     res.status(201).json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -25,11 +56,27 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Edit nomor kontak berdasarkan ID
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { nomor } = req.body;
-    await pool.query('UPDATE wa_recipients SET nomor = $1 WHERE id = $2', [nomor, id]);
+
+    if (!nomor?.trim()) {
+      return req.status(400).json({ error: "Nomor wajib diisi" });
+    }
+    if (!/^[0-9]{10,15}$/.test(nomor.trim())) {
+      return res
+        .status(400)
+        .json({ error: "Format nomor WA tidak valid (10-15 digit dan angka 0-9 saja) " });
+    }
+
+    const result = await pool.query("UPDATE wa_recipients SET nomor = $1 WHERE id = $2", [
+      nomor.trim(),
+      id,
+    ]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Kontak tidak ditemukan" });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -37,10 +84,10 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE: Hapus kontak WhatsApp berdasarkan ID
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM wa_recipients WHERE id = $1', [id]);
+    await pool.query("DELETE FROM wa_recipients WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

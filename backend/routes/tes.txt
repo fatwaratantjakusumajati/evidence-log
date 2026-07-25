@@ -1,0 +1,339 @@
+const express = require("express");
+const router = express.Router();
+const pool = require("../db");
+const multer = require("multer");
+const { spawn } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+const PYTHON_EXECUTABLE = process.env.PYTHON_EXECUTABLE;
+const PYTHON_PROJECT_DIR = process.env.PYTHON_PROJECT_DIR;
+const EXTRACT_SCRIPT_PATH = process.env.EXTRACT_SCRIPT_PATH;
+const POSE_DB_PATH = process.env.POSE_DB_PATH;
+
+console.log("✅ Attendance API routes loaded");
+
+// --- GET LOG ---
+router.get("/log", async (req, res) => {
+  try {
+    const { page = 1, limit = 12, start_date, end_date } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+    let conditions = [],
+      params = [];
+
+    if (start_date) {
+      params.push(start_date);
+      conditions.push(`ae."timestamp" >= $${params.length}`);
+    }
+    if (end_date) {
+      params.push(end_date + " 23:59:59");
+      conditions.push(`ae."timestamp" <= $${params.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+    const dataQuery = `
+      SELECT
+        ae.id, ae."timestamp", ae.event_type, ae.direction,
+        e.name AS employee_name, ae.employee_id AS nik,
+        ae.confidence, ae.camera_id, ae.is_visitor, ae.snapshot_path
+      FROM attendance_event ae
+      LEFT JOIN employees e ON e.employee_id = ae.employee_id
+      ${whereClause}
+      ORDER BY ae."timestamp" DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    const countQuery = `SELECT COUNT(*) AS total FROM attendance_event ae ${whereClause}`;
+
+    const dataParams = [...params, limit, offset];
+    const dataResult = await pool.query(dataQuery, dataParams);
+    const totalResult = await pool.query(countQuery, params);
+    const total = parseInt(totalResult.rows[0].total, 10);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.max(1, Math.ceil(total / Number(limit))),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- GET EMPLOYEES (TANPA POSE_ONLY) ---
+router.get("/employees", async (req, res) => {
+  try {
+    const { page = 1, limit = 5 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const query = `
+      SELECT 
+        id, 
+        employee_id, 
+        name, 
+        COALESCE(arrival_time, '08:00') as arrival_time,
+        COALESCE(departure_time, '17:00') as departure_time,
+        COALESCE(max_breaks_per_day, 1) as max_breaks_per_day,
+        break_windows,
+        created_at
+      FROM employees
+      ORDER BY created_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+    const countQuery = `SELECT COUNT(*) AS total FROM employees`;
+
+    const [dataResult, totalResult] = await Promise.all([
+      pool.query(query, [limit, offset]),
+      pool.query(countQuery),
+    ]);
+
+    const total = parseInt(totalResult.rows[0].total, 10);
+    res.json({
+      data: dataResult.rows,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)),
+    });
+  } catch (err) {
+    console.error("Error fetching employees:", err);
+    res.status(500).json({ error: err.message || "Gagal mengambil data karyawan" });
+  }
+});
+
+// --- GET STATS ---
+router.get("/stats/daily", async (req, res) => {
+  try {
+    const query = `
+      SELECT event_type, COUNT(*) AS total
+      FROM attendance_event
+      WHERE "timestamp" >= CURRENT_DATE AND "timestamp" < CURRENT_DATE + INTERVAL '1 day'
+      GROUP BY event_type
+    `;
+    const result = await pool.query(query);
+
+    const stats = {
+      total_arrival: 0,
+      total_departure: 0,
+      total_break_out: 0,
+      total_break_in: 0,
+    };
+    result.rows.forEach((r) => {
+      if (r.event_type === "ARRIVAL") stats.total_arrival = Number(r.total);
+      else if (r.event_type === "DEPARTURE") stats.total_departure = Number(r.total);
+      else if (r.event_type === "BREAK_OUT") stats.total_break_out = Number(r.total);
+      else if (r.event_type === "BREAK_IN") stats.total_break_in = Number(r.total);
+    });
+
+    res.json(stats);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- ENROLL (TANPA POSE_ONLY) ---
+router.post("/enroll", upload.array("photos"), async (req, res) => {
+  const tempFiles = [];
+  try {
+    const {
+      employee_id,
+      name,
+      time_window_start,
+      time_window_end,
+      arrival_time,
+      departure_time,
+      max_breaks_per_day,
+    } = req.body;
+
+    if (!employee_id || !name) {
+      return res.status(400).json({ error: "employee_id dan name wajib diisi" });
+    }
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "Minimal 1 foto harus diupload" });
+    }
+    if (!PYTHON_EXECUTABLE || !PYTHON_PROJECT_DIR || !EXTRACT_SCRIPT_PATH || !POSE_DB_PATH) {
+      return res.status(500).json({
+        error: "Konfigurasi Python belum lengkap di backend/.env",
+      });
+    }
+
+    for (const file of req.files) {
+      const tmpPath = path.join(
+        os.tmpdir(),
+        `enroll_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
+      );
+      fs.writeFileSync(tmpPath, file.buffer);
+      tempFiles.push(tmpPath);
+    }
+
+    const extraction = await runExtraction(tempFiles);
+    if (extraction.error) {
+      return res.status(502).json({ error: `Ekstraksi fitur gagal: ${extraction.error}` });
+    }
+
+    const results = extraction.results;
+    const faceEmbeddings = results.map((r) => r.face_embedding).filter((e) => e !== null);
+    const poseMeasurementsList = results.map((r) => r.pose_measurements).filter((m) => m !== null);
+    const faceDetectedCount = faceEmbeddings.length;
+
+    if (faceEmbeddings.length === 0 && poseMeasurementsList.length === 0) {
+      return res.status(422).json({
+        error: "Tidak ada wajah maupun pose badan yang terdeteksi di foto manapun.",
+      });
+    }
+
+    let avgEmbedding = null;
+    if (faceEmbeddings.length > 0) {
+      avgEmbedding = averageVectors(faceEmbeddings);
+      avgEmbedding = l2Normalize(avgEmbedding);
+    }
+
+    // INSERT ke tabel employees (tanpa pose_only)
+    await pool.query(
+      `INSERT INTO employees (employee_id, name, embedding_face, arrival_time, departure_time, max_breaks_per_day, break_windows)
+       VALUES ($1, $2, $3::jsonb, $4::time, $5::time, $6, $7::jsonb)
+       ON CONFLICT (employee_id) DO UPDATE SET
+         name = EXCLUDED.name,
+         embedding_face = COALESCE(EXCLUDED.embedding_face, employees.embedding_face),
+         arrival_time = COALESCE(EXCLUDED.arrival_time, employees.arrival_time),
+         departure_time = COALESCE(EXCLUDED.departure_time, employees.departure_time),
+         max_breaks_per_day = COALESCE(EXCLUDED.max_breaks_per_day, employees.max_breaks_per_day),
+         break_windows = COALESCE(EXCLUDED.break_windows, employees.break_windows)`,
+      [
+        employee_id,
+        name,
+        avgEmbedding ? JSON.stringify(avgEmbedding) : null,
+        arrival_time || null,
+        departure_time || null,
+        max_breaks_per_day ? Number(max_breaks_per_day) : null,
+        time_window_start && time_window_end
+          ? JSON.stringify({ start: time_window_start, end: time_window_end })
+          : null,
+      ],
+    );
+
+    let poseSaved = false;
+    if (poseMeasurementsList.length > 0) {
+      const avgMeasurements = averageMeasurements(poseMeasurementsList);
+      const timeWindow =
+        time_window_start && time_window_end
+          ? { start: time_window_start, end: time_window_end }
+          : null;
+
+      await savePoseToLocalDb(POSE_DB_PATH, employee_id, name, avgMeasurements, {
+        num_images_used: poseMeasurementsList.length,
+        num_images_total: req.files.length,
+        face_detected: faceDetectedCount,
+        time_window: timeWindow,
+      });
+      poseSaved = true;
+    }
+
+    res.json({
+      employee_id,
+      name,
+      photos_received: req.files.length,
+      face_photos_used: faceEmbeddings.length,
+      pose_photos_used: poseMeasurementsList.length,
+      face_saved: avgEmbedding !== null,
+      pose_saved: poseSaved,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    tempFiles.forEach((f) => {
+      fs.unlink(f, () => {});
+    });
+  }
+});
+
+// --- Helper functions (sama seperti sebelumnya) ---
+function runExtraction(photoPaths) {
+  return new Promise((resolve) => {
+    const proc = spawn(PYTHON_EXECUTABLE, [EXTRACT_SCRIPT_PATH], {
+      cwd: PYTHON_PROJECT_DIR,
+    });
+
+    let stdout = "",
+      stderr = "";
+    proc.stdout.on("data", (chunk) => (stdout += chunk.toString()));
+    proc.stderr.on("data", (chunk) => (stderr += chunk.toString()));
+
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        console.error("Python stderr:", stderr);
+        return resolve({ error: stderr || `Python exit code ${code}` });
+      }
+      try {
+        const parsed = JSON.parse(stdout);
+        resolve(parsed);
+      } catch (e) {
+        resolve({
+          error: `Gagal parse output Python: ${e.message}. stdout: ${stdout.slice(0, 500)}`,
+        });
+      }
+    });
+
+    proc.on("error", (err) => {
+      resolve({ error: `Gagal menjalankan Python: ${err.message}` });
+    });
+
+    proc.stdin.write(JSON.stringify({ photos: photoPaths }));
+    proc.stdin.end();
+  });
+}
+
+function averageVectors(vectors) {
+  const dim = vectors[0].length;
+  const avg = new Array(dim).fill(0);
+  for (const v of vectors) {
+    for (let i = 0; i < dim; i++) avg[i] += v[i];
+  }
+  return avg.map((x) => x / vectors.length);
+}
+
+function l2Normalize(vec) {
+  const norm = Math.sqrt(vec.reduce((sum, x) => sum + x * x, 0)) + 1e-8;
+  return vec.map((x) => x / norm);
+}
+
+function averageMeasurements(measurementsList) {
+  const keys = Object.keys(measurementsList[0]);
+  const avg = {};
+  for (const key of keys) {
+    const sum = measurementsList.reduce((s, m) => s + (m[key] || 0), 0);
+    avg[key] = sum / measurementsList.length;
+  }
+  return avg;
+}
+
+let poseDbWriteLock = Promise.resolve();
+function savePoseToLocalDb(dbPath, employeeId, name, measurements, meta) {
+  const task = poseDbWriteLock.then(() => {
+    let db = {};
+    if (fs.existsSync(dbPath)) {
+      db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+    }
+    db[employeeId] = {
+      name,
+      measurements,
+      num_images_used: meta.num_images_used,
+      num_images_total: meta.num_images_total,
+      face_detected: meta.face_detected,
+      time_window: meta.time_window,
+    };
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+  });
+  poseDbWriteLock = task.catch(() => {});
+  return task;
+}
+
+module.exports = router;

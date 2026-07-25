@@ -226,8 +226,7 @@ function Welcome() {
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            Warehouse Intelligence Platform untuk pemantauan staging,
-            kesehatan CCTV, dan pergerakan kendaraan logistik.
+            Warehouse Intelligence Platform untuk monitorting barang staging, arus kendaraan, dan CCTV keamanan yang didukung dengan Real-TIme Alert
           </p>
 
           <div
@@ -254,7 +253,7 @@ function Welcome() {
             {[
               { icon: Activity, label: "Deteksi Barang", desc: "Real-time staging" },
               { icon: Radio, label: "Status Kamera", desc: "24/7 monitoring" },
-              { icon: Truck, label: "Log Kendaraan", desc: "Traffic reporting" },
+              { icon: Truck, label: "Log Kendaraan", desc: "Traffic Flow" },
             ].map(({ icon: Icon, label, desc }) => (
               <div
                 key={label}

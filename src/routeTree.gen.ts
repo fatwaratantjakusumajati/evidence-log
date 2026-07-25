@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as Attendance_reviewRouteImport } from './routes/attendance_review'
+import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
 import { Route as LogsStagingRouteImport } from './routes/logs.staging'
@@ -31,6 +33,16 @@ const LiveRoute = LiveRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Attendance_reviewRoute = Attendance_reviewRouteImport.update({
+  id: '/attendance_review',
+  path: '/attendance_review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AttendanceRoute = AttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -61,6 +73,8 @@ const EntryIdRoute = EntryIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/attendance': typeof AttendanceRoute
+  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
   '/settings': typeof SettingsRoute
@@ -71,6 +85,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/attendance': typeof AttendanceRoute
+  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
   '/settings': typeof SettingsRoute
@@ -82,6 +98,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/attendance': typeof AttendanceRoute
+  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
   '/settings': typeof SettingsRoute
@@ -94,6 +112,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/attendance'
+    | '/attendance_review'
     | '/dashboard'
     | '/live'
     | '/settings'
@@ -104,6 +124,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/attendance'
+    | '/attendance_review'
     | '/dashboard'
     | '/live'
     | '/settings'
@@ -114,6 +136,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/attendance'
+    | '/attendance_review'
     | '/dashboard'
     | '/live'
     | '/settings'
@@ -125,6 +149,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AttendanceRoute: typeof AttendanceRoute
+  Attendance_reviewRoute: typeof Attendance_reviewRoute
   DashboardRoute: typeof DashboardRoute
   LiveRoute: typeof LiveRoute
   SettingsRoute: typeof SettingsRoute
@@ -155,6 +181,20 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attendance_review': {
+      id: '/attendance_review'
+      path: '/attendance_review'
+      fullPath: '/attendance_review'
+      preLoaderRoute: typeof Attendance_reviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attendance': {
+      id: '/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AttendanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -197,6 +237,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AttendanceRoute: AttendanceRoute,
+  Attendance_reviewRoute: Attendance_reviewRoute,
   DashboardRoute: DashboardRoute,
   LiveRoute: LiveRoute,
   SettingsRoute: SettingsRoute,

@@ -1,5 +1,5 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool } = require("pg");
+require("dotenv").config();
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -9,8 +9,9 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-pool.connect()
-  .then(() => console.log('✅ Terhubung ke PostgreSQL'))
-  .catch(err => console.error('❌ Gagal koneksi:', err.message));
+pool
+  .query("SELECT 1")
+  .then(() => console.log("Terhubung ke PostgreSQL"))
+  .catch((err) => console.error("Gagal koneksi:", err.message));
 
 module.exports = pool;

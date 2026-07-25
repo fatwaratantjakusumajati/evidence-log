@@ -1,20 +1,39 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
-const puppeteer = require('puppeteer');
-const path = require('path');
+const pool = require("../db");
+const puppeteer = require("puppeteer");
+const path = require("path");
 
-console.log('✅ Alerts API routes loaded (FIXED PARAM BINDING)');
+console.log("✅ Alerts API routes loaded (FIXED PARAM BINDING + BYTEA BASE64)");
+
+// ============================================================
+// PERBAIKAN: kolom foto_base64 bertipe bytea di Postgres.
+// Driver 'pg' mengembalikan kolom bytea sebagai Node.js Buffer,
+// BUKAN string base64. Kalau langsung di-JSON-kan, hasilnya jadi
+// { type: "Buffer", data: [...] } yang tidak valid dipakai sebagai
+// src gambar. Helper ini mengonversinya jadi string base64 asli.
+// ============================================================
+function convertFotoBase64(row) {
+  if (row && row.foto_base64) {
+    row.foto_base64 = Buffer.isBuffer(row.foto_base64)
+      ? row.foto_base64.toString("base64")
+      : row.foto_base64;
+  }
+  return row;
+}
 
 // ============================================================
 // GET : List Alert dengan Pagination & Filter Tanggal/Kelas
 // ============================================================
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { page = 1, limit = 20, class_name, start_date, end_date } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     let conditions = [];
     let params = [];
+
+    // 🔽 Filter default: jangan tampilkan log kamera
+    conditions.push(`class_name NOT IN ('KAMERA OFFLINE', 'KAMERA ONLINE')`);
 
     if (class_name) {
       params.push(class_name);
@@ -25,11 +44,11 @@ router.get('/', async (req, res) => {
       conditions.push(`created_at >= $${params.length}`);
     }
     if (end_date) {
-      params.push(end_date + ' 23:59:59');
+      params.push(end_date + " 23:59:59");
       conditions.push(`created_at <= $${params.length}`);
     }
 
-    let whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    let whereClause = "WHERE " + conditions.join(" AND ");
 
     const dataQuery = `
       SELECT id, camera, class_name, duration, timestamp, foto_base64, file_name, alert_level,
@@ -46,15 +65,17 @@ router.get('/', async (req, res) => {
     const dataResult = await pool.query(dataQuery, dataParams);
     const totalResult = await pool.query(countQuery, params);
 
+    const rows = dataResult.rows.map(convertFotoBase64);
+
     res.json({
-      data: dataResult.rows,
+      data: rows,
       total: parseInt(totalResult.rows[0].total),
       page: Number(page),
       limit: Number(limit),
-      totalPages: Math.ceil(parseInt(totalResult.rows[0].total) / Number(limit))
+      totalPages: Math.ceil(parseInt(totalResult.rows[0].total) / Number(limit)),
     });
   } catch (err) {
-    console.error('Error GET /:', err);
+    console.error("Error GET /:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -62,7 +83,7 @@ router.get('/', async (req, res) => {
 // ============================================================
 // GET stats/weekly : Statistik Barang Box (7 hari / Rentang Tanggal) - FIXED
 // ============================================================
-router.get('/stats/weekly', async (req, res) => {
+router.get("/stats/weekly", async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     let dateClause = `created_at >= NOW() - INTERVAL '7 days'`;
@@ -71,7 +92,7 @@ router.get('/stats/weekly', async (req, res) => {
     // Jika user memilih rentang tanggal
     if (start_date && end_date) {
       dateClause = `created_at >= $1 AND created_at <= $2`;
-      params = [start_date, end_date + ' 23:59:59'];
+      params = [start_date, end_date + " 23:59:59"];
     }
 
     // Query sederhana, filter hanya class_name = 'box'
@@ -87,7 +108,7 @@ router.get('/stats/weekly', async (req, res) => {
     const result = params.length > 0 ? await pool.query(query, params) : await pool.query(query);
     res.json(result.rows);
   } catch (err) {
-    console.error('Error GET /stats/weekly:', err);
+    console.error("Error GET /stats/weekly:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -95,11 +116,7 @@ router.get('/stats/weekly', async (req, res) => {
 // ============================================================
 // GET stats/camera-status : Status Kamera Mati (dengan Filter Tanggal) - FIXED
 // ============================================================
-// ============================================================
-// GET stats/camera-status : Status Kamera Mati (dengan Filter Tanggal)
-// PERBAIKAN: Hanya menghitung kamera mati yang terjadi baru-baru ini
-// ============================================================
-router.get('/stats/camera-status', async (req, res) => {
+router.get("/stats/camera-status", async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     let dateClause = ``;
@@ -108,10 +125,9 @@ router.get('/stats/camera-status', async (req, res) => {
     // Jika user memilih rentang tanggal (Periode di dashboard)
     if (start_date && end_date) {
       dateClause = `AND created_at >= $1 AND created_at <= $2`;
-      params = [start_date, end_date + ' 23:59:59'];
+      params = [start_date, end_date + " 23:59:59"];
     } else {
       // Default: Hanya hitung kamera yang status OFFLINE terakhirnya terjadi dalam 1 jam terakhir
-      // Ubah INTERVAL '1 hour' menjadi '1 day' jika Anda ingin toleransi lebih lama
       dateClause = `AND created_at >= NOW() - INTERVAL '1 hour'`;
     }
 
@@ -129,7 +145,7 @@ router.get('/stats/camera-status', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error GET /stats/camera-status:', err);
+    console.error("Error GET /stats/camera-status:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -137,7 +153,7 @@ router.get('/stats/camera-status', async (req, res) => {
 // ============================================================
 // GET export-pdf : Ekspor PDF Staging & Kamera
 // ============================================================
-router.get('/export-pdf', async (req, res) => {
+router.get("/export-pdf", async (req, res) => {
   try {
     const { class_name, start_date, end_date } = req.query;
     let conditions = [];
@@ -152,24 +168,30 @@ router.get('/export-pdf', async (req, res) => {
       conditions.push(`created_at >= $${params.length}`);
     }
     if (end_date) {
-      params.push(end_date + ' 23:59:59');
+      params.push(end_date + " 23:59:59");
       conditions.push(`created_at <= $${params.length}`);
     }
 
-    let whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-    const result = await pool.query(`
+    let whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    const result = await pool.query(
+      `
       SELECT id, camera, class_name, duration, timestamp, foto_base64, file_name, alert_level, first_detected, created_at
       FROM alert_log ${whereClause}
       ORDER BY created_at DESC
-    `, params);
+    `,
+      params,
+    );
 
     if (result.rows.length === 0) {
-      return res.status(404).send('Tidak ada data untuk diekspor.');
+      return res.status(404).send("Tidak ada data untuk diekspor.");
     }
 
-    const isCameraReport = class_name && class_name.toLowerCase().includes('kamera');
-    let itemsHtml = '';
-    
+    // PERBAIKAN: konversi Buffer -> base64 string sebelum dipakai di template HTML
+    const rows = result.rows.map(convertFotoBase64);
+
+    const isCameraReport = class_name && class_name.toLowerCase().includes("kamera");
+    let itemsHtml = "";
+
     if (isCameraReport) {
       itemsHtml = `
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
@@ -181,30 +203,39 @@ router.get('/export-pdf', async (req, res) => {
             </tr>
           </thead>
           <tbody>
-            ${result.rows.map((r, i) => `
+            ${rows
+              .map(
+                (r, i) => `
               <tr style="border-bottom: 1px solid #e5e7eb;">
                 <td style="padding: 10px 12px; font-size: 13px; color: #6b7280;">${i + 1}</td>
                 <td style="padding: 10px 12px; font-size: 13px; font-weight: 500;">${r.camera}</td>
-                <td style="padding: 10px 12px; font-size: 13px; text-align: right; color: #6b7280;">${new Date(r.created_at).toLocaleString('id-ID')}</td>
+                <td style="padding: 10px 12px; font-size: 13px; text-align: right; color: #6b7280;">${new Date(r.created_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}</td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </tbody>
         </table>
       `;
     } else {
-      result.rows.forEach(r => {
-        const durationMinutes = Math.floor((new Date(r.created_at).getTime() - new Date(r.first_detected).getTime()) / 60000);
-        const durationStr = durationMinutes < 60 ? `${durationMinutes} menit` : `${Math.floor(durationMinutes / 60)} jam`;
-        
+      rows.forEach((r) => {
+        const durationMinutes = Math.floor(
+          (new Date(r.created_at).getTime() - new Date(r.first_detected).getTime()) / 60000,
+        );
+        const durationStr =
+          durationMinutes < 60
+            ? `${durationMinutes} menit`
+            : `${Math.floor(durationMinutes / 60)} jam`;
+
         itemsHtml += `
           <div class="item-card">
             <div class="img-container">
               <img src="data:image/jpeg;base64,${r.foto_base64}" alt="Barang Staging" />
             </div>
             <div class="info">
-              <div class="row"><strong>Barang:</strong> ${r.class_name || 'Tidak teridentifikasi'}</div>
+              <div class="row"><strong>Barang:</strong> ${r.class_name || "Tidak teridentifikasi"}</div>
               <div class="row"><strong>Kamera:</strong> ${r.camera}</div>
-              <div class="row"><strong>Terdeteksi:</strong> ${new Date(r.created_at).toLocaleString('id-ID')}</div>
+              <div class="row"><strong>Terdeteksi:</strong> ${new Date(r.created_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}</div>
               <div class="row"><strong>Durasi:</strong> ${durationStr}</div>
             </div>
           </div>
@@ -212,7 +243,7 @@ router.get('/export-pdf', async (req, res) => {
       });
     }
 
-    const title = isCameraReport ? 'Laporan Kamera Mati' : 'Laporan Deteksi Staging';
+    const title = isCameraReport ? "Laporan Kamera Mati" : "Laporan Deteksi Staging";
 
     const html = `
       <html>
@@ -239,35 +270,42 @@ router.get('/export-pdf', async (req, res) => {
         <div class="page-container">
           <h1>${title}</h1>
           ${itemsHtml}
-          <div class="footer">PT Aristides Logistik Indonesia · Dicetak: ${new Date().toLocaleString('id-ID')}</div>
+          <div class="footer">PT Aristides Logistik Indonesia · Dicetak: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}</div>
         </div>
       </body>
       </html>
     `;
 
-    const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', landscape: true, printBackground: true });
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const pdfBuffer = await page.pdf({ format: "A4", landscape: true, printBackground: true });
     await browser.close();
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${isCameraReport ? 'laporan_kamera_mati' : 'laporan_staging'}.pdf"`);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${isCameraReport ? "laporan_kamera_mati" : "laporan_staging"}.pdf"`,
+    );
     res.send(pdfBuffer);
   } catch (err) {
-    console.error('Error GET /export-pdf:', err);
-    res.status(500).json({ error: 'Gagal generate laporan lengkap' });
+    console.error("Error GET /export-pdf:", err);
+    res.status(500).json({ error: "Gagal generate laporan lengkap" });
   }
 });
 
 // ============================================================
 // GET :id : Ambil Detail Alert by ID
 // ============================================================
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM alert_log WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Tidak ditemukan' });
-    res.json(result.rows[0]);
+    const result = await pool.query("SELECT * FROM alert_log WHERE id = $1", [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Tidak ditemukan" });
+    // PERBAIKAN: konversi Buffer -> base64 string
+    res.json(convertFotoBase64(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
