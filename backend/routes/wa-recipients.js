@@ -2,12 +2,15 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { error } = require("node:console");
+const { clampLimit } = require("../utils/pagination");
+const { sendServerError } = require("../utils/errors");
 
 // GET: Ambil semua kontak WhatsApp (dengan pagination)
 router.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 5 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const { page = 1, limit: rawLimit = 20 } = req.query;
+    const limit = clampLimit(rawLimit, { defaultLimit: 20, maxLimit: 100 });
+    const offset = (Number(page) - 1) * limit;
 
     const dataQuery = "SELECT * FROM wa_recipients ORDER BY id ASC LIMIT $1 OFFSET $2";
     const countQuery = "SELECT COUNT(*) AS total FROM wa_recipients";
@@ -27,7 +30,7 @@ router.get("/", async (req, res) => {
       totalPages: Math.max(1, Math.ceil(total / Number(limit))),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -51,7 +54,7 @@ router.post("/", async (req, res) => {
     ]);
     res.status(201).json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -79,7 +82,7 @@ router.put("/:id", async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -90,7 +93,7 @@ router.delete("/:id", async (req, res) => {
     await pool.query("DELETE FROM wa_recipients WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 

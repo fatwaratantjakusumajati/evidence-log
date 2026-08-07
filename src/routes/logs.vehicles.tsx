@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/api-config";
 import {
   Breadcrumb,
@@ -24,11 +24,15 @@ import {
   AlertCircle,
   Truck,
   Clock,
+  Flag,
+  FlagOff,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { formatDateTime, formatShortDate } from "@/lib/evidence";
 import { toast } from "sonner";
 import { getLogsPageColors } from "@/lib/theme-tokens";
+import { authFetch } from "@/lib/auth";
+import { number } from "zod";
 
 const PAGE_SIZE = 12;
 
@@ -99,6 +103,7 @@ export const Route = createFileRoute("/logs/vehicles")({
 });
 
 function VehicleLogsPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [filterJenis, setFilterJenis] = useState("all");
   const [startDate, setStartDate] = useState("");
@@ -127,7 +132,7 @@ function VehicleLogsPage() {
         });
         if (startDate) params.append("start_date", startDate);
         if (endDate) params.append("end_date", endDate);
-        const res = await fetch(`${API_BASE_URL}/api/vehicles/log?${params}`);
+        const res = await authFetch(`${API_BASE_URL}/api/vehicles/log?${params}`);
         if (!res.ok) return { data: [], total: 0, totalPages: 1 };
         const json = await res.json();
         return parseVehicleResponse(json);
@@ -142,6 +147,26 @@ function VehicleLogsPage() {
   const paginatedVehicles = response?.data || [];
   const totalPages = response?.totalPages || 1;
   const totalItems = response?.total || 0;
+
+  const mutationToggleFalsePositive = useMutation({
+    mutationFn: async ({ id, value }: { id: number; value: boolean }) => {
+      const res = await authFetch(`${API_BASE_URL}/api/vehicles/log/${id}/flag`, {
+        method: "PATCH",
+        headers: { "content-Type": "application.json" },
+        body: JSON.stringify({ is_false_positive: value }),
+      });
+      if (!res.ok) throw new Error("Gagal memperbarui status deteksi");
+      return value;
+    },
+    onSuccess: (value) => {
+      queryClient.invalidateQueries({ queryKey: ["vehicle_log"] });
+      setSelectedVehicle((prev) => (prev ? { ...prev, is_false_positive: value } : prev));
+      toast.success(
+        value ? "Ditandai ebagai deteksi salah (false positive)." : "Tanda false positive dihapus.",
+      );
+    },
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
+  });
 
   const handleFilterChange = (value: string) => {
     setFilterJenis(value);
@@ -427,6 +452,7 @@ function VehicleLogsPage() {
           >
             <button
               onClick={() => setSelectedVehicle(null)}
+              aria-label="Tutup"
               className="absolute right-3 top-3 z-10 rounded-full bg-black/50 p-1.5 text-white transition-colors hover:bg-black/70"
             >
               <X className="h-5 w-5" />
@@ -546,6 +572,22 @@ function VehicleLogsPage() {
                   <Clock className="h-3.5 w-3.5" /> Terekam pada{" "}
                   {formatShortDate(selectedVehicle.created_at)}
                 </p>
+              </div>
+              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#334155]">
+                <button
+                  onClick={() =>
+                    mutationToggleFalsePositive.mutate({
+                      id: selectedVehicle.id,
+                      value: !selectedVehicle.is_false_positive,
+                    })
+                  }
+                  disabled={mutationToggleFalsePositive.isPending}
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-mediun transition-colors ${
+                    selectedVehicle.is_false_positive
+                      ? "bg-[#f1f5f9] dark:bg-[#0b1120] text-[#64748b] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#1a2c45]"
+                      : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-900/50"
+                  }`}
+                ></button>
               </div>
             </div>
           </div>

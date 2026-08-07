@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, ShieldCheck, Radio, Activity, Truck, Loader2 } from "lucide-react";
 import companyLogo from "@/assets/aristides-logo.png";
 import warehouseVideo from "@/assets/warehouse-bg.mp4";
+import { isAuthenticated } from "@/lib/auth";
 
 const TEMPLATE = {
   companyName: "PT Aristides Logistik Indonesia",
@@ -48,7 +49,7 @@ function Welcome() {
   const handleNavigate = () => {
     setIsLoading(true);
     setTimeout(() => {
-      navigate({ to: "/dashboard" });
+      navigate({ to: isAuthenticated() ? "/dashboard" : "/login" });
     }, 1200);
   };
 
@@ -201,11 +202,7 @@ function Welcome() {
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            <img
-              src={companyLogo}
-              alt="Company Logo"
-              className="h-48 w-48 object-contain mb-10"
-            />
+            <img src={companyLogo} alt="Company Logo" className="h-48 w-48 object-contain mb-10" />
           </div>
 
           <h1
@@ -226,7 +223,8 @@ function Welcome() {
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            Warehouse Intelligence Platform untuk monitorting barang staging, arus kendaraan, dan CCTV keamanan yang didukung dengan Real-TIme Alert
+            Warehouse Intelligence Platform untuk monitorting barang staging, arus kendaraan, dan
+            CCTV keamanan yang didukung dengan Real-TIme Alert
           </p>
 
           <div

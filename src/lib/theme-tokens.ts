@@ -19,7 +19,7 @@ export type SettingsPageColors = ReturnType<typeof getSettingsPageColors>;
 export function getSettingsPageColors(isDarkMode: boolean) {
   return {
     bg: isDarkMode ? "#0f172a" : "#f8fafc",
-    card: isDarkMode ? "#1e293b" : "#ffffff,",
+    card: isDarkMode ? "#1e293b" : "#ffffff",
     border: isDarkMode ? "#334155" : "#e2e8f0",
     textMain: isDarkMode ? "#e2e8f0" : "#0f172a",
     textMuted: isDarkMode ? "#94a3b8" : "#64748b",

@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { clampLimit } = require("../utils/pagination");
 const multer = require("multer");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { error } = require("console");
+const { sendServerError } = require("../utils/errors");
+const logger = require("../utils/logger");
 
 // Batasi ukuran & tipe file upload foto enroll - tanpa ini, siapapun bisa upload file raksasa berkali-kali fan menghabiskan RAM server
 // (storagenya memoryStorage, artinya seluruh file ditampung di memori proses node).
@@ -29,14 +32,15 @@ const PYTHON_PROJECT_DIR = process.env.PYTHON_PROJECT_DIR;
 const EXTRACT_SCRIPT_PATH = process.env.EXTRACT_SCRIPT_PATH;
 const POSE_DB_PATH = process.env.POSE_DB_PATH;
 
-console.log("✅ Attendance API routes loaded");
+logger.info("✅ Attendance API routes loaded");
 
 // --- GET LOG ---
 // --- GET LOG ---
 router.get("/log", async (req, res) => {
   try {
-    const { page = 1, limit = 12, start_date, end_date } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const { page = 1, limit: rawLimit = 20, start_date, end_date, search } = req.query;
+    const limit = clampLimit(rawLimit, { defaultLimit: 20, maxLimit: 100 });
+    const offset = (Number(page) - 1) * limit;
     let conditions = [];
     let params = [];
 
@@ -56,6 +60,11 @@ router.get("/log", async (req, res) => {
     if (end_date) {
       params.push(end_date + " 23:59:59");
       conditions.push(`ae."timestamp" <= $${params.length}`);
+    }
+
+    if (search?.trim()) {
+      params.push(`%${search.trim()}%`);
+      conditions.push(`(e.name ILIKE $${params.length} OR ae.employee_id ILIKE $${params.length})`);
     }
 
     const whereClause = "WHERE " + conditions.join(" AND ");
@@ -83,6 +92,7 @@ router.get("/log", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) AS total 
       FROM attendance_event ae 
+      LEFT JOIN employees e ON e.employee_id = ae.employee_id
       ${whereClause}
     `;
 
@@ -99,15 +109,15 @@ router.get("/log", async (req, res) => {
       totalPages: Math.max(1, Math.ceil(total / Number(limit))),
     });
   } catch (err) {
-    console.error("ERROR di /log:", err);
-    res.status(500).json({ error: err.message });
+    logger.error("ERROR di /log:", err);
+    sendServerError(res, err);
   }
 });
 
 // --- GET EMPLOYEES ---
 router.get("/employees", async (req, res) => {
   try {
-    const { page = 1, limit = 5 } = req.query;
+    const { page = 1, limit: rawLimit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const query = `
       SELECT 
@@ -137,8 +147,7 @@ router.get("/employees", async (req, res) => {
       totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
-    console.error("Error fetching employees:", err);
-    res.status(500).json({ error: err.message || "Gagal mengambil data karyawan" });
+    sendServerError(res, err, "Error fetching employees");
   }
 });
 
@@ -166,8 +175,8 @@ router.get("/stats/daily", async (req, res) => {
     });
     res.json(stats);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   }
 });
 
@@ -178,7 +187,7 @@ router.get("/manual-review-pending", async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    console.error("Error fetching manual-review-pending:", err);
+    logger.error("Error fetching manual-review-pending:", err);
     res.status(502).json({ error: "Gagal mengambil data dari n8n" });
   }
 });
@@ -187,7 +196,7 @@ router.get("/manual-review-pending", async (req, res) => {
 router.post("/manual-review-decision", async (req, res) => {
   try {
     const { attendance_event_id, decision, reviewed_by } = req.body;
-    console.log("Mengirim ke n8n:", req.body);
+    logger.info("Mengirim ke n8n:", req.body);
 
     // Variabel untuk menampung path dan base64
     let snapshotPath = null;
@@ -211,9 +220,9 @@ router.post("/manual-review-decision", async (req, res) => {
           const fullPath = path.join(process.env.SNAPSHOT_DIR, snapshotPath);
           const fileBuffer = fs.readFileSync(fullPath); // Baca file .jpg
           imageBase64 = fileBuffer.toString("base64"); // Ubah jadi base64
-          console.log(`✅ Berhasil mengubah ${snapshotPath} menjadi base64`);
+          logger.info(`✅ Berhasil mengubah ${snapshotPath} menjadi base64`);
         } catch (err) {
-          console.warn("⚠️ Gagal membaca file gambar:", err.message);
+          logger.warn("⚠️ Gagal membaca file gambar:", err.message);
           imageBase64 = null;
         }
       }
@@ -242,7 +251,7 @@ router.post("/manual-review-decision", async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("n8n error:", errorText);
+      logger.error("n8n error:", errorText);
       return res.status(502).json({
         error: "n8n returned error",
         details: errorText,
@@ -255,7 +264,7 @@ router.post("/manual-review-decision", async (req, res) => {
       try {
         data = JSON.parse(text);
       } catch (e) {
-        console.warn("n8n response bukan JSON:", text);
+        logger.warn("n8n response bukan JSON:", text);
         data = { success: true };
       }
     } else {
@@ -264,7 +273,7 @@ router.post("/manual-review-decision", async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error("ERROR di /manual-review-decision:", err);
+    logger.error("ERROR di /manual-review-decision:", err);
     if (err.name === "AbortError") {
       res.status(504).json({ error: "Timeout: n8n tidak merespons" });
     } else {
@@ -381,8 +390,8 @@ router.post("/enroll", upload.array("photos"), async (req, res) => {
       break_windows_saved: parsedBreakWindows !== null,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   } finally {
     tempFiles.forEach((f) => {
       fs.unlink(f, () => {});
@@ -405,7 +414,7 @@ function runExtraction(photoPaths) {
 
     proc.on("close", (code) => {
       if (code !== 0) {
-        console.error("Python stderr:", stderr);
+        logger.error("Python stderr:", stderr);
         return resolve({ error: stderr || `Python exit code ${code}` });
       }
       try {
@@ -481,8 +490,8 @@ router.get("/employees/all", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   }
 });
 
@@ -527,8 +536,8 @@ router.delete("/employees/:employee_id", async (req, res) => {
 
     res.json({ message: "Karyawan dan semua data attendance dihapus", ...result.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   }
 });
 
@@ -567,8 +576,8 @@ router.put("/employees/:employee_id", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   }
 });
 
@@ -681,8 +690,8 @@ router.put("/employees/:employee_id/reenroll", upload.array("photos"), async (re
       pose_photos_used: poseCount,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    logger.error(err);
+    sendServerError(res, err);
   } finally {
     tempFiles.forEach((f) => fs.unlink(f, () => {}));
   }
@@ -778,8 +787,8 @@ router.get("/late-report", async (req, res) => {
       data: lateEmployees,
     });
   } catch (err) {
-    console.error("Error di /late-report:", err);
-    res.status(500).json({ error: err.message });
+    logger.error("Error di /late-report:", err);
+    sendServerError(res, err);
   }
 });
 

@@ -12,4 +12,12 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      // Izinkan akses dari Cloudflare Quick Tunnel (trycloudflare.com).
+      // Pakai wildcard (diawali titik) supaya tidak perlu diubah tiap kali
+      // URL tunnel-nya berganti (URL-nya random setiap restart).
+      allowedHosts: [".trycloudflare.com"],
+    },
+  },
 });

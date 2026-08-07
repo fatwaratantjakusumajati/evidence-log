@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { cleanPath, createFileRoute, Link } from "@tanstack/react-router";
 import { API_BASE_URL } from "@/lib/api-config";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -20,9 +20,11 @@ import {
   Calendar,
   Eye,
   X,
+  Search,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { formatDateTime, formatShortDate } from "@/lib/evidence";
+import { authFetch } from "@/lib/auth";
 
 const PAGE_SIZE = 12;
 
@@ -125,6 +127,25 @@ export const Route = createFileRoute("/attendance")({
   component: AttendancePage,
 });
 
+function getImageUrl(path: string | null): string {
+  if (!path) {
+    return "";
+  }
+
+  let cleanPath = path.replace(/\\/g, "/");
+
+  if (cleanPath.startsWith("/")) {
+    cleanPath = cleanPath.substring(1);
+  }
+
+  let baseUrl = API_BASE_URL;
+  if (baseUrl.endsWith("/")) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+  }
+
+  return `${baseUrl}/${cleanPath}`;
+}
+
 function AttendancePage() {
   const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState("");
@@ -139,13 +160,25 @@ function AttendancePage() {
     };
   }, [selectedLog]);
 
+  // --- Cari berdasarkan nama/ID karyawan(dashboard) ---
+  const [searchInput, setSearchInput] = useState("");
+  const [search, SetSearch] = useState("");
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      SetSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["attendance_log", page, startDate, endDate],
+    queryKey: ["attendance_log", page, startDate, endDate, search],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
-      const res = await fetch(`${API_BASE_URL}/api/attendance/log?${params}`);
+      if (search) params.append("search", search);
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/log?${params}`);
       if (!res.ok) return { data: [], total: 0, totalPages: 1 };
       const json = await res.json();
       return parseResponse(json);
@@ -220,6 +253,25 @@ function AttendancePage() {
             Riwayat kehadiran karyawan yang terdeteksi AI.
           </p>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Cari nama atau ID*/}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 2-3.5 -translate-y-1/2 text-[#64748b] dark:text-[#94a3b8]" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Cari nama/ID karyawan..."
+                className="h-9 w-48 rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] pl-8 pr-3 text-xs outline-none dark:text-[#e2e8f0] text-[#0f172a] font-mono shadow-sm focus:ring-1 cpcus:ring-[#2563eb]"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => setSearchInput("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#64748b] dark:text-[#94a3b8] hover:text-red-500"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             {/* Filter terlambat */}
             <button
               onClick={() => setShowLateOnly(!showLateOnly)}
@@ -260,13 +312,15 @@ function AttendancePage() {
                 />
               </div>
 
-              {(startDate || endDate) && (
+              {(startDate || endDate || searchInput) && (
                 <button
                   onClick={() => {
                     setStartDate("");
                     setEndDate("");
+                    setSearchInput("");
                     setPage(1);
                   }}
+                  aria-label="Hapus pencarian"
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] px-3 text-sm font-medium text-[#64748b] dark:text-[#94a3b8] hover:bg-[#f1f5f9] dark:hover:bg-[#0b1120]"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Reset
@@ -343,7 +397,11 @@ function AttendancePage() {
                     >
                       {log.snapshot_path ? (
                         <img
-                          src={`${API_BASE_URL}/${log.snapshot_path?.replace(/\\/g, "/")}`}
+                          src={
+                            log.snapshot_path
+                              ? `${API_BASE_URL}/${log.snapshot_path.replace(/\\/g, "/")}`
+                              : ""
+                          }
                           alt="Karyawan"
                           className="h-full w-full object-cover group-hover/image:scale-105 transition-transform duration-300"
                           onError={(e) => {
@@ -461,6 +519,7 @@ function AttendancePage() {
           >
             <button
               onClick={() => setSelectedLog(null)}
+              aria-label="Tutup"
               className="absolute right-3 top-3 z-10 rounded-full bg-black/50 p-1.5 text-white transition-colors hover:bg-black/70"
             >
               <X className="h-5 w-5" />
@@ -468,7 +527,11 @@ function AttendancePage() {
             <div className="flex flex-1 items-center justify-center bg-[#f1f5f9] dark:bg-[#0b1120] p-2 md:w-1/2">
               {selectedLog.snapshot_path ? (
                 <img
-                  src={`${API_BASE_URL}/${selectedLog.snapshot_path.replace(/\\/g, "/")}`}
+                  src={
+                    selectedLog.snapshot_path
+                      ? `${API_BASE_URL}/${selectedLog.snapshot_path.replace(/\\/g, "/")}`
+                      : ""
+                  }
                   alt="Karyawan"
                   className="max-h-[70vh] w-full object-contain"
                 />

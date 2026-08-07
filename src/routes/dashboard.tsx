@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/api-config";
 import { useState, useMemo, useEffect } from "react";
+import { authFetch } from "@/lib/auth";
 import {
   Area as RechartsArea,
   AreaChart,
@@ -238,7 +239,7 @@ function Dashboard() {
         if (filterClass !== "all") {
           url += `&jenis=${encodeURIComponent(filterClass)}`;
         }
-        const res = await fetch(url);
+        const res = await authFetch(url);
         if (!res.ok) return [];
         const json = await res.json();
         return json.data || (Array.isArray(json) ? json : []);
@@ -251,7 +252,7 @@ function Dashboard() {
     queryKey: ["staging_detections", "preview"],
     queryFn: async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/alerts?class_name=box&limit=4`);
+        const res = await authFetch(`${API_BASE_URL}/api/alerts?class_name=box&limit=4`);
         if (!res.ok) return [];
         const json = await res.json();
         return json.data || (Array.isArray(json) ? json : []);
@@ -264,7 +265,7 @@ function Dashboard() {
     queryKey: ["camera_offline_events", "preview"],
     queryFn: async () => {
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `${API_BASE_URL}/api/alerts?class_name=` +
             encodeURIComponent("KAMERA OFFLINE") +
             "&limit=4",
@@ -282,7 +283,7 @@ function Dashboard() {
     queryFn: async () => {
       let url = `${API_BASE_URL}/api/vehicles/stats/hourly`;
       if (startDate && endDate) url += `?start_date=${startDate}&end_date=${endDate}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) return [];
       return res.json() as Promise<VehicleIntervalRaw[]>;
     },
@@ -292,7 +293,7 @@ function Dashboard() {
     queryFn: async () => {
       let url = `${API_BASE_URL}/api/alerts/stats/weekly`;
       if (startDate && endDate) url += `?start_date=${startDate}&end_date=${endDate}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) return [];
       return res.json();
     },
@@ -302,7 +303,7 @@ function Dashboard() {
     queryFn: async () => {
       let url = `${API_BASE_URL}/api/alerts/stats/camera-status`;
       if (startDate && endDate) url += `?start_date=${startDate}&end_date=${endDate}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) return { mati: 0 };
       return res.json();
     },
@@ -310,7 +311,7 @@ function Dashboard() {
   const { data: attendanceStats } = useQuery({
     queryKey: ["attendance_stats_daily"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/stats/daily`);
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/stats/daily`);
       if (!res.ok)
         return { total_arrival: 0, total_departure: 0, total_break_out: 0, total_break_in: 0 };
       return res.json();
@@ -756,8 +757,13 @@ function Dashboard() {
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 text-[11px] mt-0.5 font-mono text-slate-500 dark:text-slate-400">
-                        <span>{formatDateTime(s.created_at)}</span>
                         {s.camera && <span>📍 {s.camera}</span>}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 text-[10px] mt-0.5 font-mono text-slate-500 dark:text-slate-400">
+                        <span>
+                          🟢 Mulai: {s.first_detected ? formatDateTime(s.first_detected) : "-"}
+                        </span>
+                        <span>🔔 Alert: {formatDateTime(s.timestamp)}</span>
                       </div>
                     </div>
                   </div>
@@ -826,7 +832,7 @@ function Dashboard() {
             const { data: attendanceLog, isLoading } = useQuery({
               queryKey: ["attendance_log_preview"],
               queryFn: async () => {
-                const res = await fetch(`${API_BASE_URL}/api/attendance/log?limit=4`);
+                const res = await authFetch(`${API_BASE_URL}/api/attendance/log?limit=4`);
                 if (!res.ok) return { data: [] };
                 return res.json();
               },

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as Attendance_reviewRouteImport } from './routes/attendance_review'
@@ -23,6 +24,11 @@ import { Route as EntryIdRouteImport } from './routes/entry.$id'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveRoute = LiveRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
+  '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
+  '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
   '/live': typeof LiveRoute
+  '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/attendance_review'
     | '/dashboard'
     | '/live'
+    | '/login'
     | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/attendance_review'
     | '/dashboard'
     | '/live'
+    | '/login'
     | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/attendance_review'
     | '/dashboard'
     | '/live'
+    | '/login'
     | '/settings'
     | '/entry/$id'
     | '/logs/cameras'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   Attendance_reviewRoute: typeof Attendance_reviewRoute
   DashboardRoute: typeof DashboardRoute
   LiveRoute: typeof LiveRoute
+  LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   EntryIdRoute: typeof EntryIdRoute
   LogsCamerasRoute: typeof LogsCamerasRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   Attendance_reviewRoute: Attendance_reviewRoute,
   DashboardRoute: DashboardRoute,
   LiveRoute: LiveRoute,
+  LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   EntryIdRoute: EntryIdRoute,
   LogsCamerasRoute: LogsCamerasRoute,

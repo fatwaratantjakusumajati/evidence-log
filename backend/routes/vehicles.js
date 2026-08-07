@@ -1,17 +1,21 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { clampLimit } = require("../utils/pagination");
 const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
+const { sendServerError } = require("../utils/errors");
+const logger = require("../utils/logger");
 
-console.log("✅ Vehicles API routes loaded (FINAL - Weekly Restored)");
+logger.info("✅ Vehicles API routes loaded (FINAL - Weekly Restored)");
 
 // ------------------ LOG KENDARAAN (PAGINATION) ------------------
 router.get("/log", async (req, res) => {
   try {
-    const { page = 1, limit = 12, jenis = "all", start_date, end_date } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const { page = 1, limit: rawLimit = 20, jenis = "all", start_date, end_date } = req.query;
+    const limit = clampLimit(rawLimit, { defaultLimit: 20, maxLimit: 100 });
+    const offset = (Number(page) - 1) * limit;
     let conditions = [],
       params = [];
 
@@ -43,7 +47,7 @@ router.get("/log", async (req, res) => {
       totalPages: Math.ceil(parseInt(totalResult.rows[0].total) / Number(limit)),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -58,7 +62,7 @@ router.patch("/log/:id/flag", async (req, res) => {
     ]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -92,7 +96,7 @@ router.get("/stats/hourly", async (req, res) => {
       })),
     );
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -215,7 +219,7 @@ router.get("/export-pdf", async (req, res) => {
     res.setHeader("Content-Disposition", 'attachment; filename="laporan_eksekutif.pdf"');
     res.send(pdfBuffer);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: "Gagal generate laporan lengkap" });
   }
 });

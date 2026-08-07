@@ -18,6 +18,7 @@ import { formatDateTime } from "@/lib/evidence";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import { authFetch } from "@/lib/auth";
 
 type LiveEvent = {
   type: "vehicle" | "staging" | "camera";
@@ -56,7 +57,7 @@ function LivePage() {
   } = useQuery({
     queryKey: ["live_feed"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/live/feed`);
+      const res = await authFetch(`${API_BASE_URL}/api/live/feed`);
       if (!res.ok) throw new Error("Gagal mengambil data");
       return res.json() as Promise<LiveEvent[]>;
     },
@@ -66,7 +67,7 @@ function LivePage() {
   const { data: vehicleIntervalRaw = [] } = useQuery<VehicleIntervalRaw[]>({
     queryKey: ["vehicle_interval_live"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/vehicles/stats/hourly`);
+      const res = await authFetch(`${API_BASE_URL}/api/vehicles/stats/hourly`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -76,7 +77,7 @@ function LivePage() {
   const { data: detectionData = [] } = useQuery<{ day: string; barang: number }[]>({
     queryKey: ["detection_weekly_live"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/alerts/stats/weekly`);
+      const res = await authFetch(`${API_BASE_URL}/api/alerts/stats/weekly`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -86,7 +87,7 @@ function LivePage() {
   const { data: cameraStats } = useQuery<{ mati: number }>({
     queryKey: ["camera_status_live"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/alerts/stats/camera-status`);
+      const res = await authFetch(`${API_BASE_URL}/api/alerts/stats/camera-status`);
       if (!res.ok) return { mati: 0 };
       return res.json();
     },

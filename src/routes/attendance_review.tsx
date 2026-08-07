@@ -12,6 +12,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { toast } from "sonner";
+import { authFetch, getCurrentUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/attendance_review")({
   component: AttendanceReviewPage,
@@ -38,6 +39,7 @@ type ReviewItem = {
 function AttendanceReviewPage() {
   const queryClient = useQueryClient();
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const currentUser = getCurrentUser();
   const [selectedReview, setSelectedReview] = useState<any | null>(null);
 
   const {
@@ -47,7 +49,7 @@ function AttendanceReviewPage() {
   } = useQuery({
     queryKey: ["manual-review-pending"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/manual-review-pending`);
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/manual-review-pending`);
       if (!res.ok) throw new Error("Gagal mengambil data review");
       const json = await res.json();
       return (Array.isArray(json) ? json : json.data || []) as ReviewItem[];
@@ -57,13 +59,13 @@ function AttendanceReviewPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/manual-review-decision`, {
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/manual-review-decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           attendance_event_id: id,
           decision: "APPROVE",
-          reviewed_by: "admin",
+          reviewed_by: currentUser?.username || "username",
         }),
       });
       if (!res.ok) throw new Error("Gagal approve");
@@ -84,13 +86,13 @@ function AttendanceReviewPage() {
 
   const rejectMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/manual-review-decision`, {
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/manual-review-decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           attendance_event_id: id,
           decision: "REJECT",
-          reviewed_by: "admin",
+          reviewed_by: currentUser?.username || "username",
         }),
       });
       if (!res.ok) throw new Error("Gagal reject");

@@ -1,10 +1,21 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { clapLimit, clampLimit } = require("../utils/pagination");
 const puppeteer = require("puppeteer");
 const path = require("path");
+const { sendServerError } = require("../utils/errors");
+const logger = require("../utils/logger");
 
-console.log("✅ Alerts API routes loaded (FIXED PARAM BINDING + BYTEA BASE64)");
+logger.info("✅ Alerts API routes loaded (FIXED PARAM BINDING + BYTEA BASE64)");
+
+// ============================================================
+// Ambang waktu "barang mengendap" sebelum boleh dianggap staging
+// yang layak ditampilkan di dashboard. Harus SAMA PERSIS dengan
+// WAKTU_MAKSIMAL_DIAM di script Python (cctv-monitor.py) = 3 hari.
+// Kolom `duration` di alert_log satuannya detik.
+// ============================================================
+const MIN_STAGING_DURATION_SECONDS = 259200; // 3 hari
 
 // ============================================================
 // PERBAIKAN: kolom foto_base64 bertipe bytea di Postgres.
@@ -27,13 +38,23 @@ function convertFotoBase64(row) {
 // ============================================================
 router.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 20, class_name, start_date, end_date } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    // const { page = 1, limit = 20, class_name, start_date, end_date } = req.query;
+    // const offset = (Number(page) - 1) * Number(limit);
+    const { page = 1, limit: rawLimit = 20, class_name, start_date, end_date } = req.query;
+    const limit = clampLimit(rawLimit, { defaultLimit: 20, maxLimit: 100 });
+    const offset = (Number(page) - 1) * limit;
     let conditions = [];
     let params = [];
 
     // 🔽 Filter default: jangan tampilkan log kamera
     conditions.push(`class_name NOT IN ('KAMERA OFFLINE', 'KAMERA ONLINE')`);
+
+    // 🔽 Hanya tampilkan barang yang SUDAH mengendap >= 3 hari.
+    // duration masih 0 selama barang belum melewati ambang eskalasi pertama
+    // (lihat WAKTU_MAKSIMAL_DIAM di cctv-monitor.py), jadi baris yang baru
+    // saja terdeteksi (STAGING duration=0) otomatis tersaring di sini.
+    params.push(MIN_STAGING_DURATION_SECONDS);
+    conditions.push(`duration >= $${params.length}`);
 
     if (class_name) {
       params.push(class_name);
@@ -75,8 +96,8 @@ router.get("/", async (req, res) => {
       totalPages: Math.ceil(parseInt(totalResult.rows[0].total) / Number(limit)),
     });
   } catch (err) {
-    console.error("Error GET /:", err);
-    res.status(500).json({ error: err.message });
+    logger.error("Error GET /:", err);
+    sendServerError(res, err);
   }
 });
 
@@ -108,8 +129,8 @@ router.get("/stats/weekly", async (req, res) => {
     const result = params.length > 0 ? await pool.query(query, params) : await pool.query(query);
     res.json(result.rows);
   } catch (err) {
-    console.error("Error GET /stats/weekly:", err);
-    res.status(500).json({ error: err.message });
+    logger.error("Error GET /stats/weekly:", err);
+    sendServerError(res, err);
   }
 });
 
@@ -145,8 +166,8 @@ router.get("/stats/camera-status", async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error GET /stats/camera-status:", err);
-    res.status(500).json({ error: err.message });
+    logger.error("Error GET /stats/camera-status:", err);
+    sendServerError(res, err);
   }
 });
 
@@ -158,6 +179,15 @@ router.get("/export-pdf", async (req, res) => {
     const { class_name, start_date, end_date } = req.query;
     let conditions = [];
     let params = [];
+
+    // 🔽 Sama seperti list utama: laporan hanya untuk barang yang sudah
+    // mengendap >= 3 hari. Kecualikan class_name kamera dari batasan ini
+    // supaya "Laporan Kamera Mati" tetap bisa diekspor apa adanya.
+    const isCameraExport = class_name && class_name.toLowerCase().includes("kamera");
+    if (!isCameraExport) {
+      params.push(MIN_STAGING_DURATION_SECONDS);
+      conditions.push(`duration >= $${params.length}`);
+    }
 
     if (class_name) {
       params.push(class_name);
@@ -292,7 +322,7 @@ router.get("/export-pdf", async (req, res) => {
     );
     res.send(pdfBuffer);
   } catch (err) {
-    console.error("Error GET /export-pdf:", err);
+    logger.error("Error GET /export-pdf:", err);
     res.status(500).json({ error: "Gagal generate laporan lengkap" });
   }
 });
@@ -307,7 +337,7 @@ router.get("/:id", async (req, res) => {
     // PERBAIKAN: konversi Buffer -> base64 string
     res.json(convertFotoBase64(result.rows[0]));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 

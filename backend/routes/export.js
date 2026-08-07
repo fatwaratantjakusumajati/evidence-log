@@ -6,8 +6,10 @@ const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
+const logger = require("../utils/logger");
+const { getHours } = require("date-fns/getHours");
 
-console.log("✅ Export API loaded (EXCEL 3 SHEETS + PDF PREMIUM)");
+logger.info("✅ Export API loaded (EXCEL 3 SHEETS + PDF PREMIUM)");
 
 // ============================================================
 // CARI LOGO
@@ -39,7 +41,7 @@ if (logoPathFound) {
       ";base64," +
       logoBuffer.toString("base64");
   } catch (err) {
-    console.error("Error loading logo:", err);
+    logger.error("Error loading logo:", err);
   }
 }
 
@@ -57,6 +59,38 @@ function toExcelDate(date) {
   if (!date) return "";
   return new Date(date);
 }
+
+// ============================================================
+// HELPER: Buffer bytea -> base64 string (foto_base64 dari Postgres
+// datang sebagai Node Buffer, sama seperti di alerts.js)
+// ============================================================
+function convertFotoBase64(row) {
+  if (row && row.foto_base64) {
+    row.foto_base64 = Buffer.isBuffer(row.foto_base64)
+      ? row.foto_base64.toString("base64")
+      : row.foto_base64;
+  }
+  return row;
+}
+
+// ============================================================
+// HELPER: Format durasi detik -> "X hari Y jam" (sama seperti
+// formatDurationFromSeconds di frontend, biar konsisten)
+// ============================================================
+function formatDurationSeconds(totalSeconds) {
+  const detik = typeof totalSeconds === "string" ? parseInt(totalSeconds, 10) : totalSeconds || 0;
+  const days = Math.floor(detik / 86400);
+  const hours = Math.floor((detik % 86400) / 3600);
+  const minutes = Math.floor((detik % 3600) / 60);
+  if (days > 0) return `${days} hari ${hours} jam`;
+  if (hours > 0) return `${hours} jam ${minutes} menit`;
+  return `${minutes} menit`;
+}
+
+// Batas jumlah foto yang dirender di grid PDF supaya ukuran file & waktu
+// render puppeteer tetap wajar untuk laporan dengan rentang panjang
+// (mingguan/bulanan/full histori). Sisanya tetap terhitung di KPI & Excel.
+const STAGING_CARD_LIMIT = 30;
 
 // ============================================================
 // PALET WARNA (Excel)
@@ -99,7 +133,7 @@ async function renderChartBuffer(canvas, config) {
   try {
     return await canvas.renderToBuffer(config);
   } catch (err) {
-    console.error("Chart render error:", err.message);
+    logger.error("Chart render error:", err.message);
     return null;
   }
 }
@@ -620,6 +654,17 @@ tbody tr:nth-child(even) td{background:#fafcfd;}
 .badge-r{background:#fee2e2;color:#991b1b;}
 .badge-b{background:#dbeafe;color:#1e40af;}
 .empty{text-align:center;padding:32px;background:#fff;border-radius:12px;color:#94a3b8;font-size:11px;font-weight:500;}
+.staging-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.staging-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);border:1px solid #f1f5f9;position:relative;break-inside:avoid;}
+.staging-img{width:100%;height:110px;background:#f1f5f9;overflow:hidden;}
+.staging-img img{width:100%;height:100%;object-fit:cover;}
+.staging-level{position:absolute;top:8px;left:8px;padding:3px 8px;border-radius:8px;font-size:8px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);}
+.staging-info{padding:10px 12px 12px;}
+.staging-cls{font-size:11px;font-weight:700;color:#1a1a2e;margin-bottom:4px;}
+.staging-row{font-size:8.5px;color:#64748b;line-height:1.6;}
+.staging-row b{color:#334155;font-weight:700;}
+.staging-dur{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 8px;border-radius:20px;font-size:8.5px;font-weight:700;background:#fee2e2;color:#991b1b;}
+.staging-note{text-align:center;padding:12px;font-size:9.5px;color:#94a3b8;font-weight:600;}
 .nav-btns{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid #e2e8f0;}
 .nav-btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#6366f1;color:#fff;text-decoration:none;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
 .nav-btn2{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:#f1f5f9;color:#475569;text-decoration:none;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
@@ -671,13 +716,15 @@ async function generateReportEngine(
     const sStats = await client.query(`SELECT COUNT(*) as total FROM alert_log ${sWhere}`, params);
     const cStats = await client.query(`SELECT COUNT(*) as total FROM alert_log ${cWhere}`, params);
     const vLogs = await client.query(
-      `SELECT timestamp, jenis_kendaraan, warna, confidence, status_muatan FROM vehicle_log ${vWhere} ORDER BY timestamp DESC`,
+      `SELECT timestamp, jenis_kendaraan, status_muatan, jenis_kejadian FROM vehicle_log ${vWhere} ORDER BY timestamp DESC`,
       params,
     );
     const sLogs = await client.query(
-      `SELECT created_at, camera, class_name FROM alert_log ${sWhere} ORDER BY created_at DESC`,
+      `SELECT id, created_at, camera, class_name, duration, alert_level, first_detected, foto_base64
+       FROM alert_log ${sWhere} ORDER BY created_at DESC`,
       params,
     );
+    sLogs.rows.forEach(convertFotoBase64);
     const cLogs = await client.query(
       `SELECT camera, created_at FROM alert_log ${cWhere} ORDER BY created_at DESC`,
       params,
@@ -758,12 +805,44 @@ async function generateReportEngine(
 
       const vehicleSection =
         vLogs.rows.length > 0
-          ? `<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Time</th><th>Vehicle</th><th>Color</th><th>Confidence</th><th>Load</th></tr></thead><tbody>${vLogs.rows.map((v, i) => `<tr><td>${i + 1}</td><td>${new Date(v.timestamp).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td><td>${(v.jenis_kendaraan || "-").toUpperCase()}</td><td>${v.warna || "-"}</td><td>${v.confidence ? (v.confidence * 100).toFixed(1) + "%" : "-"}</td><td>${v.status_muatan || "-"}</td></tr>`).join("")}</tbody></table></div>`
+          ? `<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Time</th><th>Vehicle</th><th>Load</th><th>Kejadian</th></tr></thead><tbody>${vLogs.rows.map((v, i) => `<tr><td>${i + 1}</td><td>${v.timestamp ? new Date(v.timestamp).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"}</td><td>${(v.jenis_kendaraan || "-").toUpperCase()}</td><td>${v.status_muatan || "-"}</td><td>${v.jenis_kejadian || "-"}</td></tr>`).join("")}</tbody></table></div>`
           : '<div class="empty">🚛 No vehicle records</div>';
 
+      const stagingCards = sLogs.rows.slice(0, STAGING_CARD_LIMIT);
       const stagingSection =
         sLogs.rows.length > 0
-          ? `<div class="tbl-wrap"><table><thead><tr><th>No</th><th>Time</th><th>Camera</th><th>Class</th></tr></thead><tbody>${sLogs.rows.map((s, i) => `<tr><td>${i + 1}</td><td>${new Date(s.created_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td><td>${s.camera}</td><td>${s.class_name || "Box"}</td></tr>`).join("")}</tbody></table></div>`
+          ? `<div class="staging-grid">${stagingCards
+              .map((s) => {
+                const mulai = s.first_detected
+                  ? new Date(s.first_detected).toLocaleString("id-ID", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })
+                  : "-";
+                const alertTerakhir = new Date(s.created_at).toLocaleString("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                });
+                const level = s.alert_level || "STAGING";
+                return `<div class="staging-card">
+                  <div class="staging-img">
+                    ${s.foto_base64 ? `<img src="data:image/jpeg;base64,${s.foto_base64}" alt="Bukti" />` : ""}
+                  </div>
+                  <div class="staging-level">${level}</div>
+                  <div class="staging-info">
+                    <div class="staging-cls">${s.class_name || "Box"}</div>
+                    <div class="staging-row">📍 <b>${s.camera || "-"}</b></div>
+                    <div class="staging-row">🟢 Mulai terdeteksi: <b>${mulai}</b></div>
+                    <div class="staging-row">🔔 Alert terakhir: <b>${alertTerakhir}</b></div>
+                    <div class="staging-dur">⏱ ${formatDurationSeconds(s.duration)}</div>
+                  </div>
+                </div>`;
+              })
+              .join("")}</div>${
+              sLogs.rows.length > STAGING_CARD_LIMIT
+                ? `<div class="staging-note">Menampilkan ${STAGING_CARD_LIMIT} dari ${sLogs.rows.length} deteksi staging. Lihat halaman "Deteksi Barang Staging" di dashboard untuk daftar lengkap.</div>`
+                : ""
+            }`
           : '<div class="empty">📦 No staging records</div>';
 
       const html = buildMainHTML({
@@ -819,26 +898,33 @@ async function generateReportEngine(
       "No",
       "Waktu Terdeteksi",
       "Jenis Kendaraan",
-      "Warna",
-      "Confidence Score",
       "Status Muatan",
+      "Jenis Kejadian",
     ];
     const vSpecs = [
       { align: "center" },
-      { align: "center", numFormat: "yyyy-mm-dd hh:mm:ss" },
-      { align: "left" },
       { align: "center" },
-      { align: "right", numFormat: "0.00%" },
+      { align: "left" },
       { align: "center", isStatus: true },
+      { align: "left" },
     ];
-    const vRows = vLogs.rows.map((v, i) => [
-      i + 1,
-      toExcelDate(v.timestamp),
-      v.jenis_kendaraan ? v.jenis_kendaraan.toUpperCase() : "-",
-      v.warna || "-",
-      Number(v.confidence || 0),
-      v.status_muatan || "-",
-    ]);
+    const vRows = vLogs.rows.map((v, i) => {
+      // Format manual: dd/mm/yyyy jam/menit/detik
+      let waktu = "-";
+      if (v.timestamp) {
+        const d = new Date(v.timestamp);
+        const pad = (n) => String(n).padStart(2, "0");
+        waktu = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      }
+
+      return [
+        i + 1,
+        waktu,
+        v.jenis_kendaraan ? v.jenis_kendaraan.toUpperCase() : "-",
+        v.status_muatan || "-",
+        v.jenis_kejadian || "-",
+      ];
+    });
     const vSummary = {
       title: "📦 JUMLAH ALOKASI KENDARAAN",
       rows: [
@@ -860,20 +946,32 @@ async function generateReportEngine(
 
     // SHEET 3: Log Staging & Alert
     const wsStaging = workbook.addWorksheet("Log Staging");
-    const sHeaders = ["No", "Waktu Alert", "Kamera ID", "Kelas Objek", "Alert Level"];
+    const sHeaders = [
+      "No",
+      "Mulai Terdeteksi",
+      "Alert Terakhir",
+      "Durasi",
+      "Kamera ID",
+      "Kelas Objek",
+      "Alert Level",
+    ];
     const sSpecs = [
       { align: "center" },
       { align: "center", numFormat: "yyyy-mm-dd hh:mm:ss" },
+      { align: "center", numFormat: "yyyy-mm-dd hh:mm:ss" },
+      { align: "center" },
       { align: "left" },
       { align: "center" },
-      { align: "center", isStatus: true },
+      { align: "center" },
     ];
     const sRows = sLogs.rows.map((s, i) => [
       i + 1,
+      toExcelDate(s.first_detected),
       toExcelDate(s.created_at),
+      formatDurationSeconds(s.duration),
       s.camera,
       s.class_name || "Box",
-      s.class_name === "KAMERA OFFLINE" ? "HIGH ALERT" : "NORMAL",
+      s.alert_level || "STAGING",
     ]);
     const sSummary = {
       title: "⚠️ JUMLAH ALOKASI ALERT",
@@ -947,7 +1045,7 @@ async function generateReportEngine(
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(buffer);
   } catch (err) {
-    console.error(`Report ${scopeTitle} ERROR:`, err);
+    logger.error(`Report ${scopeTitle} ERROR:`, err);
     res.status(500).json({ error: `Gagal memproses laporan ${scopeTitle.toLowerCase()}` });
   } finally {
     if (client) client.release();

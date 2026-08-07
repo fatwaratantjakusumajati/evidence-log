@@ -1,4 +1,9 @@
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  usePrefetchInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -6,6 +11,8 @@ import {
   HeadContent,
   Scripts,
   useLocation,
+  useNavigate,
+  redirect,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode, useState, useRef } from "react";
 import {
@@ -20,6 +27,13 @@ import {
   FileSpreadsheet,
   FileText,
   Download,
+  Loader2,
+  LogOut,
+  Menu,
+  X,
+  SearchX,
+  Home,
+  RefreshCw,
 } from "lucide-react"; // NEW: tambah ikon FileSpreadsheet, FileText, Download
 
 import appCss from "../styles.css?url";
@@ -34,14 +48,56 @@ import {
 import { ThemeProvider, useTheme } from "@/lib/theme-provider";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  isAuthenticated,
+  logout,
+  getToken,
+  authFetch,
+  downloadFile,
+  isTokenExpired,
+} from "@/lib/auth";
+import { toast } from "sonner";
 
 import companyLogo from "@/assets/aristides-logo.png";
 
 function NotFoundComponent() {
-  return null;
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 ox-4 text-center dark:bg-slate-950">
+      <div className="rounded-full bg-slate-100 p-4 dark:bg-slate-800">
+        <SearchX className="h-8 w-8 text-slate-400" />
+      </div>
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+        Halaman Tidak Ditemukan
+      </h1>
+      <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
+        Halaman yang Anda cari tidak ada, sudah dipindah, atau ada kesalahan dalam penulisan URL.
+      </p>
+      <a
+        href="/dashboard"
+        className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+      >
+        <Home className="h-4 w-4" /> Kembali ke Dashboard
+      </a>
+    </div>
+  );
 }
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  return null;
+  return (
+    <div className="mt-2 flex items-center gap-3">
+      <button
+        onClick={reset}
+        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-mediun text-white transition-colors hover:bg-blue-700"
+      >
+        <RefreshCw className="h-4 w-4" /> Coba Lagi
+      </button>
+      <a
+        href="/dashboard"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-2.5 text sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      >
+        <Home className="h-4 w-4" /> Dashboard
+      </a>
+    </div>
+  );
 }
 
 interface MyRouterContext {
@@ -49,6 +105,18 @@ interface MyRouterContext {
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
+  beforeLoad: async ({ location }) => {
+    const publicPaths = ["/", "/login"];
+    const isPublic = publicPaths.includes(location.pathname);
+
+    // Jika bukan halaman public dan tidak ada token → redirect ke login
+    if (!isPublic && !getToken()) {
+      throw redirect({
+        to: "/login",
+        search: { redirect: location.href },
+      });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -210,7 +278,18 @@ function BreadcrumbNav() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useLocation();
-  const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
+  // const PUBLIC_PATHS = ["/", "/login"];
+  // const [authChecked, setAuthChecked] = useState(false);
+  // useEffect(() => {
+  //   if (!PUBLIC_PATHS.includes(location.pathname) && !isAuthenticated) {
+  //     navigate({ to: "/login" });
+  //     return;
+  //   }
+  //   setAuthChecked(true);
+  // }, [location.pathname]);
 
   const [sseStatus, setSseStatus] = useState<"online" | "offline" | "connecting">("connecting");
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
@@ -246,7 +325,11 @@ function RootComponent() {
 
   // SSE status
   useEffect(() => {
-    const eventSource = new EventSource(`${API_BASE_URL}/api/events`);
+    if (isAuthenticated()) return;
+    const token = getToken();
+    const eventSource = new EventSource(
+      `${API_BASE_URL}/api/events?token=${encodeURIComponent(token ?? "")}`,
+    );
     eventSource.onopen = () => setSseStatus("online");
     eventSource.onerror = () => setSseStatus("offline");
     return () => {
@@ -255,7 +338,20 @@ function RootComponent() {
     };
   }, []);
 
-  const showGlobalHeader = location.pathname !== "/";
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+
+    const interval = setInterval(() => {
+      if (!isTokenExpired()) {
+        logout();
+        toast.error("Sesi telah berakhir. Silahkan login kembali");
+      }
+    }, 60000); // cek setiap 60 detik
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const showGlobalHeader = location.pathname !== "/" && location.pathname !== "/login";
 
   // Buka modal dengan tipe laporan
   const openDateModal = (type: "daily" | "weekly" | "monthly") => {
@@ -267,7 +363,7 @@ function RootComponent() {
   // Download laporan (DIMODIFIKASI untuk mendukung format)
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     let baseUrl = "";
 
     // Tentukan base URL berdasarkan tipe laporan
@@ -284,34 +380,57 @@ function RootComponent() {
 
     setIsDownloading(true);
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => {
+    try {
+      await downloadFile(url, `laporan_${reportType}.${exportFormat}`);
+    } catch (err) {
+      toast.error("Gagal mengunduh laporan.");
+    } finally {
       setIsDownloading(false);
       setDateModalOpen(false);
-    }, 2000);
+    }
   };
-
   // NEW: Handler untuk download Full Report dengan format
-  const handleFullReportDownload = (format: "xlsx" | "pdf") => {
+  const handleFullReportDownload = async (format: "xlsx" | "pdf") => {
     setIsDownloading(true);
     setReportDropdownOpen(false);
 
+    const token = getToken();
     const url = `${API_BASE_URL}/api/export/full-report?format=${format}`;
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await downloadFile(url, `laporan_lengkap.${format}`);
+    } catch (err) {
+      toast.error("Gagal mengunduh laporan");
+      console.error(err);
+    } finally {
+      setIsDownloading(false);
+    }
 
-    setTimeout(() => setIsDownloading(false), 2000);
+    // Ambil sebagi blob dan download
+    //   const blob = await response.blob();
+    //   const blobUrl = window.URL.createObjectURL(blob);
+    //   const link = document.createElement("a");
+    //   link.href = blobUrl;
+    //   link.download = `laporan_lengkap.$(format)`;
+    //   document.body.append(link);
+    //   link.click();
+    //   document.body.removeChild(link);
+    //   window.URL.revokeObjectURL(blobUrl);
+    // } catch (err) {
+    //   toast.error("Gagal menngunduh laporan ");
+    //   console.error(err);
+    // } finally {
+    //   setIsDownloading(false);
+    // }
+
+    // const link = document.createElement("a");
+    // link.href = url;
+    // link.download = "";
+    // document.body.appendChild(link);
+    // link.click();
+    // document.body.removeChild(link);
+
+    // setTimeout(() => setIsDownloading(false), 2000);
   };
 
   return (
@@ -322,6 +441,7 @@ function RootComponent() {
           location={location}
           theme={theme}
           setTheme={setTheme}
+          resolvedTheme={resolvedTheme}
           sseStatus={sseStatus}
           reportDropdownOpen={reportDropdownOpen}
           setReportDropdownOpen={setReportDropdownOpen}
@@ -455,6 +575,7 @@ function HeaderWithNotification({
   location,
   theme,
   setTheme,
+  resolvedTheme,
   sseStatus,
   reportDropdownOpen,
   setReportDropdownOpen,
@@ -466,6 +587,7 @@ function HeaderWithNotification({
   location: any;
   theme: any;
   setTheme: any;
+  resolvedTheme: "dark" | "light";
   sseStatus: any;
   reportDropdownOpen: any;
   setReportDropdownOpen: any;
@@ -474,12 +596,19 @@ function HeaderWithNotification({
   isDownloading: any;
   handleFullReportDownload: any; // NEW
 }) {
-  const showGlobalHeader = location.pathname !== "/";
+  // Header hanya muncul jika BUKAN di halaman login dan BUKAN di halaman home
+  const showGlobalHeader = location.pathname !== "/" && location.pathname !== "/login";
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Tutup menu mobile otomatis tiap kali pindah halaman
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const { data: reviewData } = useQuery({
     queryKey: ["manual-review-pending"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/manual-review-pending`);
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/manual-review-pending`);
       if (!res.ok) return [];
       const json = await res.json();
 
@@ -490,6 +619,7 @@ function HeaderWithNotification({
 
       return Array.isArray(json) ? json : json.data || [];
     },
+    enabled: showGlobalHeader && isAuthenticated(),
     refetchInterval: 5000,
   });
 
@@ -501,7 +631,7 @@ function HeaderWithNotification({
     <header className="sticky top-0 z-50 dark:bg-[#0f1a2e] bg-white/95 backdrop-blur-xl border-b dark:border-[#1a2c45] border-[#e2e8f0] shadow-sm flex-shrink-0 px-0">
       <div className="mx-auto max-w-[1440px] px-6 py-4 flex flex-col gap-3">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4">
             <Link
               to="/"
               className="hover:opacity-80 transition-opacity shrink-0 flex items-center gap-3"
@@ -522,9 +652,23 @@ function HeaderWithNotification({
                 </p>
               </div>
             </Link>
+
+            {/*  Tombol hamburger - cuma tampil di layar kecil (<lg) */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 rounded-md dark:text-slate-300 text-slate-600 hover:dark:bg-[#1a2c45] hover:bg-[#f1f5f9] transition-colors"
+              aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <div
+            className={`${
+              mobileMenuOpen ? "flex" : "hidden"
+            } lg:flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-2 lg:justify-end`}
+          >
             <Link
               to="/settings"
               className="h-8 rounded-md dark:bg-[#1a2c45]/50 bg-[#eff6ff] px-3 text-xs font-medium dark:text-slate-300 text-[#2563eb] hover:dark:bg-[#1a2c45] hover:bg-[#dbeafe] transition-all flex items-center gap-1 font-mono border dark:border-[#2a4a6a] border-transparent"
@@ -648,10 +792,14 @@ function HeaderWithNotification({
 
             {/* Theme Toggle (Tidak Berubah) */}
             <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               className="p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#1a2c45] hover:bg-[#f1f5f9] rounded-md transition-colors"
             >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {resolvedTheme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>

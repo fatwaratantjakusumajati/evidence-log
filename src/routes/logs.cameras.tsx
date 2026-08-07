@@ -14,6 +14,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { authFetch } from "@/lib/auth";
 
 const PAGE_SIZE = 20;
 
@@ -72,7 +73,7 @@ function CamerasPage() {
         });
         if (startDate) params.append("start_date", startDate);
         if (endDate) params.append("end_date", endDate);
-        const res = await fetch(`${API_BASE_URL}/api/alerts?${params}`);
+        const res = await authFetch(`${API_BASE_URL}/api/alerts?${params}`);
         if (!res.ok) return { data: [], total: 0, totalPages: 1 };
         const json = await res.json();
         return parseAlertResponse(json);
@@ -307,86 +308,91 @@ function CamerasPage() {
           <>
             {/* Data Table */}
             <div
-              className="overflow-hidden rounded-lg border transition-colors duration-300 shadow-sm"
+              className="rounded-lg border transition-colors duration-300 shadow-sm"
               style={{ borderColor: t.border, backgroundColor: t.card }}
             >
-              <table className="w-full">
-                <thead className="transition-colors duration-300" style={{ backgroundColor: t.bg }}>
-                  <tr>
-                    <th
-                      className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
-                      style={{ color: t.textMuted }}
-                    >
-                      No.
-                    </th>
-                    <th
-                      className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
-                      style={{ color: t.textMuted }}
-                    >
-                      Kamera
-                    </th>
-                    <th
-                      className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
-                      style={{ color: t.textMuted }}
-                    >
-                      Waktu Kejadian
-                    </th>
-                  </tr>
-                </thead>
-                <tbody
-                  className="divide-y transition-colors duration-300"
-                  style={{ borderColor: t.border }}
-                >
-                  {paginated.map((c: CameraOfflineEvent, index: number) => {
-                    const globalIndex = (page - 1) * PAGE_SIZE + index + 1;
-                    return (
-                      <tr
-                        key={c.id}
-                        className="transition-colors duration-200"
-                        style={{ backgroundColor: t.card }}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px]">
+                  <thead
+                    className="transition-colors duration-300"
+                    style={{ backgroundColor: t.bg }}
+                  >
+                    <tr>
+                      <th
+                        className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
+                        style={{ color: t.textMuted }}
                       >
-                        <td
-                          className="px-5 py-4 text-sm font-mono transition-colors duration-300"
-                          style={{ color: t.textMuted }}
+                        No.
+                      </th>
+                      <th
+                        className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
+                        style={{ color: t.textMuted }}
+                      >
+                        Kamera
+                      </th>
+                      <th
+                        className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider font-mono transition-colors duration-300"
+                        style={{ color: t.textMuted }}
+                      >
+                        Waktu Kejadian
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    className="divide-y transition-colors duration-300"
+                    style={{ borderColor: t.border }}
+                  >
+                    {paginated.map((c: CameraOfflineEvent, index: number) => {
+                      const globalIndex = (page - 1) * PAGE_SIZE + index + 1;
+                      return (
+                        <tr
+                          key={c.id}
+                          className="transition-colors duration-200"
+                          style={{ backgroundColor: t.card }}
                         >
-                          {globalIndex}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-300"
-                              style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
-                            >
-                              <CameraOff className="h-4 w-4" />
-                            </div>
-                            <span
-                              className="text-sm font-medium font-space transition-colors duration-300"
-                              style={{ color: t.textMain }}
-                            >
-                              {c.camera}
-                            </span>
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold font-mono transition-colors duration-300"
-                              style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
-                            >
-                              OFFLINE
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <div
-                            className="flex items-center justify-end gap-1.5 text-xs font-mono transition-colors duration-300"
+                          <td
+                            className="px-5 py-4 text-sm font-mono transition-colors duration-300"
                             style={{ color: t.textMuted }}
                           >
-                            <Clock className="h-3 w-3" />
-                            <span>{formatDateTime(c.created_at)}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            {globalIndex}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-300"
+                                style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
+                              >
+                                <CameraOff className="h-4 w-4" />
+                              </div>
+                              <span
+                                className="text-sm font-medium font-space transition-colors duration-300"
+                                style={{ color: t.textMain }}
+                              >
+                                {c.camera}
+                              </span>
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold font-mono transition-colors duration-300"
+                                style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
+                              >
+                                OFFLINE
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div
+                              className="flex items-center justify-end gap-1.5 text-xs font-mono transition-colors duration-300"
+                              style={{ color: t.textMuted }}
+                            >
+                              <Clock className="h-3 w-3" />
+                              <span>{formatDateTime(c.created_at)}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Pagination */}

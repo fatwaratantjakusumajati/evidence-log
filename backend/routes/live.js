@@ -1,8 +1,9 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../db');
+const pool = require("../db");
+const logger = require("../utils/logger");
 
-router.get('/feed', async (req, res) => {
+router.get("/feed", async (req, res) => {
   try {
     // Query 1: Ambil 10 kendaraan terbaru
     const vehicleQuery = `
@@ -47,7 +48,7 @@ router.get('/feed', async (req, res) => {
       WHERE LOWER(class_name) LIKE '%offline%' OR LOWER(class_name) LIKE '%mati%'
       ORDER BY created_at DESC LIMIT 10
     `;
-    
+
     // Gabungkan dan urutkan berdasarkan waktu (paling baru di atas)
     const unionQuery = `
       (${vehicleQuery}) 
@@ -57,19 +58,20 @@ router.get('/feed', async (req, res) => {
       (${cameraQuery}) 
       ORDER BY event_time DESC LIMIT 20
     `;
-    
+
     const result = await pool.query(unionQuery);
     res.json(result.rows);
   } catch (err) {
     // Cetak error detail di terminal backend
-    console.error('❌ ERROR DETAIL DI LIVE.JS:');
-    console.error(err);
-    
+    logger.error("❌ ERROR DETAIL DI LIVE.JS:");
+    logger.error(err);
+
     // Kembalikan error 500 dengan pesan yang lebih jelas
-    res.status(500).json({ 
-      error: 'Gagal mengambil live feed', 
-      detail: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    const isDev = process.env.NODE_ENV !== "production";
+    res.status(500).json({
+      error: "Gagal mengambil live feed",
+      detail: isDev ? err.message : undefined,
+      stack: isDev ? err.stack : undefined,
     });
   }
 });

@@ -30,3 +30,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# .ENV
+# Mengabaikan seluruh file yang berawalan dengan .env, ben gaono wong ndablek
+.env*
+**/.env*

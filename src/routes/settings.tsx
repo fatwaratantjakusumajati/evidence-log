@@ -18,8 +18,12 @@ import {
   Image as ImageIcon,
   Pencil,
   UserCheck,
+  EyeOff,
+  Shield,
+  Eye,
+  Lock,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useTheme } from "@/lib/theme-provider";
 import {
   Breadcrumb,
@@ -41,6 +45,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { authFetch, getCurrentUser } from "@/lib/auth";
+import { resolve } from "node:path";
 
 // ======================== TYPES ========================
 type WaRecipient = {
@@ -83,15 +89,14 @@ export const Route = createFileRoute("/settings")({
 // ======================== COMPONENT ========================
 function SettingsPage() {
   const queryClient = useQueryClient();
-  const { theme } = useTheme();
-  const isDarkMode = theme === "dark";
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
-  const t = getSettingsPageColors(isDarkMode);
+  const t = useMemo(() => getSettingsPageColors(isDarkMode), [isDarkMode]);
+  // const currentUser = getCurrentUser();
 
   // ======================== ENROLL STATE ========================
   const [showEnrollForm, setShowEnrollForm] = useState(false);
-  // Dialog konfirmasi terpusat - menggantikan window.confirm() bawaan browser
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     description: string;
@@ -116,13 +121,34 @@ function SettingsPage() {
     { start: "12:00", end: "13:00" },
   ]);
   const [editPhotos, setEditPhotos] = useState<File[]>([]);
-  const reEnrollFileRef = useRef<HTMLInputElement>(null);
 
   // ======================== WA STATE ========================
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNama, setNewNama] = useState("");
   const [newNomor, setNewNomor] = useState("");
   const [editValues, setEditValues] = useState<Record<number, string>>({});
+
+  // ======================== Manajemen User =========================
+  const [showAddUserForm, setShowUserForm] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showNewPasswordConfirm, setShowNewPasswordConfirm] = useState(false);
+
+  // ======================== Ganti Password =========================
+  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [newPasswordInputConfirm, setNewPasswordInputConfirm] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPasswordInput, setShowNewPasswordInput] = useState(false);
+  const [showNewPasswordConfirmInput, setShowNewPasswordConfirmInput] = useState(false);
+
+  const [currentUser, setCurrrentUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  useEffect(() => {
+    setCurrrentUser(getCurrentUser());
+  }, []);
 
   // ======================== ENROLL MUTATION ========================
   const mutationEnroll = useMutation({
@@ -142,7 +168,7 @@ function SettingsPage() {
         formData.append("break_windows", JSON.stringify(validBreakWindows));
       enrollPhotos.forEach((file) => formData.append("photos", file));
 
-      const res = await fetch(`${API_BASE_URL}/api/attendance/enroll`, {
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/enroll`, {
         method: "POST",
         body: formData,
       });
@@ -151,12 +177,129 @@ function SettingsPage() {
       return json as EnrollResult;
     },
     onSuccess: (data) => {
-      toast.success(`Karyawan "${data.name} berhasil didaftarkan!`);
+      toast.success(`Karyawan "${data.name}" berhasil didaftarkan!`);
       resetEnrollForm();
       queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
+
+  // ======================== USER MANAGEMENT ========================
+  type AppUser = { id: number; username: string; created_at: string };
+
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    isError: usersError,
+  } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/users`);
+      if (!res.ok) throw new Error("Gagal mengambil daftar user");
+      return (await res.json()) as AppUser[];
+    },
+  });
+  const appUsers = usersData || [];
+
+  const mutationAddUser = useMutation({
+    mutationFn: async ({ username, password }: { username: string; password: string }) => {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan user");
+      return data;
+    },
+    onSuccess: (data: AppUser) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setShowUserForm(false);
+      setNewUsername("");
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      toast.success(`User "${data.username}" berhasil didaftarkan!`);
+    },
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
+  });
+
+  const mutationDeleteUser = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/users/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus user");
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("User berhasil dihapus!");
+    },
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
+  });
+
+  const handleAddUser = () => {
+    if (!newUsername.trim() || !newPassword) {
+      return toast.warning("Username dan password wajib diisi");
+    }
+    if (newPassword.length < 8) {
+      return toast.warning("Password minimal 8 karakter");
+    }
+    if (newPassword !== newPasswordConfirm) {
+      return toast.warning("Konfirmasi password tidak cocok");
+    }
+    mutationAddUser.mutate({ username: newUsername.trim(), password: newPassword });
+  };
+
+  const handleDeleteUser = (id: number, username: string) => {
+    setConfirmDialog({
+      title: "Hapus User",
+      description: `Hapus akun "${username}"? User ini tidak akan bisa login lagi setelah dihapus.`,
+      onConfirm: () => mutationDeleteUser.mutate(id),
+    });
+  };
+
+  const mutationChangePassword = useMutation({
+    mutationFn: async ({
+      currentPassword,
+      newPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+    }) => {
+      const res = await authFetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal mengganti password");
+      return data;
+    },
+    onSuccess: () => {
+      setShowChangePasswordForm(false);
+      setCurrentPasswordInput("");
+      setNewPasswordInput("");
+      setNewPasswordInputConfirm("");
+      toast.success("Password berhasil diganti");
+    },
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
+  });
+
+  const handleChangePassword = () => {
+    if (!currentPasswordInput || !newPasswordInput) {
+      return toast.warning("Password lama dan baru wajib diisi");
+    }
+    if (newPasswordInput.length < 8) {
+      return toast.warning("Password baru minimal 8 karakter");
+    }
+    if (newPasswordInput !== newPasswordInputConfirm) {
+      return toast.warning("Konfirmasi password baru tidak cocok");
+    }
+    mutationChangePassword.mutate({
+      currentPassword: currentPasswordInput,
+      newPassword: newPasswordInput,
+    });
+  };
 
   // ======================== EMPLOYEES QUERY ========================
   const {
@@ -166,7 +309,7 @@ function SettingsPage() {
   } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/employees/all`);
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/all`);
       if (!res.ok) throw new Error("Gagal mengambil data karyawan");
       return res.json() as Promise<Employee[]>;
     },
@@ -182,7 +325,7 @@ function SettingsPage() {
       departure_time: string;
       break_windows: BreakWindow[];
     }) => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/employees/${emp.employee_id}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/${emp.employee_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(emp),
@@ -193,15 +336,15 @@ function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       setEditingEmployee(null);
-      alert("Data karyawan berhasil diperbarui!");
+      toast.success("Data karyawan berhasil diperbarui!");
     },
-    onError: (err: Error) => alert(`Gagal: ${err.message}`),
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
   // ======================== DELETE MUTATION ========================
   const mutationDeleteEmployee = useMutation({
     mutationFn: async (employeeId: string) => {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/employees/${employeeId}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/${employeeId}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Gagal menghapus");
@@ -209,9 +352,9 @@ function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      alert("Karyawan berhasil dihapus!");
+      toast.success("Karyawan berhasil dihapus!");
     },
-    onError: (err: Error) => alert(`Gagal: ${err.message}`),
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
   // ======================== WA QUERY ========================
@@ -222,7 +365,7 @@ function SettingsPage() {
   } = useQuery({
     queryKey: ["wa-recipients"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/wa-recipients`);
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients`);
       if (!res.ok) throw new Error("Gagal mengambil data kontak");
       const json = await res.json();
       if (Array.isArray(json)) return json as WaRecipient[];
@@ -245,7 +388,7 @@ function SettingsPage() {
   // ======================== WA MUTATIONS ========================
   const mutationUpdate = useMutation({
     mutationFn: async ({ id, nomor }: { id: number; nomor: string }) => {
-      const res = await fetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nomor }),
@@ -255,14 +398,14 @@ function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wa-recipients"] });
-      alert("Nomor kontak berhasil diperbarui!");
+      toast.success("Nomor kontak berhasil diperbarui!");
     },
-    onError: (err: Error) => alert(`Gagal: ${err.message}`),
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
   const mutationDelete = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Gagal menghapus kontak");
@@ -270,14 +413,14 @@ function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wa-recipients"] });
-      alert("Kontak berhasil dihapus!");
+      toast.success("Kontak berhasil dihapus!");
     },
-    onError: (err: Error) => alert(`Gagal: ${err.message}`),
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
   const mutationAdd = useMutation({
     mutationFn: async ({ nama, nomor }: { nama: string; nomor: string }) => {
-      const res = await fetch(`${API_BASE_URL}/api/wa-recipients`, {
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nama, nomor, aktif: true }),
@@ -290,18 +433,12 @@ function SettingsPage() {
       setShowAddForm(false);
       setNewNama("");
       setNewNomor("");
-      alert("Penerima WhatsApp berhasil ditambahkan!");
+      toast.success("Penerima WhatsApp berhasil ditambahkan!");
     },
-    onError: (err: Error) => alert(`Gagal: ${err.message}`),
+    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
   // ======================== HANDLERS ========================
-  const handleEnrollPhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    setEnrollPhotos((prev) => [...prev, ...Array.from(e.target.files!)]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
   const removeEnrollPhoto = (i: number) =>
     setEnrollPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
@@ -332,7 +469,6 @@ function SettingsPage() {
     setEditArrivalTime(emp.arrival_time || "08:00");
     setEditDepartureTime(emp.departure_time || "17:00");
 
-    // Parse break_windows dengan aman
     let bw = emp.break_windows;
     if (typeof bw === "string") {
       try {
@@ -362,10 +498,10 @@ function SettingsPage() {
     }
     editPhotos.forEach((file) => formData.append("photos", file));
 
-    setIsReenrolling(true); // ← MULAI LOADING
+    setIsReenrolling(true);
 
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `${API_BASE_URL}/api/attendance/employees/${editingEmployee.employee_id}/reenroll`,
         { method: "PUT", body: formData },
       );
@@ -375,20 +511,20 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       setEditingEmployee(null);
       setEditPhotos([]);
-      alert(
-        `Berhasil!\nFace: ${data.face_updated ? "Ya" : "Tidak"} | Pose: ${data.pose_updated ? "Ya" : "Tidak"}`,
+      toast.success(
+        `Berhasil! Face: ${data.face_updated ? "Ya" : "Tidak"} | Pose: ${data.pose_updated ? "Ya" : "Tidak"}`,
       );
     } catch (err: any) {
-      alert(`Gagal: ${err.message}`);
+      toast.error(`Gagal: ${err.message}`);
     } finally {
-      setIsReenrolling(false); // ← STOP LOADING
+      setIsReenrolling(false);
     }
   };
 
   const handleDeleteEmployee = (id: string, name: string) => {
     setConfirmDialog({
       title: "Hapus Karyawan",
-      description: `Hapus karyawan "${name}" (${id})? Tindakan ini tidak bisa dibatalkan. `,
+      description: `Hapus karyawan "${name}" (${id})? Tindakan ini tidak bisa dibatalkan.`,
       onConfirm: () => mutationDeleteEmployee.mutate(id),
     });
   };
@@ -396,11 +532,11 @@ function SettingsPage() {
   const handleUpdateRecipient = (id: number) => {
     const recipient = recipients.find((r) => r.id === id);
     const newNomor = editValues[id]?.trim();
-    if (!recipient || !newNomor) return alert("Nomor WA tidak boleh kosong!");
+    if (!recipient || !newNomor) return toast.warning("Nomor WA tidak boleh kosong!");
     if (newNomor === recipient.nomor) return toast.info("Tidak ada perubahan");
     setConfirmDialog({
       title: "Ubah Nomor Whatsapp",
-      description: `Ubah nomor ${recipient.nama}? Dari ${recipient.nomor} menjadi ${newNomor}. `,
+      description: `Ubah nomor ${recipient.nama}? Dari ${recipient.nomor} menjadi ${newNomor}.`,
       onConfirm: () => mutationUpdate.mutate({ id, nomor: newNomor }),
     });
   };
@@ -410,14 +546,15 @@ function SettingsPage() {
     if (!recipient) return;
     setConfirmDialog({
       title: "Hapus Kontak",
-      description: `Hapus kontak "${recipient.nama}"? TIndakan ini tidak bisa dibatalkan. `,
+      description: `Hapus kontak "${recipient.nama}"? Tindakan ini tidak bisa dibatalkan.`,
       onConfirm: () => mutationDelete.mutate(id),
     });
   };
 
   const handleAddRecipient = () => {
-    if (!newNama.trim() || !newNomor.trim()) return alert("Nama dan Nomor WA wajib diisi!");
-    if (!/^[0-9]{10,15}$/.test(newNomor.trim())) return alert("Format nomor WA tidak valid.");
+    if (!newNama.trim() || !newNomor.trim()) return toast.warning("Nama dan Nomor WA wajib diisi!");
+    if (!/^[0-9]{10,15}$/.test(newNomor.trim()))
+      return toast.warning("Format nomor WA tidak valid.");
     mutationAdd.mutate({ nama: newNama.trim(), nomor: newNomor.trim() });
   };
 
@@ -674,13 +811,8 @@ function SettingsPage() {
                     accept="image/*"
                     multiple
                     onChange={(e) => {
-                      console.log("File selected:", e.target.files);
                       if (e.target.files && e.target.files.length > 0) {
                         const newFiles = Array.from(e.target.files);
-                        console.log(
-                          "Adding:",
-                          newFiles.map((f) => f.name),
-                        );
                         setEnrollPhotos((prev) => [...prev, ...newFiles]);
                         e.target.value = "";
                       }
@@ -723,6 +855,7 @@ function SettingsPage() {
                           />
                           <button
                             onClick={() => removeEnrollPhoto(idx)}
+                            aria-label="Hapus foto"
                             className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100"
                           >
                             <X className="h-3 w-3" />
@@ -757,7 +890,7 @@ function SettingsPage() {
                       <>
                         <Save className="h-4 w-4" /> Daftarkan
                       </>
-                    )}{" "}
+                    )}
                   </button>
                 </div>
               </div>
@@ -765,7 +898,7 @@ function SettingsPage() {
           )}
         </div>
 
-        {/* ==================== CARD 2: DAFTAR KARYAWAN (NEW!) ==================== */}
+        {/* ==================== CARD 2: DAFTAR KARYAWAN ==================== */}
         <div
           className="rounded-lg border shadow-sm"
           style={{ borderColor: t.border, backgroundColor: t.card }}
@@ -884,9 +1017,6 @@ function SettingsPage() {
                           {emp.departure_time || "-"}
                         </td>
                         <td className="py-3 px-3 font-mono text-xs" style={{ color: t.textMuted }}>
-                          {/* {emp.break_windows?.length
-                            ? emp.break_windows.map((bw) => `${bw.start}-${bw.end}`).join(", ")
-                            : "-"} */}
                           {(() => {
                             try {
                               const bw =
@@ -1144,9 +1274,362 @@ function SettingsPage() {
             )}
           </div>
         </div>
+
+        {/* ==================== CARD 4: MANAJEMEN USER ==================== */}
+        <div
+          className="rounded-lg border shadow-sm"
+          style={{ borderColor: t.border, backgroundColor: t.card }}
+        >
+          <div className="p-6 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg" style={{ backgroundColor: t.primaryLight }}>
+                  <Shield className="h-5 w-5" style={{ color: t.primary }} />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
+                    Manajemen User
+                  </h2>
+                  <p className="text-xs font-mono mt-0.5" style={{ color: t.textMuted }}>
+                    Mengelola akses login pada sistem ini
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUserForm(!showAddUserForm)}
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium font-mono text-white transition-all"
+                style={{ backgroundColor: showAddUserForm ? t.danger : t.success }}
+              >
+                {showAddUserForm ? (
+                  <>
+                    <X className="h-4 w-4" /> Batal
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" /> Daftarkan User
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          <div className="px-6 pb-6">
+            {/* GANTI PASSWORD */}
+            <div
+              className="rounded-lg border p-4 mb-6"
+              style={{ borderColor: t.border, backgroundColor: t.bg }}
+            >
+              <button
+                onClick={() => setShowChangePasswordForm(!showChangePasswordForm)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <span
+                  className="flex items-center gap-2 text-sm font-semibold font-space"
+                  style={{ color: t.textMain }}
+                >
+                  <Lock className="h-4 w-4" style={{ color: t.textMuted }} />
+                  Ganti Password Saya {currentUser?.username ? `(${currentUser.username})` : ""}
+                </span>
+                {showChangePasswordForm ? (
+                  <X className="h-4 w-4" style={{ color: t.textMuted }} />
+                ) : (
+                  <Pencil className="h-4 w-4" style={{ color: t.textMuted }} />
+                )}
+              </button>
+
+              {showChangePasswordForm && (
+                <div className="mt-4 flex flex-col gap-3">
+                  {/* Password Lama */}
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPasswordInput}
+                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                      placeholder="Password lama"
+                      className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                      style={{
+                        borderColor: t.inputBorder,
+                        backgroundColor: t.inputBg,
+                        color: t.textMain,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      style={{ color: t.textMuted }}
+                      tabIndex={-1}
+                    >
+                      {showCurrentPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {/* Password Baru */}
+                    <div className="relative flex-1">
+                      <input
+                        type={showNewPasswordInput ? "text" : "password"}
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        placeholder="Password baru (min. 8 karakter)"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        style={{
+                          borderColor: t.inputBorder,
+                          backgroundColor: t.inputBg,
+                          color: t.textMain,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPasswordInput((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: t.textMuted }}
+                        tabIndex={-1}
+                      >
+                        {showNewPasswordInput ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Konfirmasi Password Baru */}
+                    <div className="relative flex-1">
+                      <input
+                        type={showNewPasswordConfirmInput ? "text" : "password"}
+                        value={newPasswordInputConfirm}
+                        onChange={(e) => setNewPasswordInputConfirm(e.target.value)}
+                        placeholder="Konfirmasi password baru"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        style={{
+                          borderColor: t.inputBorder,
+                          backgroundColor: t.inputBg,
+                          color: t.textMain,
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && handleChangePassword()}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPasswordConfirmInput((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: t.textMuted }}
+                        tabIndex={-1}
+                      >
+                        {showNewPasswordConfirmInput ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={mutationChangePassword.isPending}
+                    className="inline-flex items-center justify-center gap-2 rounded-md px-6 py-2.5 text-sm font-medium text-white self-start"
+                    style={{ backgroundColor: t.primary }}
+                  >
+                    {mutationChangePassword.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" /> Simpan Password Baru
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* DAFTARKAN USER BARU */}
+            {showAddUserForm && (
+              <div
+                className="rounded-lg border p-4 space-y-3 mb-6"
+                style={{ borderColor: t.border, backgroundColor: t.bg }}
+              >
+                <h3 className="text-sm font-semibold font-space" style={{ color: t.textMain }}>
+                  Daftarkan User Baru
+                </h3>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="text"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="Username (huruf/angka/underscore, min. 3 karakter)"
+                    className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
+                    style={{
+                      borderColor: t.inputBorder,
+                      backgroundColor: t.inputBg,
+                      color: t.textMain,
+                    }}
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {/* Password Baru */}
+                    <div className="relative flex-1">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Password (min. 8 karakter)"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        style={{
+                          borderColor: t.inputBorder,
+                          backgroundColor: t.inputBg,
+                          color: t.textMain,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: t.textMuted }}
+                        tabIndex={-1}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Konfirmasi Password */}
+                    <div className="relative flex-1">
+                      <input
+                        type={showNewPasswordConfirm ? "text" : "password"}
+                        value={newPasswordConfirm}
+                        onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                        placeholder="Konfirmasi Password"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        style={{
+                          borderColor: t.inputBorder,
+                          backgroundColor: t.inputBg,
+                          color: t.textMain,
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddUser()}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPasswordConfirm((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: t.textMuted }}
+                        tabIndex={-1}
+                      >
+                        {showNewPasswordConfirm ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleAddUser}
+                    disabled={mutationAddUser.isPending}
+                    className="inline-flex items-center justify-center gap-2 rounded-md px-6 py-2.5 text-sm font-medium text-white self-start"
+                    style={{ backgroundColor: t.success }}
+                  >
+                    {mutationAddUser.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" /> Daftarkan
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {usersLoading && (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" style={{ color: t.primary }} />
+              </div>
+            )}
+            {usersError && (
+              <div
+                className="text-center py-8 rounded-md border"
+                style={{ borderColor: t.danger, backgroundColor: t.dangerLight }}
+              >
+                <AlertCircle className="h-6 w-6 mx-auto mb-2" style={{ color: t.danger }} />
+                <p className="text-sm font-mono" style={{ color: t.danger }}>
+                  Gagal memuat daftar user
+                </p>
+                <button
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["users"] })}
+                  className="mt-2 text-xs font-mono"
+                  style={{ color: t.primary }}
+                >
+                  <RefreshCw className="h-3 w-3 inline mr-1" />
+                  Coba lagi
+                </button>
+              </div>
+            )}
+            {!usersLoading && !usersError && appUsers.length > 0 && (
+              <div className="space-y-3">
+                {appUsers.map((u) => {
+                  const isSelf = u.id === currentUser?.userId;
+                  return (
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between gap-3 p-4 rounded-md border"
+                      style={{ borderColor: t.border, backgroundColor: t.bg }}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center font-mono text-sm font-bold"
+                          style={{ backgroundColor: t.primaryLight, color: t.primary }}
+                        >
+                          {u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p
+                            className="text-sm font-semibold font-space truncate"
+                            style={{ color: t.textMain }}
+                          >
+                            {u.username}
+                            {isSelf && (
+                              <span
+                                className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full font-mono"
+                                style={{ backgroundColor: t.successLight, color: t.success }}
+                              >
+                                Anda
+                              </span>
+                            )}
+                          </p>
+                          <div
+                            className="text-xs font-mono mt-0.5 flex items-center gap-2"
+                            style={{ color: t.textMuted }}
+                          >
+                            <span>
+                              Terdaftar {new Date(u.created_at).toLocaleDateString("id-ID")}
+                            </span>
+                            {!isSelf && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.username)}
+                                disabled={mutationDeleteUser.isPending}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-white"
+                                style={{ backgroundColor: t.danger }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Hapus
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
-      {/* ==================== MODAL EDIT KARYAWAN ==================== */}
       {/* ==================== MODAL EDIT KARYAWAN ==================== */}
       {editingEmployee && (
         <div
@@ -1170,6 +1653,7 @@ function SettingsPage() {
                   setEditingEmployee(null);
                   setEditPhotos([]);
                 }}
+                aria-label="Tutup"
                 style={{ color: t.textMuted }}
               >
                 <X className="h-5 w-5" />
@@ -1303,8 +1787,6 @@ function SettingsPage() {
                 </div>
               </div>
 
-              {/* UPLOAD FOTO */}
-              {/* UPLOAD FOTO - CARA SIMPEL */}
               <div>
                 <label
                   className="text-xs font-mono mb-1.5 block font-medium"
@@ -1313,19 +1795,13 @@ function SettingsPage() {
                   <Upload className="h-3 w-3 inline mr-1" />
                   Foto Baru (opsional)
                 </label>
-
                 <input
                   type="file"
                   accept="image/*"
                   multiple
                   onChange={(e) => {
-                    console.log("Edit photo selected:", e.target.files);
                     if (e.target.files && e.target.files.length > 0) {
                       const newFiles = Array.from(e.target.files);
-                      console.log(
-                        "Adding files:",
-                        newFiles.map((f) => f.name),
-                      );
                       setEditPhotos((prev) => [...prev, ...newFiles]);
                       e.target.value = "";
                     }
@@ -1338,7 +1814,6 @@ function SettingsPage() {
                     color: t.textMain,
                   }}
                 />
-
                 {editPhotos.length > 0 && (
                   <div className="mt-2 text-xs font-mono" style={{ color: t.success }}>
                     <CheckCircle2 className="h-3 w-3 inline mr-1" />
@@ -1383,7 +1858,8 @@ function SettingsPage() {
           </div>
         </div>
       )}
-      {/* Dialog konfirmasi terpusat, menggantikan window.confirm() */}
+
+      {/* Dialog konfirmasi */}
       <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

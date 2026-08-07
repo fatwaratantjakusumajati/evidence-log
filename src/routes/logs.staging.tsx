@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { toast } from "sonner";
 import { getLogsPageColors } from "@/lib/theme-tokens";
+import { authFetch } from "@/lib/auth";
 
 const PAGE_SIZE = 12;
 
@@ -110,7 +111,7 @@ function StagingPage() {
         });
         if (startDate) params.append("start_date", startDate);
         if (endDate) params.append("end_date", endDate);
-        const res = await fetch(`${API_BASE_URL}/api/alerts?${params}`);
+        const res = await authFetch(`${API_BASE_URL}/api/alerts?${params}`);
         if (!res.ok) return { data: [], total: 0, totalPages: 1 };
         const json = await res.json();
         return parseAlertResponse(json);
@@ -386,12 +387,27 @@ function StagingPage() {
                       </div>
                     )}
 
-                    <p
-                      className="text-xs font-mono transition-colors duration-300"
-                      style={{ color: t.textMuted }}
-                    >
-                      {formatDateTime(s.created_at)}
-                    </p>
+                    {/* Rentang waktu: kapan pertama kali terdeteksi -> kapan alert terakhir dikirim */}
+                    <div className="space-y-0.5">
+                      <p
+                        className="text-[11px] font-mono transition-colors duration-300"
+                        style={{ color: t.textMuted }}
+                      >
+                        <span className="font-semibold" style={{ color: t.textMain }}>
+                          Mulai terdeteksi:
+                        </span>{" "}
+                        {s.first_detected ? formatDateTime(s.first_detected) : "-"}
+                      </p>
+                      <p
+                        className="text-[11px] font-mono transition-colors duration-300"
+                        style={{ color: t.textMuted }}
+                      >
+                        <span className="font-semibold" style={{ color: t.textMain }}>
+                          Alert terakhir:
+                        </span>{" "}
+                        {formatDateTime(s.timestamp)}
+                      </p>
+                    </div>
 
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold font-mono transition-colors duration-300"
