@@ -1,6 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Clock, ChevronLeft, ChevronRight, RotateCcw, Camera } from "lucide-react";
+import {
+  Boxes,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Camera,
+  X,
+  MapPin,
+  Database,
+  Calendar,
+  Eye,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { API_BASE_URL } from "@/lib/api-config";
 import { formatDateTime } from "@/lib/evidence";
@@ -15,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { getLogsPageColors } from "@/lib/theme-tokens";
 import { authFetch } from "@/lib/auth";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 
 const PAGE_SIZE = 12;
 
@@ -32,27 +45,25 @@ type StagingDetection = {
   alert_sent_2: boolean;
   alert_sent_3: boolean;
   first_detected: string;
+  // Cuma terisi (bukan null) kalau alert_level masih STAGING/WARNING
+  // dan belum kena alert_sent_2 -- lihat komentar di alerts.js.
+  predicted_risk: number | null;
 };
+
+function riskBadgeStyle(risk: number | null, t: any) {
+  if (risk === null) return { backgroundColor: t.card, color: t.textMuted, label: "—" };
+  const pct = Math.round(risk * 100);
+  if (risk >= 0.6) return { backgroundColor: t.dangerBg, color: t.dangerText, label: `${pct}%` };
+  if (risk >= 0.3)
+    return { backgroundColor: "rgba(245,158,11,0.15)", color: "#d97706", label: `${pct}%` };
+  return { backgroundColor: "rgba(16,185,129,0.15)", color: "#059669", label: `${pct}%` };
+}
 
 function parseAlertResponse(json: any) {
   if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) return json;
   else if (Array.isArray(json))
     return { data: json, total: json.length, totalPages: Math.ceil(json.length / PAGE_SIZE) };
   return { data: [], total: 0, totalPages: 1 };
-}
-
-function formatDuration(fromIso: string, toIso?: string | null) {
-  const start = new Date(fromIso).getTime();
-  const end = toIso ? new Date(toIso).getTime() : Date.now();
-  const diff = Math.max(0, end - start);
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes} menit`;
-  const hours = Math.floor(minutes / 60);
-  const remMin = minutes % 60;
-  if (hours < 24) return remMin ? `${hours} jam ${remMin} menit` : `${hours} jam`;
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return remHours ? `${days} hari ${remHours} jam` : `${days} hari`;
 }
 
 function formatDurationFromSeconds(totalSeconds: number | string) {
@@ -80,7 +91,10 @@ function StagingPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // === DETEKSI DARK MODE ===
+  // --- PERBAIKAN MODAL: State untuk popup detail ---
+  const [selectedStaging, setSelectedStaging] = useState<StagingDetection | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   useEffect(() => {
     const checkDarkMode = () => {
@@ -93,7 +107,6 @@ function StagingPage() {
     return () => observer.disconnect();
   }, []);
 
-  // === THEME PALETTE (Deep Navy + Border #1a2c45 + Aksen Biru Langit #60a5fa) ===
   const t = getLogsPageColors(isDarkMode);
 
   const {
@@ -102,22 +115,19 @@ function StagingPage() {
     isError,
   } = useQuery({
     queryKey: ["staging_detections", page, startDate, endDate],
+    meta: { showErrorToast: true, errorLabel: "Riwayat Staging" },
     queryFn: async () => {
-      try {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: String(PAGE_SIZE),
-          class_name: "box",
-        });
-        if (startDate) params.append("start_date", startDate);
-        if (endDate) params.append("end_date", endDate);
-        const res = await authFetch(`${API_BASE_URL}/api/alerts?${params}`);
-        if (!res.ok) return { data: [], total: 0, totalPages: 1 };
-        const json = await res.json();
-        return parseAlertResponse(json);
-      } catch {
-        return { data: [], total: 0, totalPages: 1 };
-      }
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+        class_name: "box",
+      });
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
+      const res = await authFetch(`${API_BASE_URL}/api/alerts?${params}`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      const json = await res.json();
+      return parseAlertResponse(json);
     },
   });
 
@@ -126,18 +136,27 @@ function StagingPage() {
   const totalItems = response?.total || 0;
   const handleDateChange = () => setPage(1);
 
+  // --- PERBAIKAN MODAL: Fungsi buka dan tutup ---
+  const openDetailModal = (staging: StagingDetection) => {
+    setSelectedStaging(staging);
+    setIsModalOpen(true);
+  };
+  const closeDetailModal = () => {
+    setIsModalOpen(false);
+    setSelectedStaging(null);
+  };
+
   return (
     <main
       className="flex-1 transition-colors duration-300"
       style={{ backgroundColor: t.bg, color: t.textMain }}
     >
-      {/* === HEADER DENGAN BREADCRUMB === */}
       <header
         className="sticky top-0 z-20 border-b transition-colors duration-300 backdrop-blur-xl"
         style={{ backgroundColor: t.card, borderColor: t.border }}
       >
-        <div className="mx-auto max-w-[1440px] px-6 py-4">
-          {/* BREADCRUMB */}
+        {/* ... HEADER SAMA SEPERTI SEBELUMNYA ... */}
+        <div className="mx-auto max-w-[1680px] px-6 py-4">
           <div className="mb-4">
             <Breadcrumb>
               <BreadcrumbList>
@@ -161,15 +180,11 @@ function StagingPage() {
             </Breadcrumb>
           </div>
 
-          {/* JUDUL & STATISTIK HALAMAN */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Boxes
-                className="h-5 w-5 transition-colors duration-300"
-                style={{ color: t.primary }}
-              />
+              <Boxes className="h-5 w-5" style={{ color: t.primary }} />
               <h1
-                className="text-lg font-semibold tracking-tight font-space transition-colors duration-300"
+                className="text-lg font-semibold tracking-tight font-space"
                 style={{ color: t.textMain }}
               >
                 Deteksi Barang Staging
@@ -177,7 +192,7 @@ function StagingPage() {
             </div>
             {totalItems > 0 && (
               <span
-                className="rounded-full px-3 py-1 text-xs font-medium font-mono transition-colors duration-300"
+                className="rounded-full px-3 py-1 text-xs font-medium font-mono"
                 style={{
                   backgroundColor: t.card,
                   color: t.primary,
@@ -191,55 +206,23 @@ function StagingPage() {
         </div>
       </header>
 
-      {/* === BODY CONTENT === */}
-      <section className="mx-auto max-w-[1440px] px-6 py-6">
-        {/* Filter Bar */}
+      <section className="mx-auto max-w-[1680px] px-6 py-6">
+        {/* ... FILTER BAR SAMA ... */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 transition-colors duration-300">
-          <p
-            className="text-sm font-mono transition-colors duration-300"
-            style={{ color: t.textMuted }}
-          >
+          <p className="text-sm font-mono" style={{ color: t.textMuted }}>
             Riwayat lengkap deteksi barang di staging...
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="flex items-center gap-1 rounded-md border px-2 py-1 shadow-sm transition-colors duration-300"
-              style={{ backgroundColor: t.card, borderColor: t.border }}
-            >
-              <span
-                className="text-[10px] font-mono transition-colors duration-300"
-                style={{ color: t.textMuted }}
-              >
-                Dari
-              </span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  handleDateChange();
-                }}
-                className="bg-transparent text-sm outline-none w-28 font-mono transition-colors duration-300"
-                style={{ color: t.textMain }}
-              />
-              <span
-                className="text-[10px] font-mono transition-colors duration-300"
-                style={{ color: t.textMuted }}
-              >
-                s/d
-              </span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  handleDateChange();
-                }}
-                className="bg-transparent text-sm outline-none w-28 font-mono transition-colors duration-300"
-                style={{ color: t.textMain }}
-              />
-            </div>
-
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              colors={t}
+              onChange={(start, end) => {
+                setStartDate(start);
+                setEndDate(end);
+                handleDateChange();
+              }}
+            />
             {(startDate || endDate) && (
               <button
                 onClick={() => {
@@ -247,63 +230,74 @@ function StagingPage() {
                   setEndDate("");
                   setPage(1);
                 }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-300 hover:opacity-80"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium hover:opacity-80"
                 style={{ backgroundColor: t.card, borderColor: t.border, color: t.textMuted }}
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Reset
               </button>
             )}
-
-            <a
-              href={`${API_BASE_URL}/api/alerts/export-pdf?class_name=box&start_date=${startDate}&end_date=${endDate}`}
-              download="laporan_staging.pdf"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium font-mono transition-colors duration-300 hover:opacity-90"
-              style={{ backgroundColor: t.primary, color: isDarkMode ? "#0b1120" : "#ffffff" }}
-              onClick={(e) => {
-                if (totalItems === 0) {
-                  e.preventDefault();
-                  toast.warning("Tidak ada data staging untuk diekspor.");
-                }
-              }}
-            >
-              📄 Ekspor PDF
-            </a>
           </div>
         </div>
 
-        {/* Loading State */}
         {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: PAGE_SIZE }).map((_, i) => (
-              <div
-                key={i}
-                className="animate-pulse overflow-hidden rounded-lg border transition-colors duration-300"
-                style={{ borderColor: t.border, backgroundColor: t.card }}
-              >
-                <div
-                  className="aspect-[4/3] transition-colors duration-300"
-                  style={{ backgroundColor: t.bg }}
-                />
-                <div className="space-y-2 p-4">
-                  <div
-                    className="h-4 w-2/3 rounded transition-colors duration-300"
-                    style={{ backgroundColor: t.bg }}
-                  />
-                  <div
-                    className="h-3 w-1/2 rounded transition-colors duration-300"
-                    style={{ backgroundColor: t.bg }}
-                  />
-                  <div
-                    className="h-6 w-20 rounded-full transition-colors duration-300"
-                    style={{ backgroundColor: t.bg }}
-                  />
-                </div>
-              </div>
-            ))}
+          <div
+            className="overflow-hidden rounded-lg border"
+            style={{ borderColor: t.border, backgroundColor: t.card }}
+          >
+            <table className="w-full min-w-[780px] border-collapse text-sm">
+              <thead>
+                <tr
+                  className="border-b text-left text-[11px] font-semibold uppercase tracking-wide"
+                  style={{ borderColor: t.border, color: t.textMuted }}
+                >
+                  <th className="px-4 py-3">Barang</th>
+                  <th className="px-4 py-3">Kamera</th>
+                  <th className="px-4 py-3">Mulai Terdeteksi</th>
+                  <th className="px-4 py-3">Alert Terakhir</th>
+                  <th className="px-4 py-3">Durasi</th>
+                  <th className="px-4 py-3">Risiko Eskalasi</th>
+                  <th className="px-4 py-3 text-right">Foto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                  <tr
+                    key={i}
+                    className="animate-pulse border-b last:border-0"
+                    style={{ borderColor: t.border }}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-28 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-16 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-24 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-24 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-16 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-12 rounded" style={{ backgroundColor: t.bg }} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div
+                        className="ml-auto h-14 w-20 rounded"
+                        style={{ backgroundColor: t.bg }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : isError ? (
           <div
-            className="rounded-lg border p-6 text-center text-sm transition-colors duration-300"
+            className="rounded-lg border p-6 text-center text-sm"
             style={{
               borderColor: isDarkMode ? "#7f1d1d" : "#fecaca",
               backgroundColor: isDarkMode ? "#450a0a" : "#fef2f2",
@@ -313,114 +307,132 @@ function StagingPage() {
             Gagal memuat data.
           </div>
         ) : paginated.length === 0 ? (
-          // === EMPTY STATE YANG RAPI ===
           <div
-            className="flex flex-col items-center justify-center rounded-lg border border-dashed p-16 text-center transition-colors duration-300"
+            className="flex flex-col items-center justify-center rounded-lg border border-dashed p-16 text-center"
             style={{ borderColor: t.border, backgroundColor: t.card }}
           >
-            <Boxes
-              className="h-14 w-14 mb-4 transition-colors duration-300"
-              style={{ color: t.textMuted }}
-              strokeWidth={1.5}
-            />
-            <h4
-              className="text-base font-semibold font-space transition-colors duration-300"
-              style={{ color: t.textMain }}
-            >
+            <Boxes className="h-14 w-14 mb-4" style={{ color: t.textMuted }} strokeWidth={1.5} />
+            <h4 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
               Belum Ada Barang Staging
             </h4>
-            <p
-              className="mt-1 text-sm font-mono transition-colors duration-300"
-              style={{ color: t.textMuted }}
-            >
+            <p className="mt-1 text-sm font-mono" style={{ color: t.textMuted }}>
               Data staging akan muncul saat sistem mendeteksi barang di area gudang.
             </p>
           </div>
         ) : (
           <>
-            {/* Data Grid */}
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {paginated.map((s: StagingDetection) => (
-                <li
-                  key={s.id}
-                  className="group overflow-hidden rounded-lg border transition-all duration-200 hover:shadow-md hover:-translate-y-1"
-                  style={{
-                    borderColor: t.border,
-                    backgroundColor: t.card,
-                    boxShadow: isDarkMode
-                      ? "0 4px 6px -1px rgba(0,0,0,0.5)"
-                      : "0 1px 3px 0 rgb(0 0 0 / 0.1)",
-                  }}
-                >
-                  <div
-                    className="relative aspect-[4/3] w-full overflow-hidden"
-                    style={{ backgroundColor: t.bg }}
+            <div
+              className="overflow-x-auto rounded-lg border"
+              style={{ borderColor: t.border, backgroundColor: t.card }}
+            >
+              <table className="w-full min-w-[780px] border-collapse text-sm">
+                <thead>
+                  <tr
+                    className="border-b text-left text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ borderColor: t.border, color: t.textMuted }}
                   >
-                    <img
-                      src={`data:image/jpeg;base64,${s.foto_base64}`}
-                      alt={s.class_name ?? "Bukti"}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    {s.alert_level && (
-                      <div className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm font-mono">
-                        {s.alert_level}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 p-4">
-                    <p
-                      className="text-sm font-semibold font-space transition-colors duration-300"
-                      style={{ color: t.textMain }}
+                    <th className="px-4 py-3">Barang</th>
+                    <th className="px-4 py-3">Kamera</th>
+                    <th className="px-4 py-3">Mulai Terdeteksi</th>
+                    <th className="px-4 py-3">Alert Terakhir</th>
+                    <th className="px-4 py-3">Durasi</th>
+                    <th className="px-4 py-3">Risiko Eskalasi</th>
+                    <th className="px-4 py-3 text-right">Foto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.map((s: StagingDetection) => (
+                    <tr
+                      key={s.id}
+                      onClick={() => openDetailModal(s)}
+                      className="group cursor-pointer border-b transition-colors last:border-0"
+                      style={{ borderColor: t.border }}
                     >
-                      {s.class_name ?? "Barang tidak teridentifikasi"}
-                    </p>
-
-                    {/* Menambahkan Badge Kamera seperti di halaman kendaraan */}
-                    {s.camera && (
-                      <div
-                        className="flex items-center gap-1 text-[10px] font-mono transition-colors duration-300"
+                      <td className="px-4 py-3 align-top">
+                        <p
+                          className="text-sm font-semibold font-space"
+                          style={{ color: t.textMain }}
+                        >
+                          {s.class_name ?? "Barang tidak teridentifikasi"}
+                        </p>
+                        {s.alert_level && (
+                          <span className="mt-1 inline-block rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white font-mono">
+                            {s.alert_level}
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className="px-4 py-3 align-top text-[11px] font-mono"
                         style={{ color: t.textMuted }}
                       >
-                        <Camera className="h-3 w-3" /> {s.camera}
-                      </div>
-                    )}
-
-                    {/* Rentang waktu: kapan pertama kali terdeteksi -> kapan alert terakhir dikirim */}
-                    <div className="space-y-0.5">
-                      <p
-                        className="text-[11px] font-mono transition-colors duration-300"
+                        {s.camera ? (
+                          <span className="flex items-center gap-1">
+                            <Camera className="h-3 w-3" /> {s.camera}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td
+                        className="px-4 py-3 align-top text-[11px] font-mono"
                         style={{ color: t.textMuted }}
                       >
-                        <span className="font-semibold" style={{ color: t.textMain }}>
-                          Mulai terdeteksi:
-                        </span>{" "}
                         {s.first_detected ? formatDateTime(s.first_detected) : "-"}
-                      </p>
-                      <p
-                        className="text-[11px] font-mono transition-colors duration-300"
+                      </td>
+                      <td
+                        className="px-4 py-3 align-top text-[11px] font-mono"
                         style={{ color: t.textMuted }}
                       >
-                        <span className="font-semibold" style={{ color: t.textMain }}>
-                          Alert terakhir:
-                        </span>{" "}
                         {formatDateTime(s.timestamp)}
-                      </p>
-                    </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold font-mono"
+                          style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
+                        >
+                          <Clock className="h-3.5 w-3.5" /> {formatDurationFromSeconds(s.duration)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {(() => {
+                          const risk = riskBadgeStyle(s.predicted_risk, t);
+                          return (
+                            <span
+                              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold font-mono"
+                              style={{ backgroundColor: risk.backgroundColor, color: risk.color }}
+                              title={
+                                s.predicted_risk === null
+                                  ? "Belum cukup data historis, atau item sudah selesai"
+                                  : "Estimasi probabilitas item ini bakal mencapai eskalasi 5 hari"
+                              }
+                            >
+                              {risk.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div
+                          className="relative ml-auto h-14 w-20 overflow-hidden rounded border"
+                          style={{ borderColor: t.border, backgroundColor: t.bg }}
+                        >
+                          <img
+                            src={`data:image/jpeg;base64,${s.foto_base64}`}
+                            alt={s.class_name ?? "Bukti"}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Eye className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold font-mono transition-colors duration-300"
-                      style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
-                    >
-                      <Clock className="h-3.5 w-3.5" /> {formatDurationFromSeconds(s.duration)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {/* Pagination */}
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -432,11 +444,115 @@ function StagingPage() {
           </>
         )}
       </section>
+
+      {/* --- PERBAIKAN MODAL: Render Modal Detail --- */}
+      {isModalOpen && selectedStaging && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div
+            className="relative w-full max-w-4xl overflow-hidden rounded-xl shadow-2xl flex flex-col md:flex-row"
+            style={{ backgroundColor: t.card, color: t.textMain, border: `1px solid ${t.border}` }}
+          >
+            {/* Tombol Close */}
+            <button
+              onClick={closeDetailModal}
+              className="absolute right-4 top-4 z-10 rounded-full p-2 hover:bg-black/20 transition-colors"
+              style={{ color: t.textMuted }}
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Gambar Detail (Kiri) */}
+            <div className="viewfinder relatife w-full md:w-1/2 bg-black/10 flex items-center justify-center p-4 md:p-0">
+              <span className="vf-tr" />
+              <span className="vf-bl" />
+              <img
+                src={`data:image/jpeg;base64,${selectedStaging.foto_base64}`}
+                alt="Staging Detail"
+                className="h-full w-full object-contain max-h-[60vh] md:max-h-[70vh]"
+              />
+            </div>
+
+            {/* Info Detail (Kanan) */}
+            <div className="w-full md:w-1/2 p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+              <h2 className="text-xl font-bold font-space" style={{ color: t.textMain }}>
+                {selectedStaging.class_name ?? "Barang Staging"}
+              </h2>
+
+              <div className="flex items-center gap-2 mt-1">
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-xs font-mono"
+                  style={{ backgroundColor: t.dangerBg, color: t.dangerText }}
+                >
+                  {formatDurationFromSeconds(selectedStaging.duration)}
+                </span>
+                {selectedStaging.alert_level && (
+                  <span className="rounded-full px-2.5 py-0.5 text-xs font-mono bg-yellow-500/20 text-yellow-500 border border-yellow-500/20">
+                    {selectedStaging.alert_level}
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-3 pt-2 border-t" style={{ borderColor: t.border }}>
+                <div
+                  className="flex items-start gap-3 text-sm font-mono"
+                  style={{ color: t.textMuted }}
+                >
+                  <Calendar className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-semibold" style={{ color: t.textMain }}>
+                      Waktu Terdeteksi
+                    </div>
+                    <div>
+                      {formatDateTime(selectedStaging.first_detected || selectedStaging.created_at)}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="flex items-start gap-3 text-sm font-mono"
+                  style={{ color: t.textMuted }}
+                >
+                  <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-semibold" style={{ color: t.textMain }}>
+                      Alert Terakhir
+                    </div>
+                    <div>{formatDateTime(selectedStaging.timestamp)}</div>
+                  </div>
+                </div>
+                <div
+                  className="flex items-start gap-3 text-sm font-mono"
+                  style={{ color: t.textMuted }}
+                >
+                  <Camera className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-semibold" style={{ color: t.textMain }}>
+                      Kamera
+                    </div>
+                    <div>{selectedStaging.camera}</div>
+                  </div>
+                </div>
+                <div
+                  className="flex items-start gap-3 text-sm font-mono"
+                  style={{ color: t.textMuted }}
+                >
+                  <Database className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-semibold" style={{ color: t.textMain }}>
+                      ID Database
+                    </div>
+                    <div>#{selectedStaging.id}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-// === PAGINATION COMPONENT ===
+// === PAGINATION COMPONENT (SAMA) ===
 function Pagination({
   page,
   totalPages,
@@ -473,27 +589,24 @@ function Pagination({
 
   return (
     <div className="mt-8 flex flex-col items-center gap-3">
-      <p
-        className="text-xs font-mono transition-colors duration-300"
-        style={{ color: theme.textMuted }}
-      >
+      <p className="text-xs font-mono" style={{ color: theme.textMuted }}>
         Menampilkan {from}–{to} dari {total} data
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onChange(page - 1)}
           disabled={page === 1}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors duration-300 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Halaman sebelumnya"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ borderColor: theme.border, backgroundColor: theme.card, color: theme.textMuted }}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-
         {pageNumbers.map((p, idx) =>
           p === "ellipsis" ? (
             <span
               key={`ellipsis-${idx}`}
-              className="px-1 text-xs font-mono transition-colors duration-300"
+              className="px-1 text-xs font-mono"
               style={{ color: theme.textMuted }}
             >
               …
@@ -502,13 +615,13 @@ function Pagination({
             <button
               key={p}
               onClick={() => onChange(p)}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border text-xs font-medium font-mono transition-colors duration-300`}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border text-xs font-medium font-mono`}
               style={
                 p === page
                   ? {
                       backgroundColor: theme.primary,
                       borderColor: theme.primary,
-                      color: theme.bg === "#0a111f" ? "#0b1120" : "#ffffff",
+                      color: theme.bg === "#0f172a" ? "#0f172a" : "#ffffff",
                     }
                   : {
                       backgroundColor: theme.card,
@@ -521,11 +634,11 @@ function Pagination({
             </button>
           ),
         )}
-
         <button
           onClick={() => onChange(page + 1)}
           disabled={page === totalPages}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors duration-300 hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Halaman berikutnya"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ borderColor: theme.border, backgroundColor: theme.card, color: theme.textMuted }}
         >
           <ChevronRight className="h-4 w-4" />

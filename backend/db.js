@@ -8,6 +8,10 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+  max: 20, // naikkan dari default 10
+  idleTimeoutMillis: 30000, // tutup koneksi idle setelah 30s
+  connectionTimeoutMillis: 5000, // gagal cepat kalau pool penuh
+  statement_timeout: 10000, // query >10s langsung di-kill
 });
 
 pool

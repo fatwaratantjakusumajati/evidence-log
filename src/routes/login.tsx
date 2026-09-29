@@ -63,14 +63,21 @@ function LoginPage() {
       </div>
 
       {/* Login Card */}
-      {/* Login Card - Background putih cerah tetap dipertahankan */}
       <div
-        className="relative w-full max-w-sm rounded-3xl p-8"
+        className="viewfinder relative w-full max-w-sm rounded-3xl p-8"
         style={{
           background: "linear-gradient(145deg, #eef1f6, #d8dde6)",
           boxShadow: "20px 20px 60px rgba(0,0,0,0.35), -12px -12px 30px rgba(255,255,255,0.5)",
         }}
       >
+        <span className="vf-tr" />
+        <span className="vf-bl" />
+        <div className="mb-3 flex items-center justify-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#4338ca] animate-pulse" />
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Akses Sistem
+          </span>
+        </div>
         <div className="flex flex-col items-center">
           <div
             className="mb-5 flex h-16 w-16 items-center justify-center rounded-full"
@@ -80,10 +87,10 @@ function LoginPage() {
                 "inset 4px 4px 8px rgba(0, 0, 0, 0.08), inset -4px -4px 8px rgba(255, 255, 255, 0.7)",
             }}
           >
-            <User className="h-7 w-7 text-slate-800" /> {/* Icon digelapkan */}
+            <User className="h-7 w-7 text-slate-800" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Welcome Back!</h1> {/* Hitam pekat */}
-          <p className="mt-1 text-sm text-slate-700">Masuk untuk melanjutkan</p> {/* Abu tua */}
+          <h1 className="text-2xl font-bold text-slate-900 font-space">Welcome Back!</h1>
+          <p className="mt-1 text-sm text-slate-700">Masuk untuk melanjutkan</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
@@ -139,13 +146,13 @@ function LoginPage() {
             </button>
           </div>
 
-          {/* Submit Button - Tetap putih tapi text gelap */}
+          {/* Submit Button*/}
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-slate-800 transition-all active:scale-[0.98] hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold font-space text-indigo-900 transition-all active:scale-[0.98] hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
-              background: "linear-gradient(145deg, #eef1f6, #d8dde6)",
+              background: "linear-gradient(145deg, #dfe1f7, #c2c6ee)",
               boxShadow: "5px 5px 12px rgba(0,0,0,0.15), -5px -5px 12px rgba(255,255,255,0.6)",
             }}
           >

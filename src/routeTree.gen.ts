@@ -9,31 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LiveRouteImport } from './routes/live'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as Attendance_reviewRouteImport } from './routes/attendance_review'
-import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
-import { Route as LogsStagingRouteImport } from './routes/logs.staging'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LogsCamerasRouteImport } from './routes/logs.cameras'
-import { Route as EntryIdRouteImport } from './routes/entry.$id'
+import { Route as LogsStagingRouteImport } from './routes/logs.staging'
+import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LiveRoute = LiveRouteImport.update({
-  id: '/live',
-  path: '/live',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -41,29 +27,14 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Attendance_reviewRoute = Attendance_reviewRouteImport.update({
-  id: '/attendance_review',
-  path: '/attendance_review',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AttendanceRoute = AttendanceRouteImport.update({
-  id: '/attendance',
-  path: '/attendance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LogsVehiclesRoute = LogsVehiclesRouteImport.update({
-  id: '/logs/vehicles',
-  path: '/logs/vehicles',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LogsStagingRoute = LogsStagingRouteImport.update({
-  id: '/logs/staging',
-  path: '/logs/staging',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogsCamerasRoute = LogsCamerasRouteImport.update({
@@ -71,34 +42,31 @@ const LogsCamerasRoute = LogsCamerasRouteImport.update({
   path: '/logs/cameras',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EntryIdRoute = EntryIdRouteImport.update({
-  id: '/entry/$id',
-  path: '/entry/$id',
+const LogsStagingRoute = LogsStagingRouteImport.update({
+  id: '/logs/staging',
+  path: '/logs/staging',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsVehiclesRoute = LogsVehiclesRouteImport.update({
+  id: '/logs/vehicles',
+  path: '/logs/vehicles',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/attendance': typeof AttendanceRoute
-  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/attendance': typeof AttendanceRoute
-  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
@@ -106,13 +74,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/attendance': typeof AttendanceRoute
-  '/attendance_review': typeof Attendance_reviewRoute
   '/dashboard': typeof DashboardRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/entry/$id': typeof EntryIdRoute
   '/logs/cameras': typeof LogsCamerasRoute
   '/logs/staging': typeof LogsStagingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
@@ -121,39 +85,27 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/attendance'
-    | '/attendance_review'
     | '/dashboard'
-    | '/live'
     | '/login'
     | '/settings'
-    | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
     | '/logs/vehicles'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/attendance'
-    | '/attendance_review'
     | '/dashboard'
-    | '/live'
     | '/login'
     | '/settings'
-    | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
     | '/logs/vehicles'
   id:
     | '__root__'
     | '/'
-    | '/attendance'
-    | '/attendance_review'
     | '/dashboard'
-    | '/live'
     | '/login'
     | '/settings'
-    | '/entry/$id'
     | '/logs/cameras'
     | '/logs/staging'
     | '/logs/vehicles'
@@ -161,13 +113,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AttendanceRoute: typeof AttendanceRoute
-  Attendance_reviewRoute: typeof Attendance_reviewRoute
   DashboardRoute: typeof DashboardRoute
-  LiveRoute: typeof LiveRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
-  EntryIdRoute: typeof EntryIdRoute
   LogsCamerasRoute: typeof LogsCamerasRoute
   LogsStagingRoute: typeof LogsStagingRoute
   LogsVehiclesRoute: typeof LogsVehiclesRoute
@@ -175,25 +123,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/live': {
-      id: '/live'
-      path: '/live'
-      fullPath: '/live'
-      preLoaderRoute: typeof LiveRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -203,39 +137,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/attendance_review': {
-      id: '/attendance_review'
-      path: '/attendance_review'
-      fullPath: '/attendance_review'
-      preLoaderRoute: typeof Attendance_reviewRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/attendance': {
-      id: '/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/logs/vehicles': {
-      id: '/logs/vehicles'
-      path: '/logs/vehicles'
-      fullPath: '/logs/vehicles'
-      preLoaderRoute: typeof LogsVehiclesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/logs/staging': {
-      id: '/logs/staging'
-      path: '/logs/staging'
-      fullPath: '/logs/staging'
-      preLoaderRoute: typeof LogsStagingRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/logs/cameras': {
@@ -245,11 +158,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogsCamerasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/entry/$id': {
-      id: '/entry/$id'
-      path: '/entry/$id'
-      fullPath: '/entry/$id'
-      preLoaderRoute: typeof EntryIdRouteImport
+    '/logs/staging': {
+      id: '/logs/staging'
+      path: '/logs/staging'
+      fullPath: '/logs/staging'
+      preLoaderRoute: typeof LogsStagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs/vehicles': {
+      id: '/logs/vehicles'
+      path: '/logs/vehicles'
+      fullPath: '/logs/vehicles'
+      preLoaderRoute: typeof LogsVehiclesRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -257,13 +177,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AttendanceRoute: AttendanceRoute,
-  Attendance_reviewRoute: Attendance_reviewRoute,
   DashboardRoute: DashboardRoute,
-  LiveRoute: LiveRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
-  EntryIdRoute: EntryIdRoute,
   LogsCamerasRoute: LogsCamerasRoute,
   LogsStagingRoute: LogsStagingRoute,
   LogsVehiclesRoute: LogsVehiclesRoute,

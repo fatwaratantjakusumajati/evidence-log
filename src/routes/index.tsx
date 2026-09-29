@@ -191,7 +191,11 @@ function Welcome() {
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-slate-400" />
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#818cf8] opacity-75 " />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#818cf8]" />
+            </span>
+            <ShieldCheck className="h-3.5 w-3.5 text-[#818cf8]" />
             <span className="text-[11px] uppercase tracking-[0.2em] text-slate-300">
               Aristides Logistik Indonesia
             </span>
@@ -223,8 +227,8 @@ function Welcome() {
               mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            Warehouse Intelligence Platform untuk monitorting barang staging, arus kendaraan, dan
-            CCTV keamanan yang didukung dengan Real-TIme Alert
+            Warehouse Intelligence Platform untuk monitoring barang staging, arus kendaraan, dan
+            CCTV keamanan yang didukung dengan Real-time Alert
           </p>
 
           <div
@@ -235,7 +239,7 @@ function Welcome() {
             <button
               onClick={handleNavigate}
               disabled={isLoading}
-              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/10 bg-white/10 px-8 py-4 text-base font-medium text-white backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.3)] welcome-ease transition-all duration-500 hover:bg-white hover:text-slate-900 hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(0,0,0,0.4)] focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-70 disabled:cursor-wait"
+              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/10 bg-white/10 px-8 py-4 text-base font-medium text-white backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.3)] welcome-ease transition-all duration-500 hover:bg-[#4338ca] hover:text-white hover:-translate-y-0.5 hover:shadow-[0_12px_48px_rgba(67,56,202,0.35)] focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-70 disabled:cursor-wait"
             >
               <span className="relative">Let&apos;s Go</span>
               <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1.5" />
@@ -258,7 +262,7 @@ function Welcome() {
                 className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 p-5 text-left backdrop-blur-sm welcome-ease transition-all duration-500 hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5"
               >
                 <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-white/5 blur-xl transition-all group-hover:bg-white/10" />
-                <Icon className="relative h-6 w-6 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                <Icon className="relative h-6 w-6 text-slate-400 group-hover:text-[#818cf8] transition-colors" />
                 <div className="relative mt-3 text-sm font-medium text-white">{label}</div>
                 <div className="relative mt-0.5 text-xs text-slate-400">{desc}</div>
               </div>

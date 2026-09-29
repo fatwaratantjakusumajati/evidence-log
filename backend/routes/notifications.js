@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const { route } = require("./alerts");
-const { sendserverError, sendServerError } = require("../utils/errors");
+const { sendServerError } = require("../utils/errors");
 
 // GET semua notifikasi
 router.get("/", async (req, res) => {

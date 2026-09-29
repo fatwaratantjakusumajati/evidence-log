@@ -3,6 +3,24 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
+
+// FAIL-FAST: cek env var yang wajib ada SEBELUM server nyala sama sekali.
+// Sebelumnya kalau salah satu ini kosong (misal JWT_SECRET lupa di-set),
+// server tetap nyala normal tanpa keluhan apapun -- baru ketauan belakangan
+// pas user lapor "semua fitur error 401/500", padahal akar masalahnya cuma
+// file .env yang kurang lengkap. Sekarang server langsung menolak nyala dan
+// kasih tau persis variabel mana yang kurang, jadi ketauan pas deploy/start,
+// bukan pas sudah dipakai user.
+const REQUIRED_ENV_VARS = ["JWT_SECRET", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"];
+const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missingEnvVars.length > 0) {
+  console.error(
+    `\n❌ Server gagal dijalankan: environment variable berikut belum di-set di file .env:\n` +
+      missingEnvVars.map((v) => `   - ${v}`).join("\n") +
+      `\n\nLengkapi dulu file backend/.env, lalu jalankan ulang server.\n`,
+  );
+  process.exit(1);
+}
 const { requireAuth, verifyTokenString } = require("./middleware/auth");
 const logger = require("./utils/logger");
 
@@ -18,6 +36,34 @@ const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:8081")
   .map((o) => o.trim());
 app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
+// === DEBUG LOGGER ===
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`→ ${req.method} ${req.path}`);
+  res.on("finish", () => {
+    console.log(`← ${req.method} ${req.path} ${res.statusCode} (${Date.now() - start}ms)`);
+  });
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      console.log(`✗ ${req.method} ${req.path} — CONNECTION CLOSED sebelum response selesai`);
+    }
+  });
+  next();
+});
+// === FIX 304 ===
+// Express otomatis pasang ETag di setiap res.json(). Browser lalu kirim
+// If-None-Match, dan server balas 304 Not Modified dengan body KOSONG.
+// Fetch API menganggap res.ok === false untuk 304, jadi React Query
+// melempar error dan retry 3x -> UI kelihatan "muter terus lalu gagal".
+// Solusi: matikan ETag + larang semua cache untuk endpoint /api.
+app.set("etag", false);
+
+app.use("/api", (_req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  next();
+});
 // Rate limit umum untuk semua /api/*, batasnya sengaja longgar (400 request/menit per IP) karena
 // llive feed dan dashboard polling tiap 3-10 detik dan beberapa user bisa berbagi IP kantor yang sama.
 const apiLimiter = rateLimit({
@@ -42,20 +88,46 @@ app.use(
 //Login (publik, tidak butuh token)
 app.use("/api/auth", require("./routes/auth"));
 
+// Health check (publik, tidak butuh token) -- ditaruh SEBELUM gerbang
+// requireAuth di bawah supaya tidak ikut kena wajib-login. Dibuat setelah
+// insiden koneksi DB timeout, biar ketauan dalam sedetik lewat browser/curl
+// apakah server + database beneran hidup, tanpa perlu bongkar log manual.
+const healthPool = require("./db");
+app.get("/api/health", async (_req, res) => {
+  const startedAt = Date.now();
+  try {
+    await healthPool.query("SELECT 1");
+    res.json({
+      status: "ok",
+      uptime_seconds: Math.floor(process.uptime()),
+      database: { status: "ok", latency_ms: Date.now() - startedAt },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "degraded",
+      uptime_seconds: Math.floor(process.uptime()),
+      database: { status: "error", error: err.message },
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Semua /api/* lainnya wajib login, KKECUALI /api/events (SSE)
 app.use("/api", (req, res, next) => {
-  if (req.path === "/events") return next();
+  if (req.path === "/events" || req.path === "/documents/ingest") return next();
   return requireAuth(req, res, next);
 });
 
 // Route API
 app.use("/api/alerts", require("./routes/alerts"));
 app.use("/api/vehicles", require("./routes/vehicles"));
-app.use("/api/live", require("./routes/live"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/wa-recipients", require("./routes/wa-recipients"));
+app.use("/api/report-recipients", require("./routes/report-recipients"));
+app.use("/api/audit-log", require("./routes/audit-log"));
 app.use("/api/export", require("./routes/export"));
-// app.use("/api/attendance", require("./routes/attendance"));
+app.use("/api/documents", require("./routes/documents"));
 
 // --- KONFIGURASI SSE (REAL-TIME) ---
 // Buat koneksi DB khusus untuk mendengarkan event (tidak boleh pakai pool biasa)
@@ -79,9 +151,10 @@ function sendEventToAll(data) {
 
 // Endpoint SSE
 app.get("/api/events", async (req, res) => {
+  const token = req.query.token;
   const user = verifyTokenString(req.query.token);
   if (!user) {
-    return res.status(401).json({ error: "Unauthorized: silahkan login" });
+    return res.status(401).json({ error: "Unauthorized: Token tidak valid atau kadaluarsa" });
   }
   // Setup SSE headers
   res.writeHead(200, {
@@ -115,9 +188,14 @@ listenerPool.connect((err, client, done) => {
     return;
   }
 
-  // Listen ke channel vehicle_log_event
-  client.query("LISTEN vehicle_log_event");
-  client.query("LISTEN alert_log_event");
+  // PERBAIKAN: 2 query LISTEN ini sebelumnya ditembak bersamaan tanpa
+  // menunggu yang pertama selesai -- pg tidak izinkan itu di satu koneksi
+  // yang sama (makanya muncul DeprecationWarning "client already executing
+  // a query"). Sekarang dijalankan berurutan.
+  client
+    .query("LISTEN vehicle_log_event")
+    .then(() => client.query("LISTEN alert_log_event"))
+    .catch((listenErr) => logger.error("❌ Gagal setup LISTEN:", listenErr));
 
   // Saat ada notifikasi dari PostgreSQL
   client.on("notification", (msg) => {
@@ -162,4 +240,19 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => logger.info(`🚀 Server berjalan di port ${PORT}`));
+const server = app.listen(PORT, () => logger.info(`🚀 Server berjalan di port ${PORT}`));
+
+// === FIX KEEP-ALIVE RACE ===
+// Node default keepAliveTimeout = 5s. Browser Chrome default idle pool = 6 menit.
+// Kombinasi + SSE yang menahan koneksi lama = browser pakai koneksi "zombie"
+// yang sudah ditutup server → request menggantung ("Provisional headers").
+// Solusi: keepAliveTimeout server HARUS lebih tinggi dari yang diharapkan client,
+// dan headersTimeout HARUS lebih tinggi dari keepAliveTimeout (aturan Node.js).
+server.keepAliveTimeout = 65000; // 65 detik
+server.headersTimeout = 66000; // WAJIB > keepAliveTimeout
+server.requestTimeout = 0; // 0 = jangan putus request (penting untuk SSE)
+server.timeout = 0; // 0 = jangan timeout socket (penting untuk SSE)
+
+// Laporan mingguan otomatis via email dinonaktifkan atas permintaan (lihat utils/scheduledReports.js)
+// const { startScheduledReports } = require("./utils/scheduledReports");
+// startScheduledReports();

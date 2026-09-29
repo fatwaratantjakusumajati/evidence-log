@@ -4,7 +4,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
   console.warn(
-    "⚠️ JWT_SECRET belum di-set di backend/.env - semua request ke API akan ditolak (401).",
+    "⚠️ JWT_SECRET belum di set di backend/.env - semua request ke API akan ditolak (401",
   );
 }
 
@@ -27,13 +27,24 @@ function requireAuth(req, res, next) {
   } catch (err) {
     return res
       .status(401)
-      .json({ error: "Sesi login tidak valid atau kadaluwarsa, silahkan login kembali" });
+      .json({ error: "Sesi login tidak valid atau kadaluarsa, silahkan login kembali" });
   }
 }
 
+// Wajib dipasang setelah requireAuth (butuh req.user sudah terisi).
+// Menolak akses (403) kalau role user bukan admin -- dipakai untuk endpoint sensitif :
+// manajemen user, penerima wa/report, dan pengaturan lain yang tidak boleh diubah oleh role staff
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Hanya admin yang boleh mengakses fitur ini" });
+  }
+  next();
+}
+
 function verifyTokenString(token) {
-  // PERBAIKAN: token parameter
-  if (!JWT_SECRET || !token) return null; // PERBAIKAN: logika benar
+  // Perbaikan: token parameter
+  if (!JWT_SECRET || !token) return null;
   try {
     return jwt.verify(token, JWT_SECRET);
   } catch {
@@ -41,4 +52,4 @@ function verifyTokenString(token) {
   }
 }
 
-module.exports = { requireAuth, verifyTokenString, JWT_SECRET };
+module.exports = { requireAuth, requireAdmin, verifyTokenString, JWT_SECRET };

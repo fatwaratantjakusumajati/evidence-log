@@ -33,17 +33,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   };
 
   const bgColors = {
-    success: "bg-green-50 border-green-200",
-    error: "bg-red-50 border-red-200",
-    info: "bg-blue-50 border-blue-200",
-    warning: "bg-yellow-50 border-yellow-200",
+    success: "bg-green-50 border-green-200 dark:bg-green-950/40 dark:border-green-900/50",
+    error: "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900/50",
+    info: "bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50",
+    warning: "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/40 dark:border-yellow-900/50",
   };
 
   const textColors = {
-    success: "text-green-800",
-    error: "text-red-800",
-    info: "text-blue-800",
-    warning: "text-yellow-800",
+    success: "text-green-800 dark:text-green-300",
+    error: "text-red-800 dark:text-red-300",
+    info: "text-blue-800 dark:text-blue-300",
+    warning: "text-yellow-800 dark:text-yellow-300",
   };
 
   return (
@@ -58,9 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             }`}
           >
             {icons[toast.type]}
-            <span className={`text-sm font-medium ${textColors[toast.type]}`}>
-              {toast.message}
-            </span>
+            <span className={`text-sm font-medium ${textColors[toast.type]}`}>{toast.message}</span>
             <button
               onClick={() => removeToast(toast.id)}
               className="ml-auto text-muted-foreground hover:text-foreground transition-colors"

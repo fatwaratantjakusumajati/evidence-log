@@ -33,10 +33,31 @@ import {
   X,
   SearchX,
   Home,
+  Bell,
   RefreshCw,
-} from "lucide-react"; // NEW: tambah ikon FileSpreadsheet, FileText, Download
+  LayoutDashboard,
+  Car,
+  Boxes,
+  Camera,
+} from "lucide-react"; // NEW: tambah ikon FileSpreadsheet, FileText, Download, dan ikon nav sidebar
 
 import appCss from "../styles.css?url";
+// ============================================================
+// CATATAN WARNA (dashboard.tsx & __root.tsx):
+// Kedua file ini memakai kelas Tailwind arbitrary (dark:bg-[#hex]) langsung,
+// BUKAN lewat theme-tokens.ts (itu dipakai oleh Settings & halaman Logs).
+// Setelah audit, palet gelap yang dipakai di sini sudah dikonsolidasikan jadi:
+//   #0f172a  -> latar halaman (page bg)
+//   #1e293b  -> latar kartu/panel utama (card)      -- cocok dg theme-tokens.card
+//   #253449  -> latar hover / kotak ikon / elemen bersarang dalam kartu
+//   #1e293b  -> latar modal & dropdown (dipaksa global lewat .dark .bg-white)
+//   #0f172a  -> latar area "inset" (viewer foto, kotak kosong)
+//   #0f172a  -> latar input field                    -- cocok dg theme-tokens.inputBg
+//   #334155  -> border utama                          -- cocok dg theme-tokens.border
+// Kalau menambah elemen baru, pakai salah satu di atas -- jangan buat shade
+// hitam baru, supaya tidak drift lagi seperti sebelumnya (dulu ada 20+ shade
+// nyaris-sama tersebar tanpa pola).
+// ============================================================
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -50,15 +71,86 @@ import { API_BASE_URL } from "@/lib/api-config";
 import { Toaster } from "@/components/ui/sonner";
 import {
   isAuthenticated,
-  logout,
+  clearToken,
   getToken,
   authFetch,
   downloadFile,
   isTokenExpired,
+  refreshToken,
+  getTokenSecondsRemaining,
 } from "@/lib/auth";
 import { toast } from "sonner";
 
 import companyLogo from "@/assets/aristides-logo.png";
+
+// ============================================================
+// NOTIFIKASI LIVE (dari SSE / Postgres LISTEN-NOTIFY)
+// ============================================================
+type LiveNotification = {
+  id: string;
+  title: string;
+  description: string;
+  time: string; // ISO timestamp
+  kind: "vehicle" | "alert" | "camera" | "info";
+};
+
+// Payload dari backend bentuknya longgar (tergantung channel), jadi kita
+// baca secara defensif supaya tidak crash kalau ada field yang tidak ada.
+function buildNotificationFromPayload(channel: string, payload: any): LiveNotification {
+  const now = new Date().toISOString();
+  const id = `${channel}-${payload?.id ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  if (channel === "vehicle_log_event") {
+    const jenis = payload?.jenis_kendaraan || "Kendaraan";
+    const kamera = payload?.kamera_nama ? ` di ${payload.kamera_nama}` : "";
+    const plat = payload?.plat_nomor ? ` (${payload.plat_nomor})` : "";
+    return {
+      id,
+      title: `${jenis} terdeteksi`,
+      description: `${jenis}${plat} terdeteksi${kamera}.`,
+      time: payload?.timestamp || now,
+      kind: "vehicle",
+    };
+  }
+
+  if (channel === "alert_log_event") {
+    const className = payload?.class_name || "";
+    const kamera = payload?.camera ? ` — ${payload.camera}` : "";
+    if (className.toUpperCase().includes("OFFLINE")) {
+      return {
+        id,
+        title: "Kamera offline",
+        description: `Kamera${kamera} terpantau offline.`,
+        time: payload?.timestamp || now,
+        kind: "camera",
+      };
+    }
+    if (className.toUpperCase().includes("ONLINE")) {
+      return {
+        id,
+        title: "Kamera kembali online",
+        description: `Kamera${kamera} sudah normal kembali.`,
+        time: payload?.timestamp || now,
+        kind: "camera",
+      };
+    }
+    return {
+      id,
+      title: "Deteksi staging baru",
+      description: `Barang terdeteksi mengendap${kamera}.`,
+      time: payload?.timestamp || now,
+      kind: "alert",
+    };
+  }
+
+  return {
+    id,
+    title: "Update baru",
+    description: "Ada pembaruan data pada sistem.",
+    time: now,
+    kind: "info",
+  };
+}
 
 function NotFoundComponent() {
   return (
@@ -74,7 +166,7 @@ function NotFoundComponent() {
       </p>
       <a
         href="/dashboard"
-        className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+        className="mt-2 inline-flex items-center gap-2 rounded-md bg-[#4338ca] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3730a3]"
       >
         <Home className="h-4 w-4" /> Kembali ke Dashboard
       </a>
@@ -86,7 +178,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="mt-2 flex items-center gap-3">
       <button
         onClick={reset}
-        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-mediun text-white transition-colors hover:bg-blue-700"
+        className="inline-flex items-center gap-2 rounded-md bg-[#4338ca] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3730a3]"
       >
         <RefreshCw className="h-4 w-4" /> Coba Lagi
       </button>
@@ -186,7 +278,7 @@ code, pre, .mono, .timestamp, .data-value, .plate-number {
 .dark .text-[#64748b] {
   color: #94a3b8 !important;
 }
-.dark button.bg-blue-600 { background-color: #2563eb !important; }
+.dark button.bg-emerald-700 { background-color: #4338ca !important; }
 .dark button.bg-red-600 { background-color: #dc2626 !important; }
 .dark button.bg-green-600 { background-color: #16a34a !important; }
         `}</style>
@@ -211,6 +303,7 @@ function BreadcrumbNav() {
     if (segment === "vehicles") return "Kendaraan";
     if (segment === "cameras") return "Kamera";
     if (segment === "staging") return "Staging";
+    if (segment === "documents") return "Dokumen";
     if (segment === "settings") return "Pengaturan";
     if (segment === "live") return "Live Feed";
     if (!isNaN(Number(segment))) return "Detail";
@@ -259,7 +352,7 @@ function BreadcrumbNav() {
                   <BreadcrumbLink asChild>
                     <Link
                       to={item.path}
-                      className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors font-mono text-sm"
+                      className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors text-sm"
                     >
                       {item.label}
                     </Link>
@@ -281,19 +374,21 @@ function RootComponent() {
   const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
 
-  // const PUBLIC_PATHS = ["/", "/login"];
-  // const [authChecked, setAuthChecked] = useState(false);
-  // useEffect(() => {
-  //   if (!PUBLIC_PATHS.includes(location.pathname) && !isAuthenticated) {
-  //     navigate({ to: "/login" });
-  //     return;
-  //   }
-  //   setAuthChecked(true);
-  // }, [location.pathname]);
-
   const [sseStatus, setSseStatus] = useState<"online" | "offline" | "connecting">("connecting");
+  // PERBAIKAN: sebelumnya status login cuma dicek sekali saat root component
+  // mount, jadi login (SPA-navigate, bukan reload halaman) tidak pernah
+  // memicu koneksi SSE baru. State ini di-sync ulang tiap kali route
+  // berubah (lihat useEffect di bawah), tapi NILAI-nya cuma berubah kalau
+  // status login beneran berubah (login/logout) — supaya efek SSE di bawah
+  // tidak connect-ulang di setiap perpindahan halaman biasa.
+  const [authState, setAuthState] = useState(() => isAuthenticated());
+  useEffect(() => {
+    setAuthState(isAuthenticated());
+  }, [location.pathname]);
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
   const reportDropdownRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState<LiveNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // State untuk modal tanggal
   const [dateModalOpen, setDateModalOpen] = useState(false);
@@ -323,32 +418,132 @@ function RootComponent() {
     };
   }, []);
 
-  // SSE status
+  // SSE status + notifikasi live
+  //
+  // PERBAIKAN: sebelumnya effect ini hanya dependency [queryClient], jadi
+  // status login cuma dicek SEKALI saat RootComponent pertama kali mount.
+  // Karena login() cuma SPA-navigate (bukan reload halaman penuh), user yang
+  // baru saja login tidak pernah dapat koneksi SSE sampai mereka manual
+  // refresh — makanya notifikasi/"CONNECTING..." kadang nyala kadang tidak.
+  // Sekarang effect ini juga jalan ulang tiap kali route berubah, supaya
+  // transisi login -> /dashboard memicu koneksi SSE yang baru.
   useEffect(() => {
-    if (isAuthenticated()) return;
+    if (!authState) {
+      setSseStatus("offline");
+      return;
+    }
+    setSseStatus("connecting");
     const token = getToken();
     const eventSource = new EventSource(
-      `${API_BASE_URL}/api/events?token=${encodeURIComponent(token ?? "")}`,
+      `${API_BASE_URL}/api/events?token=${encodeURIComponent(getToken() ?? "")}`,
     );
     eventSource.onopen = () => setSseStatus("online");
     eventSource.onerror = () => setSseStatus("offline");
+    eventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        const { channel, data: payload } = parsed;
+        if (!channel) return;
+
+        const notif = buildNotificationFromPayload(channel, payload);
+        setNotifications((prev) => [notif, ...prev].slice(0, 30));
+        setUnreadCount((prev) => prev + 1);
+
+        if (notif.kind === "camera") {
+          toast.warning(notif.title, { description: notif.description });
+        } else {
+          toast(notif.title, { description: notif.description });
+        }
+
+        // Perbarui data di semua halaman yang sedang aktif (dashboard, log
+        // kendaraan, staging, kamera) supaya tidak perlu refresh manual.
+        queryClient.invalidateQueries();
+      } catch {
+        // Bukan JSON valid (misalnya heartbeat comment) — abaikan saja.
+      }
+    };
     return () => {
       eventSource.close();
       setSseStatus("offline");
     };
-  }, []);
+  }, [queryClient, authState]);
 
+  // 1. Perpanjang sesi otomatis (silent refresh) selama user BENAR-BENAR aktif,
+  // dan biarkan token expired sungguhan kalau user diam total selama 30 menit.
+  // PERBAIKAN: sebelumnya effect ini refresh terus tiap 10 detik tanpa peduli
+  // user aktif atau tidak -- efeknya sesi jadi "abadi" walau dashboard cuma
+  // dibiarkan terbuka tanpa disentuh berhari-hari (resiko keamanan). Sekarang
+  // refresh cuma dilakukan kalau ada interaksi user (klik/ketik/scroll/gerak
+  // mouse) dalam 30 menit terakhir. Begitu user idle lebih dari itu, token
+  // dibiarkan kadaluwarsa dan modal "sesi berakhir" otomatis muncul.
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!isAuthenticated()) return;
+    if (location.pathname === "/login") return;
 
-    const interval = setInterval(() => {
-      if (!isTokenExpired()) {
-        logout();
-        toast.error("Sesi telah berakhir. Silahkan login kembali");
+    const IDLE_LIMIT_MS = 30 * 60 * 1000; // 30 menit tanpa interaksi = idle
+    const REFRESH_THRESHOLD_SECONDS = 5 * 60;
+
+    let lastActivity = Date.now();
+    const markActive = () => {
+      lastActivity = Date.now();
+    };
+    const activityEvents = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
+    activityEvents.forEach((evt) => window.addEventListener(evt, markActive, { passive: true }));
+
+    const checkAndRefresh = async () => {
+      if (isTokenExpired()) {
+        setShowSessionExpiredModal(true);
+        return;
       }
-    }, 60000); // cek setiap 60 detik
 
-    return () => clearInterval(interval);
+      const isIdle = Date.now() - lastActivity >= IDLE_LIMIT_MS;
+      if (isIdle) return; // user diam total -> biarkan token kadaluwarsa secara alami
+
+      const remaining = getTokenSecondsRemaining();
+      if (remaining !== null && remaining <= REFRESH_THRESHOLD_SECONDS) {
+        const ok = await refreshToken();
+        if (!ok) {
+          clearToken();
+          setShowSessionExpiredModal(true);
+        }
+      }
+    };
+
+    const interval = setInterval(checkAndRefresh, 10000);
+
+    // PENTING: browser menahan/memperlambat setInterval di tab yang sedang
+    // tidak fokus/tersembunyi (background tab throttling) untuk hemat resource
+    // -- jadi kalau tab dibiarkan di background selama 30 menit lalu dibuka
+    // lagi, interval 10 detik di atas bisa telat jauh mendeteksi token yang
+    // sudah kadaluwarsa. Untuk itu, cek ulang SEKETIKA begitu tab kembali
+    // terlihat/difokuskan, tidak menunggu interval berikutnya.
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        checkAndRefresh();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(interval);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, markActive));
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+    };
+  }, [location.pathname]);
+
+  // 2. Handle error dari authFetch
+  useEffect(() => {
+    const handleAuthError = (e: ErrorEvent) => {
+      if (e.message === "Token expired") {
+        clearToken();
+        setShowSessionExpiredModal(true);
+      }
+    };
+    window.addEventListener("error", handleAuthError);
+    return () => window.removeEventListener("error", handleAuthError);
   }, []);
 
   const showGlobalHeader = location.pathname !== "/" && location.pathname !== "/login";
@@ -405,39 +600,15 @@ function RootComponent() {
     } finally {
       setIsDownloading(false);
     }
-
-    // Ambil sebagi blob dan download
-    //   const blob = await response.blob();
-    //   const blobUrl = window.URL.createObjectURL(blob);
-    //   const link = document.createElement("a");
-    //   link.href = blobUrl;
-    //   link.download = `laporan_lengkap.$(format)`;
-    //   document.body.append(link);
-    //   link.click();
-    //   document.body.removeChild(link);
-    //   window.URL.revokeObjectURL(blobUrl);
-    // } catch (err) {
-    //   toast.error("Gagal menngunduh laporan ");
-    //   console.error(err);
-    // } finally {
-    //   setIsDownloading(false);
-    // }
-
-    // const link = document.createElement("a");
-    // link.href = url;
-    // link.download = "";
-    // document.body.appendChild(link);
-    // link.click();
-    // document.body.removeChild(link);
-
-    // setTimeout(() => setIsDownloading(false), 2000);
   };
 
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen flex flex-col transition-colors">
-        {/* KOMPONEN HEADER DENGAN PROPS YANG DIPERBARUI */}
-        <HeaderWithNotification
+      <div className="min-h-screen flex flex-col lg:flex-row transition-colors">
+        {/* SIDEBAR (dulu topnav horizontal, sekarang jadi sidebar kiri persisten di layar besar,
+            dan drawer overlay di layar kecil) */}
+        <SidebarNav
           location={location}
           theme={theme}
           setTheme={setTheme}
@@ -449,9 +620,12 @@ function RootComponent() {
           openDateModal={openDateModal}
           isDownloading={isDownloading}
           handleFullReportDownload={handleFullReportDownload} // NEW
+          notifications={notifications}
+          unreadCount={unreadCount}
+          onOpenNotifications={() => setUnreadCount(0)}
         />
 
-        <main className="flex-1 min-h-0 overflow-hidden">
+        <main className="flex-1 min-h-0 lg:h-screen lg:overflow-y-auto">
           <Outlet />
         </main>
 
@@ -477,7 +651,11 @@ function RootComponent() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
+                    // type="date"
+                    // value={selectedDate}
+                    // onChange={(e) => setSelectedDate(e.target.value)}
+                    // className="h-11 w-11 rounded-xl border border-slate-200 bg-white px-4 tet-sm font-medium text-slate-700 shadow-sm outline-none transition-all duration-200 hover:border-indigo-300 focus:border-indigo-700 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-600 dak:bg-[#0f172a] dark:text-slate-200"
                   />
                 )}
                 {reportType === "weekly" && (
@@ -485,7 +663,7 @@ function RootComponent() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
                   />
                 )}
                 {reportType === "monthly" && (
@@ -493,7 +671,7 @@ function RootComponent() {
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
                   />
                 )}
               </div>
@@ -506,9 +684,11 @@ function RootComponent() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setExportFormat("xlsx")}
+                    aria-pressed={exportFormat === "xlsx"}
+                    aria-label="Pilih format Excel"
                     className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
                       exportFormat === "xlsx"
-                        ? "border-[#2563eb] bg-[#eff6ff] dark:bg-[#1e3a5f] text-[#2563eb] dark:text-[#60a5fa]"
+                        ? "border-[#4338ca] bg-[#eef2ff] dark:bg-[#312e81]/40 text-[#4338ca] dark:text-[#818cf8]"
                         : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 text-slate-600 dark:text-slate-400"
                     }`}
                   >
@@ -520,9 +700,11 @@ function RootComponent() {
                   </button>
                   <button
                     onClick={() => setExportFormat("pdf")}
+                    aria-pressed={exportFormat === "pdf"}
+                    aria-label="Pilih format PDF"
                     className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
                       exportFormat === "pdf"
-                        ? "border-[#2563eb] bg-[#eff6ff] dark:bg-[#1e3a5f] text-[#2563eb] dark:text-[#60a5fa]"
+                        ? "border-[#4338ca] bg-[#eef2ff] dark:bg-[#312e81]/40 text-[#4338ca] dark:text-[#818cf8]"
                         : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 text-slate-600 dark:text-slate-400"
                     }`}
                   >
@@ -545,7 +727,7 @@ function RootComponent() {
                 <button
                   onClick={handleDownload}
                   disabled={isDownloading}
-                  className="px-4 py-2 text-sm font-medium bg-[#2563eb] text-white hover:bg-[#1d4ed8] rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium bg-[#4338ca] text-white hover:bg-[#3730a3] rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {isDownloading ? (
                     <>
@@ -563,6 +745,33 @@ function RootComponent() {
             </div>
           </div>
         )}
+        {/* MODAL SESSION EXPIRED */}
+        {showSessionExpiredModal && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+            <div className="bg-white dark:bg-[#1e293b] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-4 rounded-full bg-red-100 dark:bg-red-900/30 p-3">
+                  <LogOut className="h-8 w-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                  Sesi Berakhir
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                  Sesi login Anda telah berakhir. Silakan login kembali untuk melanjutkan.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowSessionExpiredModal(false);
+                    window.location.href = "/login";
+                  }}
+                  className="w-full rounded-lg bg-[#4338ca] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3730a3] transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </QueryClientProvider>
   );
@@ -571,7 +780,7 @@ function RootComponent() {
 // ============================================================
 // KOMPONEN HEADER (DIMODIFIKASI)
 // ============================================================
-function HeaderWithNotification({
+function SidebarNav({
   location,
   theme,
   setTheme,
@@ -583,6 +792,9 @@ function HeaderWithNotification({
   openDateModal,
   isDownloading,
   handleFullReportDownload, // NEW
+  notifications,
+  unreadCount,
+  onOpenNotifications,
 }: {
   location: any;
   theme: any;
@@ -595,215 +807,320 @@ function HeaderWithNotification({
   openDateModal: any;
   isDownloading: any;
   handleFullReportDownload: any; // NEW
+  notifications: LiveNotification[];
+  unreadCount: number;
+  onOpenNotifications: () => void;
 }) {
-  // Header hanya muncul jika BUKAN di halaman login dan BUKAN di halaman home
+  // Sidebar hanya muncul jika BUKAN di halaman login dan BUKAN di halaman home
   const showGlobalHeader = location.pathname !== "/" && location.pathname !== "/login";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  // Tutup menu mobile otomatis tiap kali pindah halaman
+  useEffect(() => {
+    function handleClickOutsideNotif(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutsideNotif);
+    return () => document.removeEventListener("mousedown", handleClickOutsideNotif);
+  }, []);
+
+  const handleLogout = () => {
+    clearToken();
+    navigate({ to: "/" });
+  };
+
+  // Tutup drawer mobile otomatis tiap kali pindah halaman
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  const { data: reviewData } = useQuery({
-    queryKey: ["manual-review-pending"],
-    queryFn: async () => {
-      const res = await authFetch(`${API_BASE_URL}/api/attendance/manual-review-pending`);
-      if (!res.ok) return [];
-      const json = await res.json();
-
-      // 🔥 PERBAIKAN: Jika responsnya [{"success":true}], anggap kosong
-      if (Array.isArray(json) && json.length === 1 && json[0]?.success === true) {
-        return [];
-      }
-
-      return Array.isArray(json) ? json : json.data || [];
-    },
-    enabled: showGlobalHeader && isAuthenticated(),
-    refetchInterval: 5000,
-  });
-
-  const reviewCount = reviewData?.length || 0;
-
   if (!showGlobalHeader) return null;
 
-  return (
-    <header className="sticky top-0 z-50 dark:bg-[#0f1a2e] bg-white/95 backdrop-blur-xl border-b dark:border-[#1a2c45] border-[#e2e8f0] shadow-sm flex-shrink-0 px-0">
-      <div className="mx-auto max-w-[1440px] px-6 py-4 flex flex-col gap-3">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center justify-between gap-4">
-            <Link
-              to="/"
-              className="hover:opacity-80 transition-opacity shrink-0 flex items-center gap-3"
-            >
-              <div className="p-1.5 rounded-lg bg-white border border-slate-200 dark:border-slate-700 shadow-sm flex-shrink-0">
-                <img
-                  src={companyLogo}
-                  alt="Logo Perusahaan"
-                  className="h-10 w-auto object-contain block"
+  const navItems = [
+    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/logs/vehicles", label: "Kendaraan", icon: Car },
+    { to: "/logs/staging", label: "Staging", icon: Boxes },
+    { to: "/logs/cameras", label: "Kamera", icon: Camera },
+    { to: "/logs/documents", label: "Dokumen", icon: FileText },
+  ];
+
+  const reportMenu = (
+    <div className="absolute bottom-full left-0 mb-2 w-56 rounded-md shadow-lg bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] py-1 z-50">
+      <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+        Laporan Lengkap
+      </div>
+      <button
+        onClick={() => handleFullReportDownload("xlsx")}
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+      >
+        <FileSpreadsheet className="h-4 w-4 text-green-600" />
+        Download Excel (.xlsx)
+      </button>
+      <button
+        onClick={() => handleFullReportDownload("pdf")}
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+      >
+        <FileText className="h-4 w-4 text-red-600" />
+        Download PDF (.pdf)
+      </button>
+
+      <div className="border-t border-slate-200 dark:border-slate-700 my-1"></div>
+
+      <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+        Laporan Berkala
+      </div>
+      <button
+        onClick={() => openDateModal("daily")}
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+      >
+        <Calendar className="h-4 w-4 text-indigo-600" />
+        Harian
+      </button>
+      <button
+        onClick={() => openDateModal("weekly")}
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+      >
+        <Calendar className="h-4 w-4 text-indigo-600" />
+        Mingguan
+      </button>
+      <button
+        onClick={() => openDateModal("monthly")}
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+      >
+        <Calendar className="h-4 w-4 text-indigo-600" />
+        Bulanan
+      </button>
+    </div>
+  );
+
+  const notifPanel = (
+    <div className="absolute bottom-full left-0 mb-2 w-80 max-h-96 overflow-y-auto rounded-lg border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] shadow-xl z-50">
+      <div className="sticky top-0 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] px-4 py-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide dark:text-slate-200">
+          Notifikasi
+        </span>
+        <span className="text-[10px] text-[#64748b] dark:text-[#94a3b8]">
+          {notifications.length} terbaru
+        </span>
+      </div>
+      {notifications.length === 0 ? (
+        <div className="px-4 py-8 text-center text-xs text-[#64748b] dark:text-[#94a3b8]">
+          Belum ada notifikasi baru. Notifikasi akan muncul otomatis di sini begitu ada aktivitas
+          baru terdeteksi.
+        </div>
+      ) : (
+        <ul className="divide-y divide-[#e2e8f0] dark:divide-[#334155]">
+          {notifications.map((n) => (
+            <li key={n.id} className="px-4 py-3 hover:bg-[#f1f5f9] dark:hover:bg-[#253449]">
+              <div className="flex items-start gap-2.5">
+                <span
+                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
+                    n.kind === "camera"
+                      ? "bg-orange-500"
+                      : n.kind === "vehicle"
+                        ? "bg-[#4f46e5]"
+                        : "bg-slate-400"
+                  }`}
                 />
-              </div>
-              <div className="leading-tight hidden sm:block">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
-                  PT Aristides Logistik Indonesia
-                </p>
-                <p className="text-lg font-bold tracking-tight text-[#2563eb] dark:text-[#60a5fa] font-space transition-colors duration-300">
-                  Warehouse Intelligence
-                </p>
-              </div>
-            </Link>
-
-            {/*  Tombol hamburger - cuma tampil di layar kecil (<lg) */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-md dark:text-slate-300 text-slate-600 hover:dark:bg-[#1a2c45] hover:bg-[#f1f5f9] transition-colors"
-              aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
-              aria-expanded={mobileMenuOpen}
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
-
-          <div
-            className={`${
-              mobileMenuOpen ? "flex" : "hidden"
-            } lg:flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-2 lg:justify-end`}
-          >
-            <Link
-              to="/settings"
-              className="h-8 rounded-md dark:bg-[#1a2c45]/50 bg-[#eff6ff] px-3 text-xs font-medium dark:text-slate-300 text-[#2563eb] hover:dark:bg-[#1a2c45] hover:bg-[#dbeafe] transition-all flex items-center gap-1 font-mono border dark:border-[#2a4a6a] border-transparent"
-            >
-              <Settings className="h-3.5 w-3.5" /> Pengaturan
-            </Link>
-            <Link
-              to="/live"
-              className="h-8 rounded-md dark:bg-[#1a2c45]/50 bg-[#eff6ff] px-3 text-xs font-medium dark:text-slate-300 text-[#2563eb] hover:dark:bg-[#1a2c45] hover:bg-[#dbeafe] transition-all flex items-center gap-1 font-mono border dark:border-[#2a4a6a] border-transparent"
-            >
-              <TvMinimalPlay className="h-3.5 w-3.5" /> Live Feed
-            </Link>
-
-            {/* TOMBOL ATTENDANCE REVIEW DENGAN NOTIFIKASI */}
-            <Link
-              to="/attendance_review"
-              className="h-8 rounded-md dark:bg-[#1a2c45]/50 bg-[#eff6ff] px-3 text-xs font-medium dark:text-slate-300 text-[#2563eb] hover:dark:bg-[#1a2c45] hover:bg-[#dbeafe] transition-all flex items-center gap-1 font-mono border dark:border-[#2a4a6a] border-transparent"
-            >
-              <div className="relative">
-                <User className="h-3.5 w-3.5" />
-                {reviewCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.6)] animate-pulse">
-                    {reviewCount > 9 ? "9+" : reviewCount}
-                  </span>
-                )}
-              </div>
-              Attendance
-            </Link>
-
-            {/* DROPDOWN REPORT (DIMODIFIKASI) */}
-            <div className="relative ml-2" ref={reportDropdownRef}>
-              <button
-                onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-                className="h-8 rounded-md dark:bg-[#1a2c45]/50 bg-[#eff6ff] px-3 text-xs font-medium dark:text-slate-300 text-[#2563eb] hover:dark:bg-[#1a2c45] hover:bg-[#dbeafe] transition-all flex items-center gap-1 font-mono border dark:border-[#2a4a6a] border-transparent"
-              >
-                <Folder className="h-3.5 w-3.5" /> Report
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${reportDropdownOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {reportDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] py-1 z-50">
-                  {/* NEW: Full Report dengan sub-options */}
-                  <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Laporan Lengkap
-                  </div>
-                  <button
-                    onClick={() => handleFullReportDownload("xlsx")}
-                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
-                  >
-                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                    Download Excel (.xlsx)
-                  </button>
-                  <button
-                    onClick={() => handleFullReportDownload("pdf")}
-                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
-                  >
-                    <FileText className="h-4 w-4 text-red-600" />
-                    Download PDF (.pdf)
-                  </button>
-
-                  <div className="border-t border-slate-200 dark:border-slate-700 my-1"></div>
-
-                  {/* Laporan dengan tanggal */}
-                  <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Laporan Berkala
-                  </div>
-                  <button
-                    onClick={() => openDateModal("daily")}
-                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
-                  >
-                    <Calendar className="h-4 w-4 text-blue-600" />
-                    Harian
-                  </button>
-                  <button
-                    onClick={() => openDateModal("weekly")}
-                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
-                  >
-                    <Calendar className="h-4 w-4 text-purple-600" />
-                    Mingguan
-                  </button>
-                  <button
-                    onClick={() => openDateModal("monthly")}
-                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
-                  >
-                    <Calendar className="h-4 w-4 text-orange-600" />
-                    Bulanan
-                  </button>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold dark:text-slate-100">{n.title}</p>
+                  <p className="text-[11px] text-[#64748b] dark:text-[#94a3b8] mt-0.5">
+                    {n.description}
+                  </p>
+                  <p className="text-[10px] font-mono text-[#94a3b8] dark:text-[#64748b] mt-1">
+                    {new Date(n.time).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
                 </div>
-              )}
-            </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
-            {/* SSE Status (Tidak Berubah) */}
-            <div className="hidden sm:flex items-center gap-2 ml-2 border-l pl-3 dark:border-[#1a2c45] border-[#e2e8f0]">
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${
-                  sseStatus === "online"
-                    ? "dark:bg-[#22c55e] bg-[#22c55e] animate-pulse dark:shadow-[0_0_10px_rgba(34,197,94,0.4)] shadow-[0_0_10px_rgba(34,197,94,0.4)]"
-                    : sseStatus === "offline"
-                      ? "dark:bg-[#ef4444] bg-[#ef4444] dark:shadow-[0_0_10px_rgba(239,68,68,0.4)] shadow-[0_0_10px_rgba(239,68,68,0.4)]"
-                      : "border-2 dark:border-slate-400 border-slate-600 border-t-transparent animate-spin"
-                }`}
-              />
-              <span
-                className={`text-xs font-mono font-medium ${
-                  sseStatus === "online"
-                    ? "dark:text-[#22c55e] text-[#22c55e]"
-                    : sseStatus === "offline"
-                      ? "dark:text-[#ef4444] text-[#ef4444]"
-                      : "dark:text-slate-400 text-[#64748b]"
-                }`}
-              >
-                {sseStatus === "online"
-                  ? "LIVE"
-                  : sseStatus === "offline"
-                    ? "OFFLINE"
-                    : "CONNECTING..."}
-              </span>
-            </div>
+  const sidebarBody = (
+    <div className="flex h-full flex-col dark:bg-[#0f172a] bg-white">
+      {/* Logo & nama perusahaan */}
+      <Link
+        to="/"
+        className="flex items-center gap-3 border-b dark:border-[#253449] border-[#e2e8f0] px-4 py-4 hover:opacity-80 transition-opacity shrink-0"
+      >
+        <div className="p-1.5 rounded-lg bg-white border border-slate-200 dark:border-slate-700 shadow-sm flex-shrink-0">
+          <img
+            src={companyLogo}
+            alt="Logo Perusahaan"
+            className="h-9 w-auto object-contain block"
+          />
+        </div>
+        <div className="leading-tight min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+            PT Aristides Logistik Indonesia
+          </p>
+          <p className="text-base font-bold tracking-tight text-[#4338ca] dark:text-[#818cf8] font-space transition-colors duration-300 truncate">
+            Warehouse Intelligence
+          </p>
+        </div>
+      </Link>
 
-            {/* Theme Toggle (Tidak Berubah) */}
-            <button
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              className="p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#1a2c45] hover:bg-[#f1f5f9] rounded-md transition-colors"
+      {/* Nav vertikal */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.to;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium tracking-wide transition-colors ${
+                isActive
+                  ? "bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-[#818cf8]"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#253449] hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
             >
-              {resolvedTheme === "dark" ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
+              <Icon className="h-4 w-4 shrink-0" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Bagian bawah: Pengaturan, Report, status LIVE, notifikasi, tema, logout */}
+      <div className="border-t dark:border-[#253449] border-[#e2e8f0] px-3 py-3 space-y-2 shrink-0">
+        <Link
+          to="/settings"
+          className="flex items-center gap-2 rounded-md dark:bg-[#253449]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#253449] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
+        >
+          <Settings className="h-3.5 w-3.5" /> Pengaturan
+        </Link>
+
+        {/* DROPDOWN REPORT */}
+        <div className="relative" ref={reportDropdownRef}>
+          <button
+            onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
+            className="w-full flex items-center gap-2 rounded-md dark:bg-[#253449]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#253449] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
+          >
+            <Folder className="h-3.5 w-3.5" /> Report
+            <ChevronDown
+              className={`h-3.5 w-3.5 ml-auto transition-transform ${reportDropdownOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {reportDropdownOpen && reportMenu}
+        </div>
+
+        {/* Status live/offline SSE */}
+        <div className="flex items-center gap-2 px-1 py-1">
+          <div
+            className={`h-2.5 w-2.5 rounded-full ${
+              sseStatus === "online"
+                ? "dark:bg-[#22c55e] bg-[#22c55e] animate-pulse dark:shadow-[0_0_10px_rgba(34,197,94,0.4)] shadow-[0_0_10px_rgba(34,197,94,0.4)]"
+                : sseStatus === "offline"
+                  ? "dark:bg-[#ef4444] bg-[#ef4444] dark:shadow-[0_0_10px_rgba(239,68,68,0.4)] shadow-[0_0_10px_rgba(239,68,68,0.4)]"
+                  : "border-2 dark:border-slate-400 border-slate-600 border-t-transparent animate-spin"
+            }`}
+          />
+          <span
+            className={`text-xs font-mono font-medium ${
+              sseStatus === "online"
+                ? "dark:text-[#22c55e] text-[#22c55e]"
+                : sseStatus === "offline"
+                  ? "dark:text-[#ef4444] text-[#ef4444]"
+                  : "dark:text-slate-400 text-[#64748b]"
+            }`}
+          >
+            {sseStatus === "online"
+              ? "LIVE"
+              : sseStatus === "offline"
+                ? "OFFLINE"
+                : "CONNECTING..."}
+          </span>
+        </div>
+
+        {/* Notifikasi, tema, logout */}
+        <div className="flex items-center justify-between gap-1 pt-2 border-t dark:border-[#253449] border-[#e2e8f0]">
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => {
+                setNotifOpen((v) => !v);
+                if (!notifOpen) onOpenNotifications();
+              }}
+              className="relative p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#253449] hover:bg-[#f1f5f9] rounded-md transition-colors"
+              aria-label="Notifikasi"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
               )}
             </button>
+            {notifOpen && notifPanel}
           </div>
+
+          <button
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#253449] hover:bg-[#f1f5f9] rounded-md transition-colors"
+            aria-label={resolvedTheme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
+          >
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            title="Keluar"
+            aria-label="Keluar dari akun"
+            className="p-1.5 dark:text-slate-400 text-[#64748b] hover:text-red-600 dark:hover:text-red-400 hover:dark:bg-red-950/30 hover:bg-red-50 rounded-md transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
-    </header>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Top bar mobile - cuma tampil di layar kecil, buat trigger drawer sidebar */}
+      <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between dark:bg-[#0f172a] bg-white/95 backdrop-blur-xl border-b dark:border-[#253449] border-[#e2e8f0] px-4 py-3 shrink-0">
+        <Link to="/" className="flex items-center gap-2">
+          <img src={companyLogo} alt="Logo Perusahaan" className="h-8 w-auto object-contain" />
+          <span className="text-sm font-bold text-[#4338ca] dark:text-[#818cf8] font-space">
+            Warehouse Intelligence
+          </span>
+        </Link>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 rounded-md dark:text-slate-300 text-slate-600 hover:dark:bg-[#253449] hover:bg-[#f1f5f9] transition-colors"
+          aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
+          aria-expanded={mobileMenuOpen}
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Drawer overlay - mobile */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="w-64 max-w-[80vw] shadow-xl">{sidebarBody}</div>
+          <div
+            className="flex-1 bg-black/50 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden
+          />
+        </div>
+      )}
+
+      {/* Sidebar persisten - desktop */}
+      <aside className="hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:h-screen lg:sticky lg:top-0 border-r dark:border-[#253449] border-[#e2e8f0]">
+        {sidebarBody}
+      </aside>
+    </>
   );
 }

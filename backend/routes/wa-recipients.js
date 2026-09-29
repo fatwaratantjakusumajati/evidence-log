@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const { error } = require("node:console");
 const { clampLimit } = require("../utils/pagination");
 const { sendServerError } = require("../utils/errors");
+const { requireAdmin } = require("../middleware/auth");
+const { recordAudit } = require("../utils/auditLog");
 
 // GET: Ambil semua kontak WhatsApp (dengan pagination)
 router.get("/", async (req, res) => {
@@ -35,9 +36,17 @@ router.get("/", async (req, res) => {
 });
 
 // POST: Tambah kontak WhatsApp baru
-router.post("/", async (req, res) => {
+router.post("/", requireAdmin, async (req, res) => {
   try {
-    const { nama, nomor, aktif } = req.body;
+    const {
+      nama,
+      nomor,
+      aktif,
+      akses_staging,
+      akses_laporan_harian,
+      akses_laporan_mingguan,
+      akses_chatbot,
+    } = req.body;
     if (!nama?.trim() || !nomor?.trim()) {
       return res.status(400).json({ error: "Nama dan nomor wajib diisi" });
     }
@@ -45,41 +54,82 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Format nomor WA tidak valid (10-15 digit) " });
     }
     const isActive = aktif !== undefined ? aktif : true;
-    await pool.query("INSERT INTO wa_recipients (nama, nomor, aktif) VALUES ($1, $2, $3)", [
-      nama,
-      nomor,
-      nama.trim(),
-      nomor.trim(),
-      isActive,
-    ]);
+    await pool.query(
+      `INSERT INTO wa_recipients
+         (nama, nomor, aktif, akses_staging, akses_laporan_harian, akses_laporan_mingguan, akses_chatbot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        nama.trim(),
+        nomor.trim(),
+        isActive,
+        akses_staging ?? true,
+        akses_laporan_harian ?? false,
+        akses_laporan_mingguan ?? false,
+        akses_chatbot ?? false,
+      ],
+    );
+    recordAudit({
+      req,
+      action: "create_wa_recipient",
+      targetType: "wa_recipient",
+      targetLabel: `${nama.trim()} (${nomor.trim()})`,
+    });
     res.status(201).json({ success: true });
   } catch (err) {
     sendServerError(res, err);
   }
 });
 
-// PUT: Edit nomor kontak berdasarkan ID
-router.put("/:id", async (req, res) => {
+// PUT: Edit nomor & hak akses kontak berdasarkan ID (partial update -- field
+// yang tidak dikirim tidak akan berubah, cocok buat toggle akses satu-satu
+// dari halaman Pengaturan tanpa perlu kirim ulang semua data kontak)
+router.put("/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nomor } = req.body;
+    const { nomor, akses_staging, akses_laporan_harian, akses_laporan_mingguan, akses_chatbot } =
+      req.body;
 
-    if (!nomor?.trim()) {
-      return req.status(400).json({ error: "Nomor wajib diisi" });
-    }
-    if (!/^[0-9]{10,15}$/.test(nomor.trim())) {
-      return res
-        .status(400)
-        .json({ error: "Format nomor WA tidak valid (10-15 digit dan angka 0-9 saja) " });
+    if (nomor !== undefined) {
+      if (!nomor?.trim() || !/^[0-9]{10,15}$/.test(nomor.trim())) {
+        return res
+          .status(400)
+          .json({ error: "Format nomor WA tidak valid (10-15 digit dan angka 0-9 saja) " });
+      }
     }
 
-    const result = await pool.query("UPDATE wa_recipients SET nomor = $1 WHERE id = $2", [
-      nomor.trim(),
-      id,
-    ]);
+    const result = await pool.query(
+      `UPDATE wa_recipients SET
+         nomor = COALESCE($1, nomor),
+         akses_staging = COALESCE($2, akses_staging),
+         akses_laporan_harian = COALESCE($3, akses_laporan_harian),
+         akses_laporan_mingguan = COALESCE($4, akses_laporan_mingguan),
+         akses_chatbot = COALESCE($5, akses_chatbot)
+       WHERE id = $6`,
+      [
+        nomor ? nomor.trim() : null,
+        akses_staging !== undefined ? akses_staging : null,
+        akses_laporan_harian !== undefined ? akses_laporan_harian : null,
+        akses_laporan_mingguan !== undefined ? akses_laporan_mingguan : null,
+        akses_chatbot !== undefined ? akses_chatbot : null,
+        id,
+      ],
+    );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Kontak tidak ditemukan" });
     }
+    recordAudit({
+      req,
+      action: "update_wa_recipient",
+      targetType: "wa_recipient",
+      targetLabel: `id:${id}`,
+      details: {
+        ...(nomor !== undefined && { nomor_baru: nomor.trim() }),
+        ...(akses_staging !== undefined && { akses_staging }),
+        ...(akses_laporan_harian !== undefined && { akses_laporan_harian }),
+        ...(akses_laporan_mingguan !== undefined && { akses_laporan_mingguan }),
+        ...(akses_chatbot !== undefined && { akses_chatbot }),
+      },
+    });
     res.json({ success: true });
   } catch (err) {
     sendServerError(res, err);
@@ -87,10 +137,17 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE: Hapus kontak WhatsApp berdasarkan ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    const target = await pool.query("SELECT nama, nomor FROM wa_recipients WHERE id = $1", [id]);
     await pool.query("DELETE FROM wa_recipients WHERE id = $1", [id]);
+    recordAudit({
+      req,
+      action: "delete_wa_recipient",
+      targetType: "wa_recipient",
+      targetLabel: target.rows[0] ? `${target.rows[0].nama} (${target.rows[0].nomor})` : `id:${id}`,
+    });
     res.json({ success: true });
   } catch (err) {
     sendServerError(res, err);

@@ -8,20 +8,17 @@ import {
   Trash2,
   Users,
   UserPlus,
-  Upload,
   X,
-  Clock,
-  Coffee,
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  Image as ImageIcon,
   Pencil,
-  UserCheck,
   EyeOff,
   Shield,
   Eye,
   Lock,
+  NotebookText,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTheme } from "@/lib/theme-provider";
@@ -46,7 +43,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { authFetch, getCurrentUser } from "@/lib/auth";
-import { resolve } from "node:path";
 
 // ======================== TYPES ========================
 type WaRecipient = {
@@ -54,33 +50,12 @@ type WaRecipient = {
   nama: string;
   nomor: string;
   aktif: boolean;
+  akses_staging: boolean;
+  akses_laporan_harian: boolean;
+  akses_laporan_mingguan: boolean;
+  akses_chatbot: boolean;
   created_at: string;
 };
-
-type BreakWindow = {
-  start: string;
-  end: string;
-};
-
-type EnrollResult = {
-  employee_id: string;
-  name: string;
-  photos_received: number;
-  face_photos_used: number;
-  face_saved: boolean;
-  break_windows_saved: boolean;
-};
-
-type Employee = {
-  employee_id: string;
-  name: string;
-  arrival_time: string;
-  departure_time: string;
-  max_breaks_per_day: number;
-  break_windows: BreakWindow[] | null;
-  created_at: string;
-};
-
 // ======================== ROUTE ========================
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -95,42 +70,26 @@ function SettingsPage() {
   const t = useMemo(() => getSettingsPageColors(isDarkMode), [isDarkMode]);
   // const currentUser = getCurrentUser();
 
-  // ======================== ENROLL STATE ========================
-  const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     description: string;
     onConfirm: () => void;
   } | null>(null);
-  const [enrollEmployeeId, setEnrollEmployeeId] = useState("");
-  const [enrollName, setEnrollName] = useState("");
-  const [enrollArrivalTime, setEnrollArrivalTime] = useState("08:00");
-  const [enrollDepartureTime, setEnrollDepartureTime] = useState("17:00");
-  const [enrollBreakWindows, setEnrollBreakWindows] = useState<BreakWindow[]>([
-    { start: "12:00", end: "13:00" },
-  ]);
-  const [enrollPhotos, setEnrollPhotos] = useState<File[]>([]);
-  const [isReenrolling, setIsReenrolling] = useState(false);
-
-  // ======================== EDIT STATE ========================
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editArrivalTime, setEditArrivalTime] = useState("08:00");
-  const [editDepartureTime, setEditDepartureTime] = useState("17:00");
-  const [editBreakWindows, setEditBreakWindows] = useState<BreakWindow[]>([
-    { start: "12:00", end: "13:00" },
-  ]);
-  const [editPhotos, setEditPhotos] = useState<File[]>([]);
 
   // ======================== WA STATE ========================
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNama, setNewNama] = useState("");
   const [newNomor, setNewNomor] = useState("");
+  const [newAksesStaging, setNewAksesStaging] = useState(true);
+  const [newAksesHarian, setNewAksesHarian] = useState(false);
+  const [newAksesMingguan, setNewAksesMingguan] = useState(false);
+  const [newAksesChatbot, setNewAksesChatbot] = useState(false);
   const [editValues, setEditValues] = useState<Record<number, string>>({});
 
   // ======================== Manajemen User =========================
   const [showAddUserForm, setShowUserForm] = useState(false);
   const [newUsername, setNewUsername] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"admin" | "staff">("staff");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -150,42 +109,8 @@ function SettingsPage() {
     setCurrrentUser(getCurrentUser());
   }, []);
 
-  // ======================== ENROLL MUTATION ========================
-  const mutationEnroll = useMutation({
-    mutationFn: async () => {
-      if (!enrollEmployeeId.trim() || !enrollName.trim())
-        throw new Error("Employee ID dan Nama wajib diisi");
-      if (enrollPhotos.length === 0) throw new Error("Minimal 1 foto harus diupload");
-
-      const validBreakWindows = enrollBreakWindows.filter((w) => w.start && w.end);
-
-      const formData = new FormData();
-      formData.append("employee_id", enrollEmployeeId.trim());
-      formData.append("name", enrollName.trim());
-      if (enrollArrivalTime) formData.append("arrival_time", enrollArrivalTime);
-      if (enrollDepartureTime) formData.append("departure_time", enrollDepartureTime);
-      if (validBreakWindows.length > 0)
-        formData.append("break_windows", JSON.stringify(validBreakWindows));
-      enrollPhotos.forEach((file) => formData.append("photos", file));
-
-      const res = await authFetch(`${API_BASE_URL}/api/attendance/enroll`, {
-        method: "POST",
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Gagal melakukan enrollment");
-      return json as EnrollResult;
-    },
-    onSuccess: (data) => {
-      toast.success(`Karyawan "${data.name}" berhasil didaftarkan!`);
-      resetEnrollForm();
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
-  });
-
   // ======================== USER MANAGEMENT ========================
-  type AppUser = { id: number; username: string; created_at: string };
+  type AppUser = { id: number; username: string; role: "admin" | "staff"; created_at: string };
 
   const {
     data: usersData,
@@ -201,12 +126,58 @@ function SettingsPage() {
   });
   const appUsers = usersData || [];
 
+  // ======================== AUDIT LOG ========================
+  type AuditLogEntry = {
+    id: number;
+    actor_username: string;
+    action: string;
+    target_type: string;
+    target_label: string | null;
+    details: Record<string, unknown> | null;
+    created_at: string;
+  };
+
+  const AUDIT_ACTION_LABELS: Record<string, string> = {
+    create_user: "Membuat user",
+    delete_user: "Menghapus user",
+    create_wa_recipient: "Menambah kontak WA",
+    update_wa_recipient: "Mengubah kontak WA",
+    delete_wa_recipient: "Menghapus kontak WA",
+    create_report_recipient: "Menambah penerima laporan",
+    update_report_recipient: "Mengubah penerima laporan",
+    delete_report_recipient: "Menghapus penerima laporan",
+  };
+
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const {
+    data: auditLogData,
+    isLoading: auditLogLoading,
+    isError: auditLogError,
+  } = useQuery({
+    queryKey: ["audit-log"],
+    queryFn: async () => {
+      const res = await authFetch(`${API_BASE_URL}/api/audit-log?limit=30`);
+      if (!res.ok) throw new Error("Gagal mengambil audit log");
+      return (await res.json()) as { data: AuditLogEntry[]; total: number };
+    },
+    enabled: showAuditLog,
+  });
+  const auditEntries = auditLogData?.data || [];
+
   const mutationAddUser = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
+    mutationFn: async ({
+      username,
+      password,
+      role,
+    }: {
+      username: string;
+      password: string;
+      role: "admin" | "staff";
+    }) => {
       const res = await authFetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, role }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan user");
@@ -216,6 +187,7 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setShowUserForm(false);
       setNewUsername("");
+      setNewUserRole("staff");
       setNewPassword("");
       setNewPasswordConfirm("");
       toast.success(`User "${data.username}" berhasil didaftarkan!`);
@@ -247,7 +219,11 @@ function SettingsPage() {
     if (newPassword !== newPasswordConfirm) {
       return toast.warning("Konfirmasi password tidak cocok");
     }
-    mutationAddUser.mutate({ username: newUsername.trim(), password: newPassword });
+    mutationAddUser.mutate({
+      username: newUsername.trim(),
+      password: newPassword,
+      role: newUserRole,
+    });
   };
 
   const handleDeleteUser = (id: number, username: string) => {
@@ -301,62 +277,6 @@ function SettingsPage() {
     });
   };
 
-  // ======================== EMPLOYEES QUERY ========================
-  const {
-    data: employeesData,
-    isLoading: employeesLoading,
-    isError: employeesError,
-  } = useQuery({
-    queryKey: ["employees"],
-    queryFn: async () => {
-      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/all`);
-      if (!res.ok) throw new Error("Gagal mengambil data karyawan");
-      return res.json() as Promise<Employee[]>;
-    },
-  });
-  const employees = employeesData || [];
-
-  // ======================== UPDATE MUTATION ========================
-  const mutationUpdateEmployee = useMutation({
-    mutationFn: async (emp: {
-      employee_id: string;
-      name: string;
-      arrival_time: string;
-      departure_time: string;
-      break_windows: BreakWindow[];
-    }) => {
-      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/${emp.employee_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(emp),
-      });
-      if (!res.ok) throw new Error("Gagal mengupdate");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      setEditingEmployee(null);
-      toast.success("Data karyawan berhasil diperbarui!");
-    },
-    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
-  });
-
-  // ======================== DELETE MUTATION ========================
-  const mutationDeleteEmployee = useMutation({
-    mutationFn: async (employeeId: string) => {
-      const res = await authFetch(`${API_BASE_URL}/api/attendance/employees/${employeeId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Gagal menghapus");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast.success("Karyawan berhasil dihapus!");
-    },
-    onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
-  });
-
   // ======================== WA QUERY ========================
   const {
     data: waData,
@@ -365,7 +285,9 @@ function SettingsPage() {
   } = useQuery({
     queryKey: ["wa-recipients"],
     queryFn: async () => {
-      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients`);
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Gagal mengambil data kontak");
       const json = await res.json();
       if (Array.isArray(json)) return json as WaRecipient[];
@@ -392,6 +314,7 @@ function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nomor }),
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("Gagal menyimpan");
       return res.json();
@@ -403,10 +326,31 @@ function SettingsPage() {
     onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
 
+  // Toggle 1 hak akses (staging/laporan harian/mingguan/chatbot) tanpa perlu
+  // dialog konfirmasi -- ini switch ringan, beda dari ubah nomor/hapus kontak
+  // yang dampaknya lebih besar dan tetap perlu konfirmasi.
+  const mutationTogglePermission = useMutation({
+    mutationFn: async ({ id, field, value }: { id: number; field: string; value: boolean }) => {
+      const res = await authFetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan hak akses");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wa-recipients"] });
+    },
+    onError: (err: Error) => toast.error(`Gagal ubah hak akses: ${err.message}`),
+  });
+
   const mutationDelete = useMutation({
     mutationFn: async (id: number) => {
       const res = await authFetch(`${API_BASE_URL}/api/wa-recipients/${id}`, {
         method: "DELETE",
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("Gagal menghapus kontak");
       return res.json();
@@ -419,115 +363,52 @@ function SettingsPage() {
   });
 
   const mutationAdd = useMutation({
-    mutationFn: async ({ nama, nomor }: { nama: string; nomor: string }) => {
+    mutationFn: async ({
+      nama,
+      nomor,
+      akses_staging,
+      akses_laporan_harian,
+      akses_laporan_mingguan,
+      akses_chatbot,
+    }: {
+      nama: string;
+      nomor: string;
+      akses_staging: boolean;
+      akses_laporan_harian: boolean;
+      akses_laporan_mingguan: boolean;
+      akses_chatbot: boolean;
+    }) => {
       const res = await authFetch(`${API_BASE_URL}/api/wa-recipients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama, nomor, aktif: true }),
+        body: JSON.stringify({
+          nama,
+          nomor,
+          aktif: true,
+          akses_staging,
+          akses_laporan_harian,
+          akses_laporan_mingguan,
+          akses_chatbot,
+        }),
+        cache: "no-store",
       });
-      if (!res.ok) throw new Error("Gagal menambahkan penerima");
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menambahkan penerima");
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wa-recipients"] });
       setShowAddForm(false);
       setNewNama("");
       setNewNomor("");
+      setNewAksesStaging(true);
+      setNewAksesHarian(false);
+      setNewAksesMingguan(false);
+      setNewAksesChatbot(false);
       toast.success("Penerima WhatsApp berhasil ditambahkan!");
     },
     onError: (err: Error) => toast.error(`Gagal: ${err.message}`),
   });
-
-  // ======================== HANDLERS ========================
-  const removeEnrollPhoto = (i: number) =>
-    setEnrollPhotos((prev) => prev.filter((_, idx) => idx !== i));
-
-  const addBreakWindow = (isEdit = false) => {
-    if (isEdit) setEditBreakWindows((prev) => [...prev, { start: "", end: "" }]);
-    else setEnrollBreakWindows((prev) => [...prev, { start: "", end: "" }]);
-  };
-
-  const removeBreakWindow = (i: number, isEdit = false) => {
-    if (isEdit) setEditBreakWindows((prev) => prev.filter((_, idx) => idx !== i));
-    else setEnrollBreakWindows((prev) => prev.filter((_, idx) => idx !== i));
-  };
-
-  const updateBreakWindow = (i: number, field: "start" | "end", value: string, isEdit = false) => {
-    if (isEdit)
-      setEditBreakWindows((prev) =>
-        prev.map((w, idx) => (idx === i ? { ...w, [field]: value } : w)),
-      );
-    else
-      setEnrollBreakWindows((prev) =>
-        prev.map((w, idx) => (idx === i ? { ...w, [field]: value } : w)),
-      );
-  };
-
-  const openEditModal = (emp: Employee) => {
-    setEditingEmployee(emp);
-    setEditName(emp.name);
-    setEditArrivalTime(emp.arrival_time || "08:00");
-    setEditDepartureTime(emp.departure_time || "17:00");
-
-    let bw = emp.break_windows;
-    if (typeof bw === "string") {
-      try {
-        bw = JSON.parse(bw);
-      } catch {
-        bw = null;
-      }
-    }
-    if (Array.isArray(bw) && bw.length > 0) {
-      setEditBreakWindows(bw);
-    } else {
-      setEditBreakWindows([{ start: "12:00", end: "13:00" }]);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingEmployee || !editName.trim()) return toast.warning("Nama tidak boleh kosong!");
-
-    const validBreakWindows = editBreakWindows.filter((w) => w.start && w.end);
-
-    const formData = new FormData();
-    formData.append("name", editName.trim());
-    formData.append("arrival_time", editArrivalTime);
-    formData.append("departure_time", editDepartureTime);
-    if (validBreakWindows.length > 0) {
-      formData.append("break_windows", JSON.stringify(validBreakWindows));
-    }
-    editPhotos.forEach((file) => formData.append("photos", file));
-
-    setIsReenrolling(true);
-
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/api/attendance/employees/${editingEmployee.employee_id}/reenroll`,
-        { method: "PUT", body: formData },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gagal");
-
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      setEditingEmployee(null);
-      setEditPhotos([]);
-      toast.success(
-        `Berhasil! Face: ${data.face_updated ? "Ya" : "Tidak"} | Pose: ${data.pose_updated ? "Ya" : "Tidak"}`,
-      );
-    } catch (err: any) {
-      toast.error(`Gagal: ${err.message}`);
-    } finally {
-      setIsReenrolling(false);
-    }
-  };
-
-  const handleDeleteEmployee = (id: string, name: string) => {
-    setConfirmDialog({
-      title: "Hapus Karyawan",
-      description: `Hapus karyawan "${name}" (${id})? Tindakan ini tidak bisa dibatalkan.`,
-      onConfirm: () => mutationDeleteEmployee.mutate(id),
-    });
-  };
 
   const handleUpdateRecipient = (id: number) => {
     const recipient = recipients.find((r) => r.id === id);
@@ -555,20 +436,53 @@ function SettingsPage() {
     if (!newNama.trim() || !newNomor.trim()) return toast.warning("Nama dan Nomor WA wajib diisi!");
     if (!/^[0-9]{10,15}$/.test(newNomor.trim()))
       return toast.warning("Format nomor WA tidak valid.");
-    mutationAdd.mutate({ nama: newNama.trim(), nomor: newNomor.trim() });
-  };
-
-  const resetEnrollForm = () => {
-    setShowEnrollForm(false);
-    setEnrollEmployeeId("");
-    setEnrollName("");
-    setEnrollArrivalTime("08:00");
-    setEnrollDepartureTime("17:00");
-    setEnrollBreakWindows([{ start: "12:00", end: "13:00" }]);
-    setEnrollPhotos([]);
+    mutationAdd.mutate({
+      nama: newNama.trim(),
+      nomor: newNomor.trim(),
+      akses_staging: newAksesStaging,
+      akses_laporan_harian: newAksesHarian,
+      akses_laporan_mingguan: newAksesMingguan,
+      akses_chatbot: newAksesChatbot,
+    });
   };
 
   // ======================== RENDER ========================
+
+  // Halaman Settings isinya konfigurasi sensitif (akun user, nomor WA,
+  // jadwal laporan) -- cuma admin yang boleh buka. currentUser masih null
+  // sesaat sebelum useEffect di atas selesai jalan (hindari flash konten
+  // buat admin asli), jadi baru diblokir begitu KITA TAHU PASTI role-nya
+  // staff, bukan cuma "belum kebaca".
+  if (currentUser && currentUser.role !== "admin") {
+    return (
+      <main
+        className="flex min-h-screen flex-1 items-center justify-center transition-colors duration-300"
+        style={{ backgroundColor: t.bg, color: t.textMain }}
+      >
+        <div className="max-w-sm text-center px-6">
+          <div
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ backgroundColor: t.dangerLight, color: t.danger }}
+          >
+            <Lock className="h-6 w-6" />
+          </div>
+          <h1 className="text-lg font-semibold mb-1">Akses Terbatas</h1>
+          <p className="text-sm mb-6" style={{ color: t.textMuted }}>
+            Halaman Pengaturan cuma bisa diakses oleh akun admin. Hubungi admin kalau kamu perlu
+            mengubah sesuatu di sini.
+          </p>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
+            style={{ backgroundColor: t.primary }}
+          >
+            Kembali ke Dashboard
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main
       className="flex-1 min-h-screen transition-colors duration-300"
@@ -578,7 +492,7 @@ function SettingsPage() {
         className="sticky top-0 z-20 border-b transition-colors duration-300 backdrop-blur-xl"
         style={{ backgroundColor: t.headerBg, borderColor: t.border }}
       >
-        <div className="mx-auto max-w-[1440px] px-6 py-4">
+        <div className="mx-auto max-w-[1680px] px-6 py-4">
           <div className="mb-4">
             <Breadcrumb>
               <BreadcrumbList>
@@ -586,7 +500,7 @@ function SettingsPage() {
                   <BreadcrumbLink asChild>
                     <Link
                       to="/dashboard"
-                      className="hover:opacity-80 transition-opacity font-mono text-sm"
+                      className="hover:opacity-80 transition-opacity text-sm"
                       style={{ color: t.textMuted }}
                     >
                       Home
@@ -614,453 +528,7 @@ function SettingsPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1440px] px-6 py-6 space-y-6">
-        {/* ==================== CARD 1: ENROLL KARYAWAN ==================== */}
-        <div
-          className="rounded-lg border shadow-sm"
-          style={{ borderColor: t.border, backgroundColor: t.card }}
-        >
-          <div className="p-6 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: t.primaryLight }}>
-                  <UserPlus className="h-5 w-5" style={{ color: t.primary }} />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
-                    Enroll Karyawan
-                  </h2>
-                  <p className="text-xs font-mono mt-0.5" style={{ color: t.textMuted }}>
-                    Daftarkan karyawan baru untuk pengenalan wajah
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowEnrollForm(!showEnrollForm)}
-                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium font-mono text-white transition-all"
-                style={{ backgroundColor: showEnrollForm ? t.danger : t.primary }}
-              >
-                {showEnrollForm ? (
-                  <>
-                    <X className="h-4 w-4" /> Tutup
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" /> Tambah
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-          {showEnrollForm && (
-            <div className="px-6 pb-6">
-              <div
-                className="rounded-lg border p-5 space-y-5"
-                style={{ borderColor: t.border, backgroundColor: t.bg }}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className="text-xs font-mono mb-1.5 block font-medium"
-                      style={{ color: t.textMain }}
-                    >
-                      Employee ID <span style={{ color: t.danger }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={enrollEmployeeId}
-                      onChange={(e) => setEnrollEmployeeId(e.target.value)}
-                      placeholder="EMP001"
-                      className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
-                      style={{
-                        borderColor: t.inputBorder,
-                        backgroundColor: t.inputBg,
-                        color: t.textMain,
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="text-xs font-mono mb-1.5 block font-medium"
-                      style={{ color: t.textMain }}
-                    >
-                      Nama <span style={{ color: t.danger }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={enrollName}
-                      onChange={(e) => setEnrollName(e.target.value)}
-                      placeholder="John Doe"
-                      className="w-full rounded-md border px-3 py-2.5 text-sm outline-none"
-                      style={{
-                        borderColor: t.inputBorder,
-                        backgroundColor: t.inputBg,
-                        color: t.textMain,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className="text-xs font-mono mb-1.5 block font-medium"
-                      style={{ color: t.textMain }}
-                    >
-                      <Clock className="h-3 w-3 inline mr-1" />
-                      Jam Masuk
-                    </label>
-                    <input
-                      type="time"
-                      value={enrollArrivalTime}
-                      onChange={(e) => setEnrollArrivalTime(e.target.value)}
-                      className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
-                      style={{
-                        borderColor: t.inputBorder,
-                        backgroundColor: t.inputBg,
-                        color: t.textMain,
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="text-xs font-mono mb-1.5 block font-medium"
-                      style={{ color: t.textMain }}
-                    >
-                      <Clock className="h-3 w-3 inline mr-1" />
-                      Jam Pulang
-                    </label>
-                    <input
-                      type="time"
-                      value={enrollDepartureTime}
-                      onChange={(e) => setEnrollDepartureTime(e.target.value)}
-                      className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
-                      style={{
-                        borderColor: t.inputBorder,
-                        backgroundColor: t.inputBg,
-                        color: t.textMain,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-mono font-medium" style={{ color: t.textMain }}>
-                      <Coffee className="h-3 w-3 inline mr-1" />
-                      Sesi Istirahat
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => addBreakWindow()}
-                      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-mono"
-                      style={{ borderColor: t.primary, color: t.primary }}
-                    >
-                      <Plus className="h-3 w-3" /> Tambah
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {enrollBreakWindows.map((w, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span
-                          className="text-xs font-mono w-14 shrink-0"
-                          style={{ color: t.textMuted }}
-                        >
-                          Sesi {idx + 1}
-                        </span>
-                        <input
-                          type="time"
-                          value={w.start}
-                          onChange={(e) => updateBreakWindow(idx, "start", e.target.value)}
-                          className="flex-1 rounded-md border px-2 py-2 text-sm outline-none font-mono"
-                          style={{
-                            borderColor: t.inputBorder,
-                            backgroundColor: t.inputBg,
-                            color: t.textMain,
-                          }}
-                        />
-                        <span className="text-xs font-mono" style={{ color: t.textMuted }}>
-                          s/d
-                        </span>
-                        <input
-                          type="time"
-                          value={w.end}
-                          onChange={(e) => updateBreakWindow(idx, "end", e.target.value)}
-                          className="flex-1 rounded-md border px-2 py-2 text-sm outline-none font-mono"
-                          style={{
-                            borderColor: t.inputBorder,
-                            backgroundColor: t.inputBg,
-                            color: t.textMain,
-                          }}
-                        />
-                        <button onClick={() => removeBreakWindow(idx)} style={{ color: t.danger }}>
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label
-                    className="text-xs font-mono mb-1.5 block font-medium"
-                    style={{ color: t.textMain }}
-                  >
-                    <ImageIcon className="h-3 w-3 inline mr-1" />
-                    Foto <span style={{ color: t.danger }}>*</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        const newFiles = Array.from(e.target.files);
-                        setEnrollPhotos((prev) => [...prev, ...newFiles]);
-                        e.target.value = "";
-                      }
-                    }}
-                    style={{ display: "none" }}
-                    id="enroll-file-input"
-                  />
-                  <div
-                    onClick={() => {
-                      const input = document.getElementById(
-                        "enroll-file-input",
-                      ) as HTMLInputElement;
-                      input?.click();
-                    }}
-                    className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-8 cursor-pointer"
-                    style={{ borderColor: t.primary }}
-                  >
-                    <Upload className="h-6 w-6" style={{ color: t.primary }} />
-                    <span className="text-sm font-mono" style={{ color: t.primary }}>
-                      Klik untuk pilih foto
-                    </span>
-                    <span className="text-xs font-mono" style={{ color: t.textMuted }}>
-                      {enrollPhotos.length > 0
-                        ? `Terpilih ${enrollPhotos.length} foto`
-                        : "Bisa pilih beberapa foto"}
-                    </span>
-                  </div>
-                  {enrollPhotos.length > 0 && (
-                    <div className="mt-3 grid grid-cols-4 gap-2">
-                      {enrollPhotos.map((file, idx) => (
-                        <div
-                          key={idx}
-                          className="relative rounded-md border overflow-hidden group"
-                          style={{ borderColor: t.border }}
-                        >
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt=""
-                            className="h-16 w-full object-cover"
-                          />
-                          <button
-                            onClick={() => removeEnrollPhoto(idx)}
-                            aria-label="Hapus foto"
-                            className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="flex justify-end gap-3 pt-3 border-t"
-                  style={{ borderColor: t.border }}
-                >
-                  <button
-                    onClick={resetEnrollForm}
-                    className="rounded-md border px-4 py-2 text-sm font-mono"
-                    style={{ borderColor: t.border, color: t.textMain }}
-                  >
-                    Batal
-                  </button>
-                  <button
-                    onClick={() => mutationEnroll.mutate()}
-                    disabled={mutationEnroll.isPending}
-                    className="inline-flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium text-white"
-                    style={{ backgroundColor: t.primary }}
-                  >
-                    {mutationEnroll.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Mendaftarkan...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4" /> Daftarkan
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ==================== CARD 2: DAFTAR KARYAWAN ==================== */}
-        <div
-          className="rounded-lg border shadow-sm"
-          style={{ borderColor: t.border, backgroundColor: t.card }}
-        >
-          <div className="p-6 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: t.warningLight }}>
-                <UserCheck className="h-5 w-5" style={{ color: t.warning }} />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
-                  Daftar Karyawan Terdaftar
-                </h2>
-                <p className="text-xs font-mono mt-0.5" style={{ color: t.textMuted }}>
-                  Kelola data karyawan yang sudah terdaftar
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="px-6 pb-6">
-            {employeesLoading && (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: t.primary }} />
-              </div>
-            )}
-            {employeesError && (
-              <div
-                className="text-center py-8 rounded-md border"
-                style={{ borderColor: t.danger, backgroundColor: t.dangerLight }}
-              >
-                <AlertCircle className="h-6 w-6 mx-auto mb-2" style={{ color: t.danger }} />
-                <p className="text-sm font-mono" style={{ color: t.danger }}>
-                  Gagal memuat data
-                </p>
-                <button
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ["employees"] })}
-                  className="mt-2 text-xs font-mono"
-                  style={{ color: t.primary }}
-                >
-                  <RefreshCw className="h-3 w-3 inline mr-1" />
-                  Coba lagi
-                </button>
-              </div>
-            )}
-            {!employeesLoading && !employeesError && employees.length === 0 && (
-              <div
-                className="text-center py-12 rounded-md border border-dashed"
-                style={{ borderColor: t.border }}
-              >
-                <Users className="h-10 w-10 mx-auto mb-3" style={{ color: t.textMuted }} />
-                <p className="text-sm font-mono" style={{ color: t.textMuted }}>
-                  Belum ada karyawan terdaftar
-                </p>
-              </div>
-            )}
-            {!employeesLoading && !employeesError && employees.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b" style={{ borderColor: t.border }}>
-                      <th
-                        className="text-left py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        ID
-                      </th>
-                      <th
-                        className="text-left py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        Nama
-                      </th>
-                      <th
-                        className="text-left py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        Masuk
-                      </th>
-                      <th
-                        className="text-left py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        Pulang
-                      </th>
-                      <th
-                        className="text-left py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        Istirahat
-                      </th>
-                      <th
-                        className="text-right py-3 px-3 text-xs font-mono font-semibold"
-                        style={{ color: t.textMuted }}
-                      >
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.map((emp) => (
-                      <tr
-                        key={emp.employee_id}
-                        className="border-b last:border-0"
-                        style={{ borderColor: t.border }}
-                      >
-                        <td className="py-3 px-3 font-mono text-xs" style={{ color: t.primary }}>
-                          {emp.employee_id}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs" style={{ color: t.textMain }}>
-                          {emp.name}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs" style={{ color: t.textMuted }}>
-                          {emp.arrival_time || "-"}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs" style={{ color: t.textMuted }}>
-                          {emp.departure_time || "-"}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs" style={{ color: t.textMuted }}>
-                          {(() => {
-                            try {
-                              const bw =
-                                typeof emp.break_windows === "string"
-                                  ? JSON.parse(emp.break_windows)
-                                  : emp.break_windows;
-                              if (Array.isArray(bw) && bw.length > 0) {
-                                return bw.map((b: any) => `${b.start}-${b.end}`).join(", ");
-                              }
-                              return "-";
-                            } catch {
-                              return "-";
-                            }
-                          })()}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openEditModal(emp)}
-                              className="p-1.5 rounded-md"
-                              style={{ color: t.primary }}
-                              title="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteEmployee(emp.employee_id, emp.name)}
-                              className="p-1.5 rounded-md"
-                              style={{ color: t.danger }}
-                              title="Hapus"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
+      <section className="mx-auto max-w-[1680px] px-6 py-6 space-y-6">
         {/* ==================== CARD 3: PENERIMA WHATSAPP ==================== */}
         <div
           className="rounded-lg border shadow-sm"
@@ -1076,14 +544,14 @@ function SettingsPage() {
                   <h2 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
                     Penerima WhatsApp
                   </h2>
-                  <p className="text-xs font-mono mt-0.5" style={{ color: t.textMuted }}>
+                  <p className="text-xs mt-0.5" style={{ color: t.textMuted }}>
                     Kelola kontak penerima notifikasi
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
-                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium font-mono text-white transition-all"
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-all"
                 style={{ backgroundColor: showAddForm ? t.danger : t.success }}
               >
                 {showAddForm ? (
@@ -1113,7 +581,7 @@ function SettingsPage() {
                     value={newNama}
                     onChange={(e) => setNewNama(e.target.value)}
                     placeholder="Nama kontak"
-                    className="flex-1 rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
+                    className="flex-1 rounded-md border px-3 py-2.5 text-sm outline-none"
                     style={{
                       borderColor: t.inputBorder,
                       backgroundColor: t.inputBg,
@@ -1149,6 +617,48 @@ function SettingsPage() {
                     )}
                   </button>
                 </div>
+
+                {/* Hak akses fitur otomatis n8n -- staging alert, laporan harian/mingguan,
+                    dan boleh minta laporan lewat chatbot WA. Ini yang connect langsung ke
+                    query di workflow n8n (filter berdasarkan kolom akses_* di database). */}
+                <div className="flex flex-wrap gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-sm" style={{ color: t.textMain }}>
+                    <input
+                      type="checkbox"
+                      checked={newAksesStaging}
+                      onChange={(e) => setNewAksesStaging(e.target.checked)}
+                      className="h-4 w-4 rounded"
+                    />
+                    Alert Staging
+                  </label>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: t.textMain }}>
+                    <input
+                      type="checkbox"
+                      checked={newAksesHarian}
+                      onChange={(e) => setNewAksesHarian(e.target.checked)}
+                      className="h-4 w-4 rounded"
+                    />
+                    Laporan Harian
+                  </label>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: t.textMain }}>
+                    <input
+                      type="checkbox"
+                      checked={newAksesMingguan}
+                      onChange={(e) => setNewAksesMingguan(e.target.checked)}
+                      className="h-4 w-4 rounded"
+                    />
+                    Laporan Mingguan
+                  </label>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: t.textMain }}>
+                    <input
+                      type="checkbox"
+                      checked={newAksesChatbot}
+                      onChange={(e) => setNewAksesChatbot(e.target.checked)}
+                      className="h-4 w-4 rounded"
+                    />
+                    Minta via Chatbot WA
+                  </label>
+                </div>
               </div>
             )}
             {waLoading && (
@@ -1162,12 +672,12 @@ function SettingsPage() {
                 style={{ borderColor: t.danger, backgroundColor: t.dangerLight }}
               >
                 <AlertCircle className="h-6 w-6 mx-auto mb-2" style={{ color: t.danger }} />
-                <p className="text-sm font-mono" style={{ color: t.danger }}>
+                <p className="text-sm" style={{ color: t.danger }}>
                   Gagal memuat data
                 </p>
                 <button
                   onClick={() => queryClient.invalidateQueries({ queryKey: ["wa-recipients"] })}
-                  className="mt-2 text-xs font-mono"
+                  className="mt-2 text-xs"
                   style={{ color: t.primary }}
                 >
                   <RefreshCw className="h-3 w-3 inline mr-1" />
@@ -1181,7 +691,7 @@ function SettingsPage() {
                 style={{ borderColor: t.border }}
               >
                 <Users className="h-10 w-10 mx-auto mb-3" style={{ color: t.textMuted }} />
-                <p className="text-sm font-mono" style={{ color: t.textMuted }}>
+                <p className="text-sm" style={{ color: t.textMuted }}>
                   Belum ada penerima terdaftar
                 </p>
               </div>
@@ -1197,7 +707,7 @@ function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div
-                          className="h-8 w-8 rounded-full flex items-center justify-center font-mono text-sm font-bold"
+                          className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold"
                           style={{ backgroundColor: t.primaryLight, color: t.primary }}
                         >
                           {recipient.nama.charAt(0).toUpperCase()}
@@ -1210,7 +720,7 @@ function SettingsPage() {
                         </h3>
                       </div>
                       <span
-                        className="text-[10px] font-semibold px-2.5 py-1 rounded-full font-mono inline-flex items-center gap-1.5"
+                        className="text-[10px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5"
                         style={{
                           backgroundColor: recipient.aktif ? t.successLight : t.dangerLight,
                           color: recipient.aktif ? t.success : t.danger,
@@ -1231,7 +741,7 @@ function SettingsPage() {
                         onChange={(e) =>
                           setEditValues((prev) => ({ ...prev, [recipient.id]: e.target.value }))
                         }
-                        className="flex-1 rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
+                        className="flex-1 rounded-md border px-3 py-2.5 text-sm outline-none"
                         style={{
                           borderColor: t.inputBorder,
                           backgroundColor: t.inputBg,
@@ -1268,6 +778,51 @@ function SettingsPage() {
                         )}
                       </button>
                     </div>
+
+                    {/* Hak akses fitur otomatis n8n -- diklik langsung, tanpa dialog
+                        konfirmasi (beda dari ubah nomor/hapus yang dampaknya lebih besar).
+                        Ini yang dibaca query di workflow n8n untuk filter siapa dapat apa. */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {(
+                        [
+                          { field: "akses_staging", label: "Alert Staging" },
+                          { field: "akses_laporan_harian", label: "Laporan Harian" },
+                          { field: "akses_laporan_mingguan", label: "Laporan Mingguan" },
+                          { field: "akses_chatbot", label: "Chatbot WA" },
+                        ] as const
+                      ).map(({ field, label }) => {
+                        const active = Boolean(recipient[field]);
+                        return (
+                          <button
+                            key={field}
+                            onClick={() =>
+                              mutationTogglePermission.mutate({
+                                id: recipient.id,
+                                field,
+                                value: !active,
+                              })
+                            }
+                            className="text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors"
+                            style={
+                              active
+                                ? {
+                                    backgroundColor: t.primaryLight,
+                                    color: t.primary,
+                                    borderColor: t.primary,
+                                  }
+                                : {
+                                    backgroundColor: "transparent",
+                                    color: t.textMuted,
+                                    borderColor: t.border,
+                                  }
+                            }
+                          >
+                            {active ? "✓ " : ""}
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1290,14 +845,14 @@ function SettingsPage() {
                   <h2 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
                     Manajemen User
                   </h2>
-                  <p className="text-xs font-mono mt-0.5" style={{ color: t.textMuted }}>
+                  <p className="text-xs mt-0.5" style={{ color: t.textMuted }}>
                     Mengelola akses login pada sistem ini
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowUserForm(!showAddUserForm)}
-                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium font-mono text-white transition-all"
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-all"
                 style={{ backgroundColor: showAddUserForm ? t.danger : t.success }}
               >
                 {showAddUserForm ? (
@@ -1345,7 +900,7 @@ function SettingsPage() {
                       value={currentPasswordInput}
                       onChange={(e) => setCurrentPasswordInput(e.target.value)}
                       placeholder="Password lama"
-                      className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                      className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none"
                       style={{
                         borderColor: t.inputBorder,
                         backgroundColor: t.inputBg,
@@ -1358,6 +913,9 @@ function SettingsPage() {
                       className="absolute right-3 top-1/2 -translate-y-1/2"
                       style={{ color: t.textMuted }}
                       tabIndex={-1}
+                      aria-label={
+                        showCurrentPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
+                      }
                     >
                       {showCurrentPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -1375,7 +933,7 @@ function SettingsPage() {
                         value={newPasswordInput}
                         onChange={(e) => setNewPasswordInput(e.target.value)}
                         placeholder="Password baru (min. 8 karakter)"
-                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none"
                         style={{
                           borderColor: t.inputBorder,
                           backgroundColor: t.inputBg,
@@ -1388,6 +946,9 @@ function SettingsPage() {
                         className="absolute right-3 top-1/2 -translate-y-1/2"
                         style={{ color: t.textMuted }}
                         tabIndex={-1}
+                        aria-label={
+                          showNewPasswordInput ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
+                        }
                       >
                         {showNewPasswordInput ? (
                           <EyeOff className="h-4 w-4" />
@@ -1404,7 +965,7 @@ function SettingsPage() {
                         value={newPasswordInputConfirm}
                         onChange={(e) => setNewPasswordInputConfirm(e.target.value)}
                         placeholder="Konfirmasi password baru"
-                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none"
                         style={{
                           borderColor: t.inputBorder,
                           backgroundColor: t.inputBg,
@@ -1418,6 +979,11 @@ function SettingsPage() {
                         className="absolute right-3 top-1/2 -translate-y-1/2"
                         style={{ color: t.textMuted }}
                         tabIndex={-1}
+                        aria-label={
+                          showNewPasswordConfirmInput
+                            ? "Sembunyikan kata sandi"
+                            : "Tampilkan kata sandi"
+                        }
                       >
                         {showNewPasswordConfirmInput ? (
                           <EyeOff className="h-4 w-4" />
@@ -1460,13 +1026,51 @@ function SettingsPage() {
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
                     placeholder="Username (huruf/angka/underscore, min. 3 karakter)"
-                    className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono"
+                    className="w-full rounded-md border px-3 py-2.5 text-sm outline-none"
                     style={{
                       borderColor: t.inputBorder,
                       backgroundColor: t.inputBg,
                       color: t.textMain,
                     }}
                   />
+
+                  {/* Pilihan role: staff cuma bisa lihat dashboard & log (monitoring),
+                      admin bisa akses semua termasuk halaman Pengaturan ini. */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewUserRole("staff")}
+                      className="flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+                      style={
+                        newUserRole === "staff"
+                          ? {
+                              borderColor: t.primary,
+                              backgroundColor: t.primaryLight,
+                              color: t.primary,
+                            }
+                          : { borderColor: t.border, color: t.textMuted }
+                      }
+                    >
+                      Staff (monitoring saja)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewUserRole("admin")}
+                      className="flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+                      style={
+                        newUserRole === "admin"
+                          ? {
+                              borderColor: t.primary,
+                              backgroundColor: t.primaryLight,
+                              color: t.primary,
+                            }
+                          : { borderColor: t.border, color: t.textMuted }
+                      }
+                    >
+                      Admin (akses penuh)
+                    </button>
+                  </div>
+
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {/* Password Baru */}
                     <div className="relative flex-1">
@@ -1475,7 +1079,7 @@ function SettingsPage() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Password (min. 8 karakter)"
-                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none"
                         style={{
                           borderColor: t.inputBorder,
                           backgroundColor: t.inputBg,
@@ -1488,6 +1092,9 @@ function SettingsPage() {
                         className="absolute right-3 top-1/2 -translate-y-1/2"
                         style={{ color: t.textMuted }}
                         tabIndex={-1}
+                        aria-label={
+                          showNewPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
+                        }
                       >
                         {showNewPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -1504,7 +1111,7 @@ function SettingsPage() {
                         value={newPasswordConfirm}
                         onChange={(e) => setNewPasswordConfirm(e.target.value)}
                         placeholder="Konfirmasi Password"
-                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+                        className="w-full rounded-md border px-3 py-2.5 pr-10 text-sm outline-none"
                         style={{
                           borderColor: t.inputBorder,
                           backgroundColor: t.inputBg,
@@ -1518,6 +1125,9 @@ function SettingsPage() {
                         className="absolute right-3 top-1/2 -translate-y-1/2"
                         style={{ color: t.textMuted }}
                         tabIndex={-1}
+                        aria-label={
+                          showNewPasswordConfirm ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
+                        }
                       >
                         {showNewPasswordConfirm ? (
                           <EyeOff className="h-4 w-4" />
@@ -1556,12 +1166,12 @@ function SettingsPage() {
                 style={{ borderColor: t.danger, backgroundColor: t.dangerLight }}
               >
                 <AlertCircle className="h-6 w-6 mx-auto mb-2" style={{ color: t.danger }} />
-                <p className="text-sm font-mono" style={{ color: t.danger }}>
+                <p className="text-sm" style={{ color: t.danger }}>
                   Gagal memuat daftar user
                 </p>
                 <button
                   onClick={() => queryClient.invalidateQueries({ queryKey: ["users"] })}
-                  className="mt-2 text-xs font-mono"
+                  className="mt-2 text-xs"
                   style={{ color: t.primary }}
                 >
                   <RefreshCw className="h-3 w-3 inline mr-1" />
@@ -1581,7 +1191,7 @@ function SettingsPage() {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center font-mono text-sm font-bold"
+                          className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-sm font-bold"
                           style={{ backgroundColor: t.primaryLight, color: t.primary }}
                         >
                           {u.username.charAt(0).toUpperCase()}
@@ -1592,9 +1202,19 @@ function SettingsPage() {
                             style={{ color: t.textMain }}
                           >
                             {u.username}
+                            <span
+                              className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              style={
+                                u.role === "admin"
+                                  ? { backgroundColor: t.primaryLight, color: t.primary }
+                                  : { backgroundColor: t.border, color: t.textMuted }
+                              }
+                            >
+                              {u.role === "admin" ? "Admin" : "Staff"}
+                            </span>
                             {isSelf && (
                               <span
-                                className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full font-mono"
+                                className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                                 style={{ backgroundColor: t.successLight, color: t.success }}
                               >
                                 Anda
@@ -1602,7 +1222,7 @@ function SettingsPage() {
                             )}
                           </p>
                           <div
-                            className="text-xs font-mono mt-0.5 flex items-center gap-2"
+                            className="text-xs mt-0.5 flex items-center gap-2"
                             style={{ color: t.textMuted }}
                           >
                             <span>
@@ -1630,234 +1250,83 @@ function SettingsPage() {
         </div>
       </section>
 
-      {/* ==================== MODAL EDIT KARYAWAN ==================== */}
-      {editingEmployee && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => {
-            setEditingEmployee(null);
-            setEditPhotos([]);
-          }}
+      {/* ==================== AUDIT LOG ==================== */}
+      <section
+        className="mx-auto max-w-4xl mt-6 rounded-lg border transition-colors duration-300"
+        style={{ borderColor: t.border, backgroundColor: t.card }}
+      >
+        <button
+          onClick={() => setShowAuditLog((v) => !v)}
+          className="flex w-full items-center justify-between px-5 py-4"
         >
-          <div
-            className="bg-white dark:bg-[#1e293b] rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: t.card }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold font-space" style={{ color: t.textMain }}>
-                Edit: {editingEmployee.employee_id}
-              </h3>
-              <button
-                onClick={() => {
-                  setEditingEmployee(null);
-                  setEditPhotos([]);
-                }}
-                aria-label="Tutup"
-                style={{ color: t.textMuted }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label
-                  className="text-xs font-mono mb-1.5 block font-medium"
-                  style={{ color: t.textMain }}
-                >
-                  Nama
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  disabled={isReenrolling}
-                  className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono disabled:opacity-50"
-                  style={{
-                    borderColor: t.inputBorder,
-                    backgroundColor: t.inputBg,
-                    color: t.textMain,
-                  }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label
-                    className="text-xs font-mono mb-1.5 block font-medium"
-                    style={{ color: t.textMain }}
-                  >
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    Jam Masuk
-                  </label>
-                  <input
-                    type="time"
-                    value={editArrivalTime}
-                    onChange={(e) => setEditArrivalTime(e.target.value)}
-                    disabled={isReenrolling}
-                    className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono disabled:opacity-50"
-                    style={{
-                      borderColor: t.inputBorder,
-                      backgroundColor: t.inputBg,
-                      color: t.textMain,
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    className="text-xs font-mono mb-1.5 block font-medium"
-                    style={{ color: t.textMain }}
-                  >
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    Jam Pulang
-                  </label>
-                  <input
-                    type="time"
-                    value={editDepartureTime}
-                    onChange={(e) => setEditDepartureTime(e.target.value)}
-                    disabled={isReenrolling}
-                    className="w-full rounded-md border px-3 py-2.5 text-sm outline-none font-mono disabled:opacity-50"
-                    style={{
-                      borderColor: t.inputBorder,
-                      backgroundColor: t.inputBg,
-                      color: t.textMain,
-                    }}
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-mono font-medium" style={{ color: t.textMain }}>
-                    <Coffee className="h-3 w-3 inline mr-1" />
-                    Sesi Istirahat
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => addBreakWindow(true)}
-                    className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-mono"
-                    style={{ borderColor: t.primary, color: t.primary }}
-                  >
-                    <Plus className="h-3 w-3" /> Tambah
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {editBreakWindows.map((w, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span
-                        className="text-xs font-mono w-14 shrink-0"
-                        style={{ color: t.textMuted }}
-                      >
-                        Sesi {idx + 1}
-                      </span>
-                      <input
-                        type="time"
-                        value={w.start}
-                        onChange={(e) => updateBreakWindow(idx, "start", e.target.value, true)}
-                        disabled={isReenrolling}
-                        className="flex-1 rounded-md border px-2 py-2 text-sm outline-none font-mono disabled:opacity-50"
-                        style={{
-                          borderColor: t.inputBorder,
-                          backgroundColor: t.inputBg,
-                          color: t.textMain,
-                        }}
-                      />
-                      <span className="text-xs font-mono" style={{ color: t.textMuted }}>
-                        s/d
-                      </span>
-                      <input
-                        type="time"
-                        value={w.end}
-                        onChange={(e) => updateBreakWindow(idx, "end", e.target.value, true)}
-                        disabled={isReenrolling}
-                        className="flex-1 rounded-md border px-2 py-2 text-sm outline-none font-mono disabled:opacity-50"
-                        style={{
-                          borderColor: t.inputBorder,
-                          backgroundColor: t.inputBg,
-                          color: t.textMain,
-                        }}
-                      />
-                      <button
-                        onClick={() => removeBreakWindow(idx, true)}
-                        style={{ color: t.danger }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label
-                  className="text-xs font-mono mb-1.5 block font-medium"
-                  style={{ color: t.textMain }}
-                >
-                  <Upload className="h-3 w-3 inline mr-1" />
-                  Foto Baru (opsional)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      const newFiles = Array.from(e.target.files);
-                      setEditPhotos((prev) => [...prev, ...newFiles]);
-                      e.target.value = "";
-                    }
-                  }}
-                  disabled={isReenrolling}
-                  className="w-full rounded-md border px-3 py-2 text-sm font-mono disabled:opacity-50"
-                  style={{
-                    borderColor: t.inputBorder,
-                    backgroundColor: t.inputBg,
-                    color: t.textMain,
-                  }}
-                />
-                {editPhotos.length > 0 && (
-                  <div className="mt-2 text-xs font-mono" style={{ color: t.success }}>
-                    <CheckCircle2 className="h-3 w-3 inline mr-1" />
-                    {editPhotos.length} foto dipilih
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div
-              className="flex justify-end gap-3 mt-6 pt-4 border-t"
-              style={{ borderColor: t.border }}
-            >
-              <button
-                onClick={() => {
-                  setEditingEmployee(null);
-                  setEditPhotos([]);
-                }}
-                disabled={isReenrolling}
-                className="rounded-md border px-4 py-2 text-sm font-mono disabled:opacity-50"
-                style={{ borderColor: t.border, color: t.textMain }}
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={isReenrolling}
-                className="inline-flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: t.primary }}
-              >
-                {isReenrolling ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" /> Simpan
-                  </>
-                )}
-              </button>
+          <div className="flex items-center gap-2">
+            <NotebookText className="h-5 w-5" style={{ color: t.primary }} />
+            <div className="text-left">
+              <h2 className="text-sm font-semibold font-space" style={{ color: t.textMain }}>
+                Audit Log
+              </h2>
+              <p className="text-xs" style={{ color: t.textMuted }}>
+                Riwayat aktivitas admin: kelola user, kontak WA, dan penerima laporan
+              </p>
             </div>
           </div>
-        </div>
-      )}
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${showAuditLog ? "rotate-180" : ""}`}
+            style={{ color: t.textMuted }}
+          />
+        </button>
+
+        {showAuditLog && (
+          <div className="px-5 pb-5 space-y-2">
+            {auditLogLoading && (
+              <p className="text-sm py-4 text-center" style={{ color: t.textMuted }}>
+                Memuat audit log...
+              </p>
+            )}
+            {auditLogError && (
+              <p className="text-sm py-4 text-center" style={{ color: t.danger }}>
+                Gagal memuat audit log.
+              </p>
+            )}
+            {!auditLogLoading && !auditLogError && auditEntries.length === 0 && (
+              <p className="text-sm py-4 text-center" style={{ color: t.textMuted }}>
+                Belum ada aktivitas tercatat.
+              </p>
+            )}
+            {!auditLogLoading &&
+              !auditLogError &&
+              auditEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-start justify-between gap-3 rounded-md border px-3 py-2.5"
+                  style={{ borderColor: t.border, backgroundColor: t.bg }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium" style={{ color: t.textMain }}>
+                      {AUDIT_ACTION_LABELS[entry.action] || entry.action}
+                    </p>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: t.textMuted }}>
+                      {entry.target_label || "-"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-medium" style={{ color: t.textMain }}>
+                      {entry.actor_username}
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{ color: t.textMuted }}>
+                      {new Date(entry.created_at).toLocaleString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
 
       {/* Dialog konfirmasi */}
       <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>

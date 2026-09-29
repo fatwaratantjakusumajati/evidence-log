@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/api-config";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,7 +11,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import {
-  ArrowLeft,
   Car,
   ChevronLeft,
   ChevronRight,
@@ -23,18 +23,27 @@ import {
   Eye,
   AlertCircle,
   Truck,
-  Clock,
   Flag,
-  FlagOff,
+  Loader2,
+  History,
+  ZoomIn,
+  ShipWheel,
+  Search,
+  Ship,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { formatDateTime, formatShortDate } from "@/lib/evidence";
+import { useState, useEffect, useMemo } from "react";
+import {
+  formatDateTime,
+  formatShortDate,
+  generateAutoDescription,
+  classifyMuatanProcess,
+} from "@/lib/evidence";
 import { toast } from "sonner";
-import { getLogsPageColors } from "@/lib/theme-tokens";
 import { authFetch } from "@/lib/auth";
-import { number } from "zod";
+import { VehicleHistoryModal } from "@/components/VehicleHistoryModal";
 
-const PAGE_SIZE = 12;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 type VehicleLog = {
   id: number;
@@ -52,12 +61,15 @@ type VehicleLog = {
   status_muatan?: string | null;
   jenis_kejadian?: string;
   track_id?: number;
+  vehicle_id?: string | null;
+  plat_nomor?: string | null;
+  plat_confidence?: number | null;
 };
 
-function parseVehicleResponse(json: any) {
+function parseVehicleResponse(json: any, pageSize: number) {
   if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) return json;
   else if (Array.isArray(json))
-    return { data: json, total: json.length, totalPages: Math.ceil(json.length / PAGE_SIZE) };
+    return { data: json, total: json.length, totalPages: Math.ceil(json.length / pageSize) };
   return { data: [], total: 0, totalPages: 1 };
 }
 
@@ -105,10 +117,27 @@ export const Route = createFileRoute("/logs/vehicles")({
 function VehicleLogsPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [isPageSizeOpen, setIsPageSizeOpen] = useState(false);
   const [filterJenis, setFilterJenis] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchPlat, setSearchPlat] = useState("");
+  const [isJenisOpen, setIsJenisOpen] = useState(false);
+
+  // Debounce 400ms -- supaya tidak nembak request tiap 1 huruf diketik,
+  // nunggu user berhenti ngetik dulu sebentar.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchPlat(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleLog | null>(null);
+  const [historyVehicleId, setHistoryVehicleId] = useState<string | null>(null);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = selectedVehicle ? "hidden" : "unset";
@@ -122,29 +151,58 @@ function VehicleLogsPage() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["vehicle_log", page, filterJenis, startDate, endDate],
+    queryKey: ["vehicle_log", page, pageSize, filterJenis, startDate, endDate, searchPlat],
+    meta: { showErrorToast: true, errorLabel: "Log Kendaraan" },
     queryFn: async () => {
-      try {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: String(PAGE_SIZE),
-          jenis: filterJenis,
-        });
-        if (startDate) params.append("start_date", startDate);
-        if (endDate) params.append("end_date", endDate);
-        const res = await authFetch(`${API_BASE_URL}/api/vehicles/log?${params}`);
-        if (!res.ok) return { data: [], total: 0, totalPages: 1 };
-        const json = await res.json();
-        return parseVehicleResponse(json);
-      } catch {
-        return { data: [], total: 0, totalPages: 1 };
-      }
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        jenis: filterJenis,
+      });
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
+      if (searchPlat) params.append("search", searchPlat);
+      const res = await authFetch(`${API_BASE_URL}/api/vehicles/log?${params}`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      const json = await res.json();
+      return parseVehicleResponse(json, pageSize);
     },
     staleTime: 0,
     refetchInterval: 3000,
   });
 
   const paginatedVehicles = response?.data || [];
+
+  const groupedVehicles = useMemo(() => {
+    const groups = new Map<string, VehicleLog[]>();
+    const standalone: VehicleLog[] = [];
+
+    for (const v of paginatedVehicles as VehicleLog[]) {
+      if (v.vehicle_id) {
+        const arr = groups.get(v.vehicle_id) || [];
+        arr.push(v);
+        groups.set(v.vehicle_id, arr);
+      } else {
+        standalone.push(v);
+      }
+    }
+
+    type Group = { key: string; events: VehicleLog[] };
+    const result: Group[] = [];
+    groups.forEach((events, vehicle_id) => {
+      events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      result.push({ key: vehicle_id, events });
+    });
+    standalone.forEach((v) => result.push({ key: `single-${v.id}`, events: [v] }));
+
+    result.sort((a, b) => {
+      const aLatest = Math.max(...a.events.map((e) => new Date(e.timestamp).getTime()));
+      const bLatest = Math.max(...b.events.map((e) => new Date(e.timestamp).getTime()));
+      return bLatest - aLatest;
+    });
+
+    return result;
+  }, [paginatedVehicles]);
   const totalPages = response?.totalPages || 1;
   const totalItems = response?.total || 0;
 
@@ -152,7 +210,7 @@ function VehicleLogsPage() {
     mutationFn: async ({ id, value }: { id: number; value: boolean }) => {
       const res = await authFetch(`${API_BASE_URL}/api/vehicles/log/${id}/flag`, {
         method: "PATCH",
-        headers: { "content-Type": "application.json" },
+        headers: { "content-Type": "application/json" },
         body: JSON.stringify({ is_false_positive: value }),
       });
       if (!res.ok) throw new Error("Gagal memperbarui status deteksi");
@@ -172,13 +230,16 @@ function VehicleLogsPage() {
     setFilterJenis(value);
     setPage(1);
   };
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setPage(1);
+  };
   const handleDateChange = () => setPage(1);
 
   return (
-    <main className="flex-1 min-h-screen bg-[#f8fafc] dark:bg-[#0b1120] text-[#0f172a] dark:text-[#e2e8f0] transition-colors duration-300 font-sans">
-      <header className="sticky top-0 z-20 border-b bg-white dark:bg-[#0f1a2e] border-[#e2e8f0] dark:border-[#1a2c45] backdrop-blur-xl transition-colors duration-300">
-        <div className="mx-auto max-w-[1440px] px-6 py-4">
-          {/* BREADCRUMB BARU */}
+    <main className="flex-1 min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-[#0f172a] dark:text-[#e2e8f0] transition-colors duration-300 font-sans">
+      <header className="sticky top-0 z-20 border-b bg-white dark:bg-[#0f172a] border-[#e2e8f0] dark:border-[#253449] backdrop-blur-xl transition-colors duration-300">
+        <div className="mx-auto max-w-[1680px] px-6 py-4">
           <div className="mb-4">
             <Breadcrumb>
               <BreadcrumbList>
@@ -202,16 +263,15 @@ function VehicleLogsPage() {
             </Breadcrumb>
           </div>
 
-          {/* JUDUL & STATISTIK HALAMAN */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Car className="h-5 w-5 text-[#2563eb] dark:text-[#60a5fa]" />
+              <Car className="h-5 w-5 text-[#4338ca] dark:text-[#6366f1]" />
               <h1 className="text-lg font-semibold tracking-tight font-space transition-colors">
                 Log Kendaraan
               </h1>
             </div>
             {totalItems > 0 && (
-              <span className="rounded-full bg-[#eff6ff] dark:bg-[#0a111f] px-3 py-1 text-xs font-medium text-[#2563eb] dark:text-[#60a5fa] border border-[#bfdbfe] dark:border-[#1a2c45] font-mono">
+              <span className="rounded-full bg-[#eef2ff] dark:bg-[#0f172a] px-3 py-1 text-xs font-medium text-[#4338ca] dark:text-[#6366f1] border border-[#c7d2fe] dark:border-[#253449]">
                 {totalItems} total
               </span>
             )}
@@ -219,55 +279,170 @@ function VehicleLogsPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1440px] px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-[#64748b] dark:text-[#94a3b8] font-mono">
+      <section className="mx-auto max-w-[1680px] px-6 py-6">
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          {/* 1. Teks Deskripsi */}
+          <p className="shrink-0 font-mono text-sm text-[#64748b] dark:text-[#94a3b8]">
             Riwayat lengkap kendaraan yang terdeteksi CCTV.
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] px-2 py-1.5 shadow-sm transition-colors">
-              <Calendar className="h-4 w-4 text-[#64748b] dark:text-[#94a3b8]" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
+
+          {/* 2. Group Tombol Filter (Pakai flex-nowrap agar DIPAKSA sejajar 1 baris) */}
+          <div className="flex flex-nowrap items-center gap-2">
+            {/* Filter Tanggal */}
+            <div className="shrink">
+              <DateRangeFilter
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(start, end) => {
+                  setStartDate(start);
+                  setEndDate(end);
                   handleDateChange();
                 }}
-                className="w-[115px] bg-transparent text-xs outline-none dark:text-[#e2e8f0] text-[#0f172a]"
-                placeholder="Dari"
-              />
-              <span className="text-xs text-[#64748b] dark:text-[#94a3b8]">—</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  handleDateChange();
-                }}
-                className="w-[115px] bg-transparent text-xs outline-none dark:text-[#e2e8f0] text-[#0f172a]"
-                placeholder="Sampai"
               />
             </div>
-            <select
-              value={filterJenis}
-              onChange={(e) => handleFilterChange(e.target.value)}
-              className="h-9 rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] px-3 text-sm font-medium text-[#0f172a] dark:text-[#e2e8f0] outline-none transition-colors"
-            >
-              <option value="all">Semua Jenis</option>
-              <option value="truk">Truk</option>
-              <option value="mobil">Mobil</option>
-              <option value="sepeda motor">Sepeda Motor</option>
-            </select>
-            {(filterJenis !== "all" || startDate || endDate) && (
+
+            {/* Filter Dropdown "Semua Jenis" */}
+            <div className="relative w-40 shrink-0 sm:w-48">
               <button
+                type="button"
+                onClick={() => setIsJenisOpen(!isJenisOpen)}
+                className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition-all hover:border-indigo-300 hover:bg-indigo-50/30 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-indigo-500/10"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="text-base">
+                    {filterJenis === "truk" ? (
+                      "🚚"
+                    ) : filterJenis === "mobil" ? (
+                      "🚗"
+                    ) : (
+                      <ShipWheel className="h-4 w-4 text-indigo-500" />
+                    )}
+                  </span>
+                  <span className="capitalize truncate">
+                    {filterJenis === "all" ? "Semua Jenis" : filterJenis}
+                  </span>
+                </div>
+
+                <svg
+                  className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
+                    isJenisOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {/* Popover / Menu Dropdown */}
+              {isJenisOpen && (
+                <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="space-y-1">
+                    {[
+                      {
+                        value: "all",
+                        label: "Semua Jenis",
+                        icon: <ShipWheel className="h-4 w-4 text-indigo-500" />,
+                      },
+                      { value: "truk", label: "Truk", icon: "🚚" },
+                      { value: "mobil", label: "Mobil", icon: "🚗" },
+                    ].map((item) => (
+                      <button
+                        type="button"
+                        key={item.value}
+                        onClick={() => {
+                          handleFilterChange(item.value);
+                          setIsJenisOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium transition-all sm:text-sm ${
+                          filterJenis === item.value
+                            ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"
+                            : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                        }`}
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        <span className="flex-1 truncate">{item.label}</span>
+                        {filterJenis === item.value && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown Jumlah Data per Halaman */}
+            <div className="relative w-32 shrink-0 sm:w-36">
+              <button
+                type="button"
+                onClick={() => setIsPageSizeOpen(!isPageSizeOpen)}
+                className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition-all hover:border-indigo-300 hover:bg-indigo-50/30 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-indigo-500/10"
+              >
+                <span className="truncate">{pageSize} / halaman</span>
+                <svg
+                  className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
+                    isPageSizeOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {isPageSizeOpen && (
+                <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="space-y-1">
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <button
+                        type="button"
+                        key={size}
+                        onClick={() => {
+                          handlePageSizeChange(size);
+                          setIsPageSizeOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium transition-all sm:text-sm ${
+                          pageSize === size
+                            ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"
+                            : "text-slate-700 hover:bg-slate-100/70 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                        }`}
+                      >
+                        <span className="flex-1 truncate">{size} / halaman</span>
+                        {pageSize === size && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tombol Reset */}
+            {(filterJenis !== "all" || startDate || endDate || searchInput) && (
+              <button
+                type="button"
                 onClick={() => {
                   setFilterJenis("all");
                   setStartDate("");
                   setEndDate("");
+                  setSearchInput("");
                   setPage(1);
                 }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] px-3 text-sm font-medium text-[#64748b] dark:text-[#94a3b8] transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#0b1120]"
+                className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 text-sm font-medium text-[#64748b] transition-colors hover:bg-[#f1f5f9] dark:border-[#334155] dark:bg-[#1e293b] dark:text-[#94a3b8] dark:hover:bg-[#0f172a]"
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Reset
               </button>
@@ -276,20 +451,46 @@ function VehicleLogsPage() {
         </div>
 
         {isLoading && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: PAGE_SIZE }).map((_, i) => (
-              <div
-                key={i}
-                className="animate-pulse overflow-hidden rounded-lg border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155]"
-              >
-                <div className="aspect-[4/3] bg-[#f1f5f9] dark:bg-[#0b1120]" />
-                <div className="space-y-2 p-4">
-                  <div className="h-3 w-2/3 rounded bg-[#f1f5f9] dark:bg-[#0b1120]" />
-                  <div className="h-3 w-1/2 rounded bg-[#f1f5f9] dark:bg-[#0b1120]" />
-                  <div className="h-3 w-1/3 rounded bg-[#f1f5f9] dark:bg-[#0b1120]" />
-                </div>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-lg border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] shadow-sm">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-[#e2e8f0] dark:border-[#334155] bg-[#f8fafc] dark:bg-[#16202f] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748b] dark:text-[#94a3b8]">
+                  <th className="px-4 py-3">Jenis Kendaraan</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Plat Nomor</th>
+                  <th className="px-4 py-3">Kamera</th>
+                  <th className="px-4 py-3">Waktu</th>
+                  <th className="px-4 py-3 text-right">Foto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: pageSize }).map((_, i) => (
+                  <tr
+                    key={i}
+                    className="animate-pulse border-b border-[#e2e8f0] dark:border-[#334155] last:border-0"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-24 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-16 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-20 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-16 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-24 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="ml-auto h-14 w-20 rounded bg-[#f1f5f9] dark:bg-[#0f172a]" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -299,7 +500,7 @@ function VehicleLogsPage() {
           </p>
         )}
 
-        {!isLoading && !isError && paginatedVehicles.length === 0 && (
+        {!isLoading && !isError && groupedVehicles.length === 0 && (
           <div className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] p-16 text-center shadow-sm">
             <Car className="mb-4 h-14 w-14 text-[#94a3b8]" strokeWidth={1.5} />
             <h3 className="text-base font-semibold font-space text-[#0f172a] dark:text-[#e2e8f0]">
@@ -311,136 +512,277 @@ function VehicleLogsPage() {
           </div>
         )}
 
-        {!isLoading && !isError && paginatedVehicles.length > 0 && (
+        {!isLoading && !isError && groupedVehicles.length > 0 && (
           <>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {paginatedVehicles.map((v: VehicleLog) => {
-                const isFP = v.is_false_positive === true;
-                const isTruk = v.jenis_kendaraan.includes("Truk");
-                const isCam1 = v.kamera_nama === "Loading Kiri";
-                const hasCargo = v.status_muatan && v.status_muatan.trim() !== "";
+            <div className="overflow-x-auto rounded-lg border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] shadow-sm">
+              <table className="w-full min-w-[860px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[#e2e8f0] dark:border-[#334155] bg-[#f8fafc] dark:bg-[#16202f] text-left text-[11px] font-semibold uppercase tracking-wide text-[#64748b] dark:text-[#94a3b8]">
+                    <th className="px-4 py-3">Jenis Kendaraan</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Plat Nomor</th>
+                    <th className="px-4 py-3">Kamera</th>
+                    <th className="px-4 py-3">Waktu</th>
+                    <th className="px-4 py-3 text-right">Foto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedVehicles.map((group) => {
+                    if (group.events.length >= 2) {
+                      const masuk =
+                        group.events.find((e) => e.jenis_kejadian === "MASUK") || group.events[0];
+                      const keluar =
+                        group.events.find(
+                          (e) =>
+                            e.jenis_kejadian === "SIKLUS_SELESAI" || e.jenis_kejadian === "KELUAR",
+                        ) || group.events[group.events.length - 1];
 
-                // ✅ LOGIKA BARU: Badge Masuk/Keluar
-                let statusKejadianBadge = null;
-                if (v.jenis_kejadian === "MASUK") {
-                  statusKejadianBadge = (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-900/50">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> MASUK
-                    </span>
-                  );
-                } else if (v.jenis_kejadian === "KELUAR") {
-                  statusKejadianBadge = (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-900/50">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> KELUAR
-                    </span>
-                  );
-                }
+                      const durasiMs =
+                        new Date(keluar.timestamp).getTime() - new Date(masuk.timestamp).getTime();
+                      const durasiMenit = Math.max(0, Math.round(durasiMs / 60000));
+                      const durasiText =
+                        durasiMenit >= 60
+                          ? `${Math.floor(durasiMenit / 60)}j ${durasiMenit % 60}m`
+                          : `${durasiMenit} menit`;
 
-                // ✅ LOGIKA MUATAN (Hanya Truk Loading Kiri)
-                // ✅ LOGIKA MUATAN - 3 STATUS
-                let muatanBadge = null;
-                if (isTruk && isCam1) {
-                  const status = v.status_muatan || "";
+                      const platNomor = masuk.plat_nomor || keluar.plat_nomor;
 
-                  // Tentukan warna dan teks berdasarkan status
-                  let bgColor =
-                    "bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700";
-                  let textColor = "text-[#64748b] dark:text-[#94a3b8]";
-                  let displayText = status || "Tidak dapat dipastikan";
+                      const isTrukGroup = masuk.jenis_kendaraan.includes("Truk");
+                      const muatanEvents = group.events
+                        .filter((e) => e.status_muatan && e.status_muatan.trim() !== "")
+                        .sort(
+                          (a, b) =>
+                            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+                        );
+                      const muatanProcess =
+                        isTrukGroup && muatanEvents.length >= 1
+                          ? classifyMuatanProcess(
+                              muatanEvents[0].status_muatan,
+                              muatanEvents[muatanEvents.length - 1].status_muatan,
+                            )
+                          : null;
 
-                  if (status === "Bermuatan") {
-                    bgColor =
-                      "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50";
-                    textColor = "text-[#ea580c] dark:text-[#f97316]";
-                  } else if (status === "Kosong / bak tertutup") {
-                    bgColor =
-                      "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-900/50";
-                    textColor = "text-[#2563eb] dark:text-[#38bdf8]";
-                  }
+                      return (
+                        <tr
+                          key={group.key}
+                          className="cursor-pointer border-b border-[#e2e8f0] dark:border-[#334155] last:border-0 transition-colors hover:bg-[#f8fafc] dark:hover:bg-[#16202f]"
+                          onClick={() => setHistoryVehicleId(group.key)}
+                        >
+                          <td className="px-4 py-3 align-middle">
+                            <span className="text-sm font-medium text-[#0f172a] dark:text-[#e2e8f0] capitalize">
+                              {masuk.jenis_kendaraan}
+                            </span>
+                            <div className="mt-1 flex items-center gap-1 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
+                              <History className="h-3 w-3" /> Siklus lengkap · {durasiText}
+                            </div>
+                            {muatanProcess && (
+                              <div
+                                className={`mt-1 flex items-center gap-1 text-[11px] font-medium ${
+                                  muatanProcess.tone === "loading"
+                                    ? "text-orange-700 dark:text-orange-400"
+                                    : muatanProcess.tone === "unloading"
+                                      ? "text-emerald-700 dark:text-emerald-400"
+                                      : "text-[#64748b] dark:text-[#94a3b8]"
+                                }`}
+                              >
+                                <Box className="h-3 w-3" /> {muatanProcess.label}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                                  Masuk
+                                </span>
+                                <span className="text-[#64748b] dark:text-[#94a3b8]">
+                                  {formatShortDate(masuk.timestamp)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />
+                                <span className="font-medium text-orange-700 dark:text-orange-400">
+                                  Keluar
+                                </span>
+                                <span className="text-[#64748b] dark:text-[#94a3b8]">
+                                  {formatShortDate(keluar.timestamp)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            {platNomor ? (
+                              <span className="text-sm font-medium text-[#0f172a] dark:text-[#e2e8f0]">
+                                {platNomor}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-sm text-[#64748b] dark:text-[#94a3b8]">
+                            {masuk.kamera_nama || "–"}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-sm text-[#64748b] dark:text-[#94a3b8]">
+                            {formatShortDate(masuk.timestamp)}
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <div className="ml-auto flex w-fit gap-1">
+                              <div className="group relative h-14 w-20 overflow-hidden rounded border border-[#e2e8f0] dark:border-[#334155] bg-[#f1f5f9] dark:bg-[#0f172a]">
+                                <img
+                                  src={`data:image/jpeg;base64,${masuk.gambar_base64}`}
+                                  alt={`Kendaraan ${masuk.jenis_kendaraan} - Masuk`}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                                <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 px-1 py-0.5 text-center text-[8px] font-bold text-white">
+                                  MASUK
+                                </span>
+                              </div>
+                              <div className="group relative h-14 w-20 overflow-hidden rounded border border-[#e2e8f0] dark:border-[#334155] bg-[#f1f5f9] dark:bg-[#0f172a]">
+                                <img
+                                  src={`data:image/jpeg;base64,${keluar.gambar_base64}`}
+                                  alt={`Kendaraan ${keluar.jenis_kendaraan} - Keluar`}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                                <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 px-1 py-0.5 text-center text-[8px] font-bold text-white">
+                                  KELUAR
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
 
-                  muatanBadge = (
-                    <div
-                      className={`flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 px-2 py-0.5 rounded-md border ${bgColor}`}
-                    >
-                      <span
-                        className={`flex items-center gap-1 text-[10px] font-semibold font-mono ${textColor}`}
-                      >
-                        <Box className="h-3.5 w-3.5" />
-                        {displayText}
-                      </span>
-                    </div>
-                  );
-                }
+                    const v = group.events[0];
+                    const isFP = v.is_false_positive === true;
+                    const isTruk = v.jenis_kendaraan.includes("Truk");
+                    const isCam1 = v.kamera_nama === "Loading Kiri";
+                    const hasCargo = v.status_muatan && v.status_muatan.trim() !== "";
 
-                return (
-                  <li
-                    key={v.id}
-                    className={`group overflow-hidden rounded-lg border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] shadow-sm transition-all hover:shadow-md ${isFP ? "border-red-200 dark:border-[#7f1d1d]" : ""}`}
-                  >
-                    <div
-                      className="relative h-48 w-full cursor-pointer overflow-hidden bg-[#f1f5f9] dark:bg-[#0b1120]"
-                      onClick={() => setSelectedVehicle(v)}
-                    >
-                      <img
-                        src={`data:image/jpeg;base64,${v.gambar_base64}`}
-                        alt={`Kendaraan ${v.jenis_kendaraan}`}
-                        loading="lazy"
-                        className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Eye className="h-8 w-8 text-white" />
-                      </div>
-                      {isFP && (
-                        <div className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-md">
-                          <AlertCircle className="mr-1 inline h-3 w-3" /> FP
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm font-semibold text-[#0f172a] dark:text-[#e2e8f0] font-space capitalize">
-                          {v.jenis_kendaraan}
-                          {/* 🔥 BADGE MASUK / KELUAR */}
-                          {statusKejadianBadge}
+                    let statusKejadianBadge = null;
+                    if (v.jenis_kejadian === "MASUK") {
+                      statusKejadianBadge = (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />{" "}
+                          Masuk
                         </span>
-                        <ConfidenceBadge confidence={Number(v.confidence)} />
-                      </div>
+                      );
+                    } else if (
+                      v.jenis_kejadian === "SIKLUS_SELESAI" ||
+                      v.jenis_kejadian == "KELUAR"
+                    ) {
+                      statusKejadianBadge = (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-700 dark:text-orange-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />{" "}
+                          Keluar
+                        </span>
+                      );
+                    }
 
-                      {/* Muatan Badge */}
-                      {muatanBadge}
+                    let muatanBadge = null;
+                    const isCam2 = v.kamera_nama && v.kamera_nama.toLowerCase().includes("depan");
+                    const isCam1OrCam3 =
+                      v.kamera_nama &&
+                      (v.kamera_nama === "Loading Kiri" || v.kamera_nama === "Loading Kanan");
 
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono">
-                          {formatShortDate(v.timestamp)}
-                        </p>
-                        <div className="flex items-center gap-1 text-[10px] text-[#64748b] dark:text-[#94a3b8] font-mono">
-                          {/* 🔥 TRACK_ID & KAMERA NAMA */}
-                          {v.track_id && <span>🆔 {v.track_id}</span>}
-                          {v.kamera_nama && (
-                            <>
-                              <span>•</span>
-                              <span>📍 {v.kamera_nama}</span>
-                            </>
+                    if (
+                      isTruk &&
+                      isCam1OrCam3 &&
+                      v.status_muatan &&
+                      v.status_muatan.trim() !== ""
+                    ) {
+                      const status = v.status_muatan;
+
+                      let textColor = "text-[#64748b] dark:text-[#94a3b8]";
+                      if (status === "Bermuatan") {
+                        textColor = "text-[#ea580c] dark:text-[#f97316]";
+                      } else if (status === "Kosong / bak tertutup") {
+                        textColor = "text-[#15803d] dark:text-[#34d399]";
+                      }
+
+                      muatanBadge = (
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium ${textColor}`}
+                        >
+                          <Box className="h-3.5 w-3.5" /> {status}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <tr
+                        key={v.id}
+                        className={`border-b border-[#e2e8f0] dark:border-[#334155] last:border-0 transition-colors hover:bg-[#f8fafc] dark:hover:bg-[#16202f] ${isFP ? "bg-red-50/40 dark:bg-red-900/10" : ""}`}
+                      >
+                        <td className="px-4 py-3 align-middle">
+                          <span className="text-sm font-medium text-[#0f172a] dark:text-[#e2e8f0] capitalize">
+                            {v.jenis_kendaraan}
+                          </span>
+                          {isFP && (
+                            <span className="ml-2 text-[11px] font-medium text-red-600 dark:text-red-400">
+                              (kemungkinan salah deteksi)
+                            </span>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {statusKejadianBadge || muatanBadge || (
+                            <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {v.plat_nomor ? (
+                            <span className="text-sm font-medium text-[#0f172a] dark:text-[#e2e8f0]">
+                              {v.plat_nomor}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-middle text-sm text-[#64748b] dark:text-[#94a3b8]">
+                          {v.kamera_nama || "–"}
+                        </td>
+                        <td className="px-4 py-3 align-middle text-sm text-[#64748b] dark:text-[#94a3b8]">
+                          {formatShortDate(v.timestamp)}
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          <div
+                            className="group relative ml-auto h-14 w-20 cursor-pointer overflow-hidden rounded border border-[#e2e8f0] dark:border-[#334155] bg-[#f1f5f9] dark:bg-[#0f172a]"
+                            onClick={() => setSelectedVehicle(v)}
+                          >
+                            <img
+                              src={`data:image/jpeg;base64,${v.gambar_base64}`}
+                              alt={`Kendaraan ${v.jenis_kendaraan}`}
+                              loading="lazy"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                              <Eye className="h-4 w-4 text-white" />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <Pagination
               page={page}
               totalPages={totalPages}
               total={totalItems}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               onChange={setPage}
             />
           </>
         )}
       </section>
 
-      {/* Modal Lightbox - 100% SAMA SEPERTI KODE ASLI ANDA */}
+      {/* ========================================================== */}
+      {/* MODAL LIGHTBOX */}
+      {/* ========================================================== */}
       {selectedVehicle && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
@@ -457,17 +799,28 @@ function VehicleLogsPage() {
             >
               <X className="h-5 w-5" />
             </button>
-            <div className="flex flex-1 items-center justify-center bg-[#f1f5f9] dark:bg-[#0b1120] p-2 md:w-2/3">
+            <div className="viewfinder relative flex flex-1 items-center justify-center bg-[#f1f5f9] dark:bg-[#0f172a] p-2 md:w-2/3">
+              <span className="vf-tr" />
+              <span className="vf-bl" />
               <img
                 src={`data:image/jpeg;base64,${selectedVehicle.gambar_base64}`}
                 alt={`Kendaraan ${selectedVehicle.jenis_kendaraan}`}
-                className="max-h-[70vh] w-full object-contain"
+                className="max-h-[70vh] w-full object-contain cursor-zoom-in"
+                onClick={() => setZoomImage(selectedVehicle.gambar_base64)}
               />
+              {/* Tombol Perbesar */}
+              <button
+                onClick={() => setZoomImage(selectedVehicle.gambar_base64)}
+                className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-semibold text-white hover:bg-black/90 transition-all shadow-lg"
+              >
+                <ZoomIn className="h-4 w-4" />
+                Perbesar
+              </button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto p-6 md:w-1/3 bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#e2e8f0]">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eff6ff] dark:bg-[#1e293b] text-[#2563eb] dark:text-[#38bdf8]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1e293b] text-[#4338ca] dark:text-[#6366f1]">
                     {selectedVehicle.jenis_kendaraan.includes("Truk") ? (
                       <Truck className="h-6 w-6" />
                     ) : (
@@ -489,31 +842,31 @@ function VehicleLogsPage() {
                   </div>
                 </div>
 
-                {/* LOGIKA MUATAN DI MODAL - SAMA PERSIS */}
-                {selectedVehicle.jenis_kendaraan.includes("Truk") && (
-                  <div
-                    className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50" : "bg-[#f1f5f9] dark:bg-[#0b1120] border-[#e2e8f0] dark:border-[#334155]"}`}
-                  >
-                    <Box
-                      className={`h-5 w-5 ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "text-[#ea580c] dark:text-[#f97316]" : "text-[#64748b] dark:text-[#94a3b8]"}`}
-                    />
-                    <div>
-                      <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
-                        Muatan Terdeteksi
-                      </p>
-                      <p
-                        className={`text-sm font-semibold font-mono ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "text-[#ea580c] dark:text-[#f97316]" : "text-[#64748b] dark:text-[#94a3b8]"}`}
-                      >
-                        {selectedVehicle.status_muatan &&
-                        selectedVehicle.status_muatan.trim() !== ""
-                          ? selectedVehicle.status_muatan
-                          : "Kosong"}
-                      </p>
+                {/* LOGIKA MUATAN DI MODAL - HANYA cam1 & cam3 (bukan cam2) */}
+                {selectedVehicle.jenis_kendaraan.includes("Truk") &&
+                  selectedVehicle.kamera_nama &&
+                  (selectedVehicle.kamera_nama === "Loading Kiri" ||
+                    selectedVehicle.kamera_nama === "Loading Kanan") &&
+                  selectedVehicle.status_muatan &&
+                  selectedVehicle.status_muatan.trim() !== "" && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50">
+                      <Box className="h-5 w-5 text-[#ea580c] dark:text-[#f97316]" />
+                      <div>
+                        <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
+                          Muatan Terdeteksi
+                        </p>
+                        <p className="text-sm font-semibold font-mono text-[#ea580c] dark:text-[#f97316]">
+                          {selectedVehicle.status_muatan}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
 
+              {/* AUTO-GENERATED PARAGRAPH */}
+              <div className="mb-4 text-sm leading-relaxed text-[#334155] dark:text-[#cbd5e1] font-sans border-b border-[#e2e8f0] dark:border-[#334155] pb-4">
+                {generateAutoDescription(selectedVehicle)}
+              </div>
               <div className="space-y-3 pt-2 border-t border-[#e2e8f0] dark:border-[#334155]">
                 <div className="flex items-start gap-3">
                   <Calendar className="h-5 w-5 text-[#64748b] dark:text-[#94a3b8] mt-0.5" />
@@ -535,6 +888,30 @@ function VehicleLogsPage() {
                     <p className="text-sm font-medium">
                       {selectedVehicle.kamera_nama || "Tidak tersedia"}
                     </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Flag className="h-5 w-5 text-[#64748b] dark:text-[#94a3b8] mt-0.5" />
+                  <div>
+                    <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
+                      Plat Nomor
+                    </p>
+                    {selectedVehicle.plat_nomor ? (
+                      <>
+                        <p className="text-sm font-semibold font-mono plate-number">
+                          {selectedVehicle.plat_nomor}
+                        </p>
+                        {selectedVehicle.plat_confidence && (
+                          <p className="text-[10px] text-[#64748b] dark:text-[#94a3b8] font-mono mt-0.5">
+                            Akurasi: {Math.round(selectedVehicle.plat_confidence * 100)}%
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm font-medium text-[#64748b] dark:text-[#94a3b8]">
+                        Tidak terdeteksi
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -567,13 +944,16 @@ function VehicleLogsPage() {
                   </div>
                 </div>
               </div>
-              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#334155]">
-                <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" /> Terekam pada{" "}
-                  {formatShortDate(selectedVehicle.created_at)}
-                </p>
-              </div>
-              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#334155]">
+              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#334155] flex flex-col gap-2">
+                {selectedVehicle.vehicle_id && (
+                  <button
+                    onClick={() => setHistoryVehicleId(selectedVehicle.vehicle_id!)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-900/50"
+                  >
+                    <History className="h-4 w-4" />
+                    Lihat Riwayat Kendaraan (Masuk–Keluar)
+                  </button>
+                )}
                 <button
                   onClick={() =>
                     mutationToggleFalsePositive.mutate({
@@ -582,16 +962,60 @@ function VehicleLogsPage() {
                     })
                   }
                   disabled={mutationToggleFalsePositive.isPending}
-                  className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-mediun transition-colors ${
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${
                     selectedVehicle.is_false_positive
-                      ? "bg-[#f1f5f9] dark:bg-[#0b1120] text-[#64748b] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#1a2c45]"
+                      ? "bg-[#f1f5f9] dark:bg-[#0f172a] text-[#64748b] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#253449]"
                       : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-900/50"
                   }`}
-                ></button>
+                >
+                  {mutationToggleFalsePositive.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : selectedVehicle.is_false_positive ? (
+                    <RotateCcw className="h-4 w-4" />
+                  ) : (
+                    <Flag className="h-4 w-4" />
+                  )}
+                  {selectedVehicle.is_false_positive
+                    ? "Batalkan tanda deteksi salah"
+                    : "Tandai sebagai deteksi salah"}
+                </button>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================== */}
+      {/* MODAL ZOOM FULLSCREEN - DILUAR MODAL UTAMA */}
+      {/* ========================================================== */}
+      {zoomImage && (
+        <div
+          className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          onClick={() => setZoomImage(null)}
+        >
+          <button
+            onClick={() => setZoomImage(null)}
+            aria-label="Tutup gambar"
+            className="absolute top-5 right-5 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={`data:image/jpeg;base64,${zoomImage}`}
+            alt="Zoom Kendaraan"
+            className="max-h-[80vh] max-w-[80vw] object-contain p-6"
+          />
+          <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/70 font-mono">
+            Klik di mana saja untuk menutup
+          </p>
+        </div>
+      )}
+
+      {historyVehicleId && (
+        <VehicleHistoryModal
+          vehicleId={historyVehicleId}
+          onClose={() => setHistoryVehicleId(null)}
+        />
       )}
     </main>
   );
@@ -638,7 +1062,8 @@ function Pagination({
         <button
           onClick={() => onChange(page - 1)}
           disabled={page === 1}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#64748b] dark:text-[#94a3b8] transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#0b1120] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#64748b] dark:text-[#94a3b8] transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#0f172a] disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Halaman sebelumnya"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -654,7 +1079,7 @@ function Pagination({
             <button
               key={p}
               onClick={() => onChange(p)}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border text-xs font-medium font-mono transition-colors ${p === page ? "bg-[#2563eb] dark:bg-[#38bdf8] text-white dark:text-[#0b1120] border-[#2563eb] dark:border-[#38bdf8]" : "bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#0f172a] dark:text-[#e2e8f0] hover:bg-[#f1f5f9] dark:hover:bg-[#0b1120]"}`}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border text-xs font-medium font-mono transition-colors ${p === page ? "bg-[#4338ca] dark:bg-[#6366f1] text-white dark:text-[#0f172a] border-[#4338ca] dark:border-[#6366f1]" : "bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#0f172a] dark:text-[#e2e8f0] hover:bg-[#f1f5f9] dark:hover:bg-[#0f172a]"}`}
             >
               {p}
             </button>
@@ -663,7 +1088,8 @@ function Pagination({
         <button
           onClick={() => onChange(page + 1)}
           disabled={page === totalPages}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#64748b] dark:text-[#94a3b8] transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#0b1120] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white dark:bg-[#1e293b] border-[#e2e8f0] dark:border-[#334155] text-[#64748b] dark:text-[#94a3b8] transition-colors hover:bg-[#f1f5f9] dark:hover:bg-[#0f172a] disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Halaman berikutnya"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
