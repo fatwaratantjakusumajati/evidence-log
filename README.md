@@ -1,24 +1,16 @@
-VITE_API_BASE_URL=https://plastic-stroke-village-harmony.trycloudflare.com 
-# untuk mendapatkan url tunnel, jalanknan cloudflared tunnel --url localhost 5000 dari terminal backend
-# Jalanin nya pake npm run dev:tunnel
 
-# EXTRACT_SCRIPT_PATH=/absolute/path/to/attendance_cv_system/scripts/extract_features.py
-POSE_DB_PATH="C:\Users\ASUS NUC 13 PRO\Documents\Fatwa\code\attendance_cv_system\pose_database.json"
-CORS_ORIGIN=http://localhost:8081,https://mac-bath-copied-objective.trycloudflare.com  
-# untuk mendapatkan url tunnel, jalanknan cloudflared tunnel --url localhost 8081 dari terminal frontend
-# Jalanin nya pake npm run dev
-# yang diganti https yang kedua yaa
 ```
 evidence-log
-├─ .lovable
-│  └─ project.json
+├─ .dockerignore
 ├─ .prettierignore
 ├─ .prettierrc
 ├─ backend
+│  ├─ .dockerignore
 │  ├─ assets
 │  │  └─ aristides-logo.png
 │  ├─ convertImages.js
 │  ├─ db.js
+│  ├─ Dockerfile
 │  ├─ middleware
 │  │  └─ auth.js
 │  ├─ migrations
@@ -28,24 +20,34 @@ evidence-log
 │  ├─ package.json
 │  ├─ routes
 │  │  ├─ alerts.js
-│  │  ├─ attendance.js
+│  │  ├─ audit-log.js
 │  │  ├─ auth.js
 │  │  ├─ backup_export.txt
+│  │  ├─ documents.js
 │  │  ├─ export.js
-│  │  ├─ live.js
 │  │  ├─ notifications.js
+│  │  ├─ report-recipients.js
 │  │  ├─ tes.txt
 │  │  ├─ vehicles.js
 │  │  └─ wa-recipients.js
 │  ├─ scripts
 │  │  └─ create-admin.js
 │  ├─ server.js
+│  ├─ test
+│  │  ├─ middleware-test.js
+│  │  ├─ pagination-test.js
+│  │  ├─ routes-load-test.js
+│  │  └─ validateDateRange-test.js
 │  └─ utils
+│     ├─ auditLog.js
 │     ├─ errors.js
 │     ├─ logger.js
-│     └─ pagination.js
-├─ bunfig.toml
+│     ├─ mailer.js
+│     ├─ pagination.js
+│     ├─ scheduledReports.js
+│     └─ validateDateRange.js
 ├─ components.json
+├─ Dockerfile
 ├─ eslint.config.js
 ├─ package-lock.json
 ├─ package.json
@@ -69,54 +71,57 @@ evidence-log
 │  │  ├─ warehouse-bg.mp4
 │  │  └─ warehouse-bg.mp4.asset.json
 │  ├─ components
+│  │  ├─ DateRangeFilter.tsx
+│  │  ├─ EscalationRiskCard.tsx
 │  │  ├─ Toast.tsx
-│  │  └─ ui
-│  │     ├─ accordion.tsx
-│  │     ├─ alert-dialog.tsx
-│  │     ├─ alert.tsx
-│  │     ├─ aspect-ratio.tsx
-│  │     ├─ avatar.tsx
-│  │     ├─ badge.tsx
-│  │     ├─ breadcrumb.tsx
-│  │     ├─ button.tsx
-│  │     ├─ calendar.tsx
-│  │     ├─ card.tsx
-│  │     ├─ carousel.tsx
-│  │     ├─ chart.tsx
-│  │     ├─ checkbox.tsx
-│  │     ├─ collapsible.tsx
-│  │     ├─ command.tsx
-│  │     ├─ context-menu.tsx
-│  │     ├─ dialog.tsx
-│  │     ├─ drawer.tsx
-│  │     ├─ dropdown-menu.tsx
-│  │     ├─ form.tsx
-│  │     ├─ hover-card.tsx
-│  │     ├─ input-otp.tsx
-│  │     ├─ input.tsx
-│  │     ├─ label.tsx
-│  │     ├─ menubar.tsx
-│  │     ├─ navigation-menu.tsx
-│  │     ├─ pagination.tsx
-│  │     ├─ popover.tsx
-│  │     ├─ progress.tsx
-│  │     ├─ radio-group.tsx
-│  │     ├─ resizable.tsx
-│  │     ├─ scroll-area.tsx
-│  │     ├─ select.tsx
-│  │     ├─ separator.tsx
-│  │     ├─ sheet.tsx
-│  │     ├─ sidebar.tsx
-│  │     ├─ skeleton.tsx
-│  │     ├─ slider.tsx
-│  │     ├─ sonner.tsx
-│  │     ├─ switch.tsx
-│  │     ├─ table.tsx
-│  │     ├─ tabs.tsx
-│  │     ├─ textarea.tsx
-│  │     ├─ toggle-group.tsx
-│  │     ├─ toggle.tsx
-│  │     └─ tooltip.tsx
+│  │  ├─ ui
+│  │  │  ├─ accordion.tsx
+│  │  │  ├─ alert-dialog.tsx
+│  │  │  ├─ alert.tsx
+│  │  │  ├─ aspect-ratio.tsx
+│  │  │  ├─ avatar.tsx
+│  │  │  ├─ badge.tsx
+│  │  │  ├─ breadcrumb.tsx
+│  │  │  ├─ button.tsx
+│  │  │  ├─ calendar.tsx
+│  │  │  ├─ card.tsx
+│  │  │  ├─ carousel.tsx
+│  │  │  ├─ chart.tsx
+│  │  │  ├─ checkbox.tsx
+│  │  │  ├─ collapsible.tsx
+│  │  │  ├─ command.tsx
+│  │  │  ├─ context-menu.tsx
+│  │  │  ├─ dialog.tsx
+│  │  │  ├─ drawer.tsx
+│  │  │  ├─ dropdown-menu.tsx
+│  │  │  ├─ form.tsx
+│  │  │  ├─ hover-card.tsx
+│  │  │  ├─ input-otp.tsx
+│  │  │  ├─ input.tsx
+│  │  │  ├─ label.tsx
+│  │  │  ├─ menubar.tsx
+│  │  │  ├─ navigation-menu.tsx
+│  │  │  ├─ pagination.tsx
+│  │  │  ├─ popover.tsx
+│  │  │  ├─ progress.tsx
+│  │  │  ├─ radio-group.tsx
+│  │  │  ├─ resizable.tsx
+│  │  │  ├─ scroll-area.tsx
+│  │  │  ├─ select.tsx
+│  │  │  ├─ separator.tsx
+│  │  │  ├─ sheet.tsx
+│  │  │  ├─ sidebar.tsx
+│  │  │  ├─ skeleton.tsx
+│  │  │  ├─ slider.tsx
+│  │  │  ├─ sonner.tsx
+│  │  │  ├─ switch.tsx
+│  │  │  ├─ table.tsx
+│  │  │  ├─ tabs.tsx
+│  │  │  ├─ textarea.tsx
+│  │  │  ├─ toggle-group.tsx
+│  │  │  ├─ toggle.tsx
+│  │  │  └─ tooltip.tsx
+│  │  └─ VehicleHistoryModal.tsx
 │  ├─ hooks
 │  │  └─ use-mobile.tsx
 │  ├─ integrations
@@ -141,12 +146,8 @@ evidence-log
 │  │  └─ utils.ts
 │  ├─ router.tsx
 │  ├─ routes
-│  │  ├─ attendance.tsx
-│  │  ├─ attendance_review.tsx
 │  │  ├─ dashboard.tsx
-│  │  ├─ entry.$id.tsx
 │  │  ├─ index.tsx
-│  │  ├─ live.tsx
 │  │  ├─ login.tsx
 │  │  ├─ README.md
 │  │  ├─ settings.tsx
@@ -156,11 +157,6 @@ evidence-log
 │  ├─ start.ts
 │  └─ styles.css
 ├─ struktur.txt
-├─ supabase
-│  ├─ config.toml
-│  └─ migrations
-│     ├─ 20260608064818_f506a6c8-93b9-4913-a1f2-733c9c1e998c.sql
-│     └─ 20260610011116_8ec7710f-c8ae-4058-a419-152a1796c0c0.sql
 ├─ tailwind.config.js
 ├─ tsconfig.json
 └─ vite.config.ts
