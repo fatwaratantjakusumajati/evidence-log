@@ -132,7 +132,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
 
   const inputWrapperClass = themed
     ? "h-11 w-full rounded-xl border pl-10 pr-3 text-xs sm:text-sm font-medium outline-none transition-all focus:ring-4"
-    : "h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs sm:text-sm font-medium text-slate-700 outline-none transition-all hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200";
+    : "h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs sm:text-sm font-medium text-slate-700 outline-none transition-all hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-[#2e2e25] dark:bg-[#13130e] dark:text-slate-200";
 
   const inputStyle = themed
     ? { backgroundColor: colors!.card, borderColor: colors!.border, color: colors!.textMain }
@@ -148,7 +148,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
 
   const quickButtonClass = themed
     ? "flex h-11 items-center gap-2 rounded-xl border px-4 text-xs sm:text-sm font-medium shadow-sm transition-all"
-    : "flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs sm:text-sm font-medium text-slate-600 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400";
+    : "flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs sm:text-sm font-medium text-slate-600 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 dark:border-[#2e2e25] dark:bg-[#13130e] dark:text-slate-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400";
 
   const quickButtonStyle = themed
     ? { backgroundColor: colors!.card, borderColor: colors!.border, color: colors!.textMuted }
@@ -159,7 +159,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
 
   const dropdownClass = themed
     ? "absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border p-2 shadow-xl"
-    : "absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900";
+    : "absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-[#2e2e25] dark:bg-[#13130e]";
 
   const dropdownStyle = themed
     ? { backgroundColor: colors!.card, borderColor: colors!.border }

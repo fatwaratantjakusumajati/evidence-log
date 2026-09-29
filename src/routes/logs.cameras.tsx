@@ -596,7 +596,7 @@ function Pagination({
                   ? {
                       backgroundColor: theme.primary,
                       borderColor: theme.primary,
-                      color: theme.bg === "#0a111f" ? "#0f172a" : "#ffffff",
+                      color: theme.bg === "#13130e" ? "#13130e" : "#ffffff",
                     }
                   : {
                       backgroundColor: theme.card,

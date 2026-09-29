@@ -4,13 +4,6 @@ const { Pool } = require("pg");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
-// FAIL-FAST: cek env var yang wajib ada SEBELUM server nyala sama sekali.
-// Sebelumnya kalau salah satu ini kosong (misal JWT_SECRET lupa di-set),
-// server tetap nyala normal tanpa keluhan apapun -- baru ketauan belakangan
-// pas user lapor "semua fitur error 401/500", padahal akar masalahnya cuma
-// file .env yang kurang lengkap. Sekarang server langsung menolak nyala dan
-// kasih tau persis variabel mana yang kurang, jadi ketauan pas deploy/start,
-// bukan pas sudah dipakai user.
 const REQUIRED_ENV_VARS = ["JWT_SECRET", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"];
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 if (missingEnvVars.length > 0) {
@@ -26,11 +19,8 @@ const logger = require("./utils/logger");
 
 const app = express();
 
-// Wajib diaktifkan karena app ini bisa diakses lewat cloudflare Tunnel
-// tanpa ini, express mengira semua request datang dari IP yang sama (IP milik cloudflared), bukan IP asli user
 app.set("trust proxy", 1);
 
-// CORS origin sekarang dari env (pisahkan koma untuk multi-origin)
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:8081")
   .split(",")
   .map((o) => o.trim());
@@ -50,12 +40,6 @@ app.use((req, res, next) => {
   });
   next();
 });
-// === FIX 304 ===
-// Express otomatis pasang ETag di setiap res.json(). Browser lalu kirim
-// If-None-Match, dan server balas 304 Not Modified dengan body KOSONG.
-// Fetch API menganggap res.ok === false untuk 304, jadi React Query
-// melempar error dan retry 3x -> UI kelihatan "muter terus lalu gagal".
-// Solusi: matikan ETag + larang semua cache untuk endpoint /api.
 app.set("etag", false);
 
 app.use("/api", (_req, res, next) => {
@@ -64,8 +48,6 @@ app.use("/api", (_req, res, next) => {
   res.set("Expires", "0");
   next();
 });
-// Rate limit umum untuk semua /api/*, batasnya sengaja longgar (400 request/menit per IP) karena
-// llive feed dan dashboard polling tiap 3-10 detik dan beberapa user bisa berbagi IP kantor yang sama.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 400,
@@ -88,10 +70,6 @@ app.use(
 //Login (publik, tidak butuh token)
 app.use("/api/auth", require("./routes/auth"));
 
-// Health check (publik, tidak butuh token) -- ditaruh SEBELUM gerbang
-// requireAuth di bawah supaya tidak ikut kena wajib-login. Dibuat setelah
-// insiden koneksi DB timeout, biar ketauan dalam sedetik lewat browser/curl
-// apakah server + database beneran hidup, tanpa perlu bongkar log manual.
 const healthPool = require("./db");
 app.get("/api/health", async (_req, res) => {
   const startedAt = Date.now();
@@ -130,7 +108,6 @@ app.use("/api/export", require("./routes/export"));
 app.use("/api/documents", require("./routes/documents"));
 
 // --- KONFIGURASI SSE (REAL-TIME) ---
-// Buat koneksi DB khusus untuk mendengarkan event (tidak boleh pakai pool biasa)
 const listenerPool = new Pool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,

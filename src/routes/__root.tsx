@@ -47,13 +47,13 @@ import appCss from "../styles.css?url";
 // Kedua file ini memakai kelas Tailwind arbitrary (dark:bg-[#hex]) langsung,
 // BUKAN lewat theme-tokens.ts (itu dipakai oleh Settings & halaman Logs).
 // Setelah audit, palet gelap yang dipakai di sini sudah dikonsolidasikan jadi:
-//   #0f172a  -> latar halaman (page bg)
-//   #1e293b  -> latar kartu/panel utama (card)      -- cocok dg theme-tokens.card
-//   #253449  -> latar hover / kotak ikon / elemen bersarang dalam kartu
-//   #1e293b  -> latar modal & dropdown (dipaksa global lewat .dark .bg-white)
-//   #0f172a  -> latar area "inset" (viewer foto, kotak kosong)
-//   #0f172a  -> latar input field                    -- cocok dg theme-tokens.inputBg
-//   #334155  -> border utama                          -- cocok dg theme-tokens.border
+//   #13130e  -> latar halaman (page bg)
+//   #1a1a14  -> latar kartu/panel utama (card)      -- cocok dg theme-tokens.card
+//   #22221a  -> latar hover / kotak ikon / elemen bersarang dalam kartu
+//   #1a1a14  -> latar modal & dropdown (dipaksa global lewat .dark .bg-white)
+//   #13130e  -> latar area "inset" (viewer foto, kotak kosong)
+//   #13130e  -> latar input field                    -- cocok dg theme-tokens.inputBg
+//   #2e2e25  -> border utama                          -- cocok dg theme-tokens.border
 // Kalau menambah elemen baru, pakai salah satu di atas -- jangan buat shade
 // hitam baru, supaya tidak drift lagi seperti sebelumnya (dulu ada 20+ shade
 // nyaris-sama tersebar tanpa pola).
@@ -155,7 +155,7 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 ox-4 text-center dark:bg-slate-950">
-      <div className="rounded-full bg-slate-100 p-4 dark:bg-slate-800">
+      <div className="rounded-full bg-slate-100 p-4 dark:bg-[#1a1a14]">
         <SearchX className="h-8 w-8 text-slate-400" />
       </div>
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
@@ -184,7 +184,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       </button>
       <a
         href="/dashboard"
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-2.5 text sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-2.5 text sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-[#2e2e25] dark:text-slate-200 dark:hover:bg-[#1a1a14]"
       >
         <Home className="h-4 w-4" /> Dashboard
       </a>
@@ -263,17 +263,17 @@ code, pre, .mono, .timestamp, .data-value, .plate-number {
   letter-spacing: -0.02em;
 }
 .dark body {
-  background-color: #0f172a;
+  background-color: #13130e;
   color: #cbd5e1;
 }
 .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
   color: #e2e8f0;
 }
 .dark .bg-white, .dark .bg-[#ffffff] {
-  background-color: #1e293b !important;
+  background-color: #1a1a14 !important;
 }
 .dark .border-[#e2e8f0], .dark .border-slate-200 {
-  border-color: #334155 !important;
+  border-color: #2e2e25 !important;
 }
 .dark .text-[#64748b] {
   color: #94a3b8 !important;
@@ -634,7 +634,7 @@ function RootComponent() {
         {/* MODAL PILIH TANGGAL/BULAN + FORMAT (DIMODIFIKASI) */}
         {dateModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-[#1e293b] rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="bg-white dark:bg-[#1a1a14] rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">
                 {reportType === "daily" && "Laporan Harian"}
                 {reportType === "weekly" && "Laporan Mingguan"}
@@ -651,11 +651,11 @@ function RootComponent() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
+                    className="w-full rounded-md border border-slate-300 dark:border-[#3d3d32] bg-white dark:bg-[#13130e] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
                     // type="date"
                     // value={selectedDate}
                     // onChange={(e) => setSelectedDate(e.target.value)}
-                    // className="h-11 w-11 rounded-xl border border-slate-200 bg-white px-4 tet-sm font-medium text-slate-700 shadow-sm outline-none transition-all duration-200 hover:border-indigo-300 focus:border-indigo-700 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-600 dak:bg-[#0f172a] dark:text-slate-200"
+                    // className="h-11 w-11 rounded-xl border border-slate-200 bg-white px-4 tet-sm font-medium text-slate-700 shadow-sm outline-none transition-all duration-200 hover:border-indigo-300 focus:border-indigo-700 focus:ring-4 focus:ring-indigo-500/10 dark:border-[#3d3d32] dak:bg-[#0f172a] dark:text-slate-200"
                   />
                 )}
                 {reportType === "weekly" && (
@@ -663,7 +663,7 @@ function RootComponent() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
+                    className="w-full rounded-md border border-slate-300 dark:border-[#3d3d32] bg-white dark:bg-[#13130e] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
                   />
                 )}
                 {reportType === "monthly" && (
@@ -671,7 +671,7 @@ function RootComponent() {
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
+                    className="w-full rounded-md border border-slate-300 dark:border-[#3d3d32] bg-white dark:bg-[#13130e] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4338ca]"
                   />
                 )}
               </div>
@@ -689,7 +689,7 @@ function RootComponent() {
                     className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
                       exportFormat === "xlsx"
                         ? "border-[#4338ca] bg-[#eef2ff] dark:bg-[#312e81]/40 text-[#4338ca] dark:text-[#818cf8]"
-                        : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 text-slate-600 dark:text-slate-400"
+                        : "border-slate-200 dark:border-[#3d3d32] hover:border-slate-300 dark:hover:border-[#4a4a3e] text-slate-600 dark:text-slate-400"
                     }`}
                   >
                     <FileSpreadsheet className="h-5 w-5" />
@@ -705,7 +705,7 @@ function RootComponent() {
                     className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
                       exportFormat === "pdf"
                         ? "border-[#4338ca] bg-[#eef2ff] dark:bg-[#312e81]/40 text-[#4338ca] dark:text-[#818cf8]"
-                        : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 text-slate-600 dark:text-slate-400"
+                        : "border-slate-200 dark:border-[#3d3d32] hover:border-slate-300 dark:hover:border-[#4a4a3e] text-slate-600 dark:text-slate-400"
                     }`}
                   >
                     <FileText className="h-5 w-5" />
@@ -720,7 +720,7 @@ function RootComponent() {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setDateModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#2a3a5a] rounded-md transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#22221a] rounded-md transition-colors"
                 >
                   Batal
                 </button>
@@ -748,7 +748,7 @@ function RootComponent() {
         {/* MODAL SESSION EXPIRED */}
         {showSessionExpiredModal && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md">
-            <div className="bg-white dark:bg-[#1e293b] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-200">
+            <div className="bg-white dark:bg-[#1a1a14] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-200">
               <div className="flex flex-col items-center text-center">
                 <div className="mb-4 rounded-full bg-red-100 dark:bg-red-900/30 p-3">
                   <LogOut className="h-8 w-8 text-red-600 dark:text-red-400" />
@@ -849,47 +849,47 @@ function SidebarNav({
   ];
 
   const reportMenu = (
-    <div className="absolute bottom-full left-0 mb-2 w-56 rounded-md shadow-lg bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] py-1 z-50">
+    <div className="absolute bottom-full left-0 mb-2 w-56 rounded-md shadow-lg bg-white dark:bg-[#1a1a14] border border-slate-200 dark:border-[#2e2e25] py-1 z-50">
       <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
         Laporan Lengkap
       </div>
       <button
         onClick={() => handleFullReportDownload("xlsx")}
-        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#22221a]"
       >
         <FileSpreadsheet className="h-4 w-4 text-green-600" />
         Download Excel (.xlsx)
       </button>
       <button
         onClick={() => handleFullReportDownload("pdf")}
-        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#22221a]"
       >
         <FileText className="h-4 w-4 text-red-600" />
         Download PDF (.pdf)
       </button>
 
-      <div className="border-t border-slate-200 dark:border-slate-700 my-1"></div>
+      <div className="border-t border-slate-200 dark:border-[#2e2e25] my-1"></div>
 
       <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
         Laporan Berkala
       </div>
       <button
         onClick={() => openDateModal("daily")}
-        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#22221a]"
       >
         <Calendar className="h-4 w-4 text-indigo-600" />
         Harian
       </button>
       <button
         onClick={() => openDateModal("weekly")}
-        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#22221a]"
       >
         <Calendar className="h-4 w-4 text-indigo-600" />
         Mingguan
       </button>
       <button
         onClick={() => openDateModal("monthly")}
-        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2a3a5a]"
+        className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#22221a]"
       >
         <Calendar className="h-4 w-4 text-indigo-600" />
         Bulanan
@@ -898,8 +898,8 @@ function SidebarNav({
   );
 
   const notifPanel = (
-    <div className="absolute bottom-full left-0 mb-2 w-80 max-h-96 overflow-y-auto rounded-lg border border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] shadow-xl z-50">
-      <div className="sticky top-0 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#334155] bg-white dark:bg-[#1e293b] px-4 py-2.5">
+    <div className="absolute bottom-full left-0 mb-2 w-80 max-h-96 overflow-y-auto rounded-lg border border-[#e2e8f0] dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] shadow-xl z-50">
+      <div className="sticky top-0 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] px-4 py-2.5">
         <span className="text-xs font-semibold uppercase tracking-wide dark:text-slate-200">
           Notifikasi
         </span>
@@ -913,9 +913,9 @@ function SidebarNav({
           baru terdeteksi.
         </div>
       ) : (
-        <ul className="divide-y divide-[#e2e8f0] dark:divide-[#334155]">
+        <ul className="divide-y divide-[#e2e8f0] dark:divide-[#2e2e25]">
           {notifications.map((n) => (
-            <li key={n.id} className="px-4 py-3 hover:bg-[#f1f5f9] dark:hover:bg-[#253449]">
+            <li key={n.id} className="px-4 py-3 hover:bg-[#f1f5f9] dark:hover:bg-[#22221a]">
               <div className="flex items-start gap-2.5">
                 <span
                   className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -947,13 +947,13 @@ function SidebarNav({
   );
 
   const sidebarBody = (
-    <div className="flex h-full flex-col dark:bg-[#0f172a] bg-white">
+    <div className="flex h-full flex-col dark:bg-[#13130e] bg-white">
       {/* Logo & nama perusahaan */}
       <Link
         to="/"
-        className="flex items-center gap-3 border-b dark:border-[#253449] border-[#e2e8f0] px-4 py-4 hover:opacity-80 transition-opacity shrink-0"
+        className="flex items-center gap-3 border-b dark:border-[#22221a] border-[#e2e8f0] px-4 py-4 hover:opacity-80 transition-opacity shrink-0"
       >
-        <div className="p-1.5 rounded-lg bg-white border border-slate-200 dark:border-slate-700 shadow-sm flex-shrink-0">
+        <div className="p-1.5 rounded-lg bg-white border border-slate-200 dark:border-[#2e2e25] shadow-sm flex-shrink-0">
           <img
             src={companyLogo}
             alt="Logo Perusahaan"
@@ -982,7 +982,7 @@ function SidebarNav({
               className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium tracking-wide transition-colors ${
                 isActive
                   ? "bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-[#818cf8]"
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#253449] hover:text-slate-800 dark:hover:text-slate-200"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#22221a] hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -993,10 +993,10 @@ function SidebarNav({
       </nav>
 
       {/* Bagian bawah: Pengaturan, Report, status LIVE, notifikasi, tema, logout */}
-      <div className="border-t dark:border-[#253449] border-[#e2e8f0] px-3 py-3 space-y-2 shrink-0">
+      <div className="border-t dark:border-[#22221a] border-[#e2e8f0] px-3 py-3 space-y-2 shrink-0">
         <Link
           to="/settings"
-          className="flex items-center gap-2 rounded-md dark:bg-[#253449]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#253449] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
+          className="flex items-center gap-2 rounded-md dark:bg-[#22221a]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#22221a] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
         >
           <Settings className="h-3.5 w-3.5" /> Pengaturan
         </Link>
@@ -1005,7 +1005,7 @@ function SidebarNav({
         <div className="relative" ref={reportDropdownRef}>
           <button
             onClick={() => setReportDropdownOpen(!reportDropdownOpen)}
-            className="w-full flex items-center gap-2 rounded-md dark:bg-[#253449]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#253449] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
+            className="w-full flex items-center gap-2 rounded-md dark:bg-[#22221a]/50 bg-[#eef2ff] px-3 py-2 text-xs font-medium dark:text-slate-300 text-[#4338ca] hover:dark:bg-[#22221a] hover:bg-[#e0e7ff] transition-all border dark:border-[#3730a3] border-transparent"
           >
             <Folder className="h-3.5 w-3.5" /> Report
             <ChevronDown
@@ -1044,14 +1044,14 @@ function SidebarNav({
         </div>
 
         {/* Notifikasi, tema, logout */}
-        <div className="flex items-center justify-between gap-1 pt-2 border-t dark:border-[#253449] border-[#e2e8f0]">
+        <div className="flex items-center justify-between gap-1 pt-2 border-t dark:border-[#22221a] border-[#e2e8f0]">
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => {
                 setNotifOpen((v) => !v);
                 if (!notifOpen) onOpenNotifications();
               }}
-              className="relative p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#253449] hover:bg-[#f1f5f9] rounded-md transition-colors"
+              className="relative p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#22221a] hover:bg-[#f1f5f9] rounded-md transition-colors"
               aria-label="Notifikasi"
             >
               <Bell className="h-4 w-4" />
@@ -1066,7 +1066,7 @@ function SidebarNav({
 
           <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#253449] hover:bg-[#f1f5f9] rounded-md transition-colors"
+            className="p-1.5 dark:text-slate-400 text-[#64748b] hover:dark:bg-[#22221a] hover:bg-[#f1f5f9] rounded-md transition-colors"
             aria-label={resolvedTheme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
           >
             {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -1088,7 +1088,7 @@ function SidebarNav({
   return (
     <>
       {/* Top bar mobile - cuma tampil di layar kecil, buat trigger drawer sidebar */}
-      <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between dark:bg-[#0f172a] bg-white/95 backdrop-blur-xl border-b dark:border-[#253449] border-[#e2e8f0] px-4 py-3 shrink-0">
+      <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between dark:bg-[#13130e] bg-white/95 backdrop-blur-xl border-b dark:border-[#22221a] border-[#e2e8f0] px-4 py-3 shrink-0">
         <Link to="/" className="flex items-center gap-2">
           <img src={companyLogo} alt="Logo Perusahaan" className="h-8 w-auto object-contain" />
           <span className="text-sm font-bold text-[#4338ca] dark:text-[#818cf8] font-space">
@@ -1097,7 +1097,7 @@ function SidebarNav({
         </Link>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-md dark:text-slate-300 text-slate-600 hover:dark:bg-[#253449] hover:bg-[#f1f5f9] transition-colors"
+          className="p-2 rounded-md dark:text-slate-300 text-slate-600 hover:dark:bg-[#22221a] hover:bg-[#f1f5f9] transition-colors"
           aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
           aria-expanded={mobileMenuOpen}
         >
@@ -1118,7 +1118,7 @@ function SidebarNav({
       )}
 
       {/* Sidebar persisten - desktop */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:h-screen lg:sticky lg:top-0 border-r dark:border-[#253449] border-[#e2e8f0]">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:h-screen lg:sticky lg:top-0 border-r dark:border-[#22221a] border-[#e2e8f0]">
         {sidebarBody}
       </aside>
     </>

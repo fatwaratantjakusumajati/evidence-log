@@ -554,8 +554,8 @@ function Dashboard() {
   const totalVehicles = vehicleIntervalRaw.reduce((s, r) => s + r.total, 0);
 
   return (
-    <main className="flex-1 transition-colors duration-300 bg-[#f2f5f2] dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
-      <div className="mx-auto max-w-[1680px] px-6 pt-6 pb-4 border-b transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+    <main className="flex-1 transition-colors duration-300 bg-[#f2f5f2] dark:bg-[#13130e] text-slate-900 dark:text-slate-100">
+      <div className="mx-auto max-w-[1680px] px-6 pt-6 pb-4 border-b transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
         <BreadcrumbNavInside />
         <div className="flex items-center justify-between mt-2">
           <div>
@@ -571,7 +571,7 @@ function Dashboard() {
 
       <div className="mx-auto max-w-[1680px] px-6 py-6">
         {/* Filter Date */}
-        {/* <div className="mb-8 flex flex-wrap items-center gap-3 p-3 rounded-xl border shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+        {/* <div className="mb-8 flex flex-wrap items-center gap-3 p-3 rounded-xl border shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
           <span className="text-xs font-medium font-mono text-slate-500 dark:text-slate-400">
             Periode:
           </span>
@@ -598,7 +598,7 @@ function Dashboard() {
             )}
           </div>
         </div> */}
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#2e2e25] dark:bg-[#13130e]">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
@@ -688,7 +688,7 @@ function Dashboard() {
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 gap-6 mb-8">
-          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
             {/* Header + legend pill */}
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -700,7 +700,7 @@ function Dashboard() {
                   Distribusi kendaraan masuk per jam (agregat dari rentang terpilih)
                 </p>
               </div>
-              <div className="flex items-center gap-5 rounded-full border border-slate-200 bg-slate-50/50 px-3.5 py-1.5 dark:border-[#334155] dark:bg-[#0f172a]">
+              <div className="flex items-center gap-5 rounded-full border border-slate-200 bg-slate-50/50 px-3.5 py-1.5 dark:border-[#2e2e25] dark:bg-[#13130e]">
                 <span className="flex items-center gap-1.5 text-[11px] font-mono font-medium text-slate-600 dark:text-slate-300">
                   <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
                   Mobil
@@ -727,7 +727,7 @@ function Dashboard() {
                   vertical={false}
                   stroke="#cbd5e1"
                   strokeOpacity={0.35}
-                  className="dark:stroke-[#334155]"
+                  className="dark:stroke-[#2e2e25]"
                 />
 
                 <XAxis
@@ -825,14 +825,14 @@ function Dashboard() {
 
         {/* Logs Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold flex items-center gap-2 font-space text-slate-900 dark:text-slate-100">
                 <Car className="h-4 w-5 text-slate-500 dark:text-slate-400" /> Log Kendaraan
               </span>
               <Link
                 to="/logs/vehicles"
-                className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
+                className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-[#26261e] dark:bg-[#13130e]/60 dark:text-slate-400 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
               >
                 <span>Lihat semua</span>
                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-600 dark:text-slate-500 dark:group-hover:text-indigo-400" />
@@ -860,7 +860,7 @@ function Dashboard() {
                     <button
                       type="button"
                       onClick={() => setIsFilterOpen(!isFilterOpen)}
-                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-mono text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-[#334155] dark:bg-[#0f172a] dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-mono text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-[#2e2e25] dark:bg-[#13130e] dark:text-slate-200 dark:hover:bg-[#1a1a14]"
                     >
                       <span>
                         {filterClass === "Truk" ? (
@@ -893,7 +893,7 @@ function Dashboard() {
 
                     {/* Menu Dropdown yang Muncul saat Di-klik */}
                     {isFilterOpen && (
-                      <div className="absolute right-0 z-50 mt-1.5 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                      <div className="absolute right-0 z-50 mt-1.5 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-[#26261e] dark:bg-[#13130e]">
                         {[
                           {
                             value: "all",
@@ -913,7 +913,7 @@ function Dashboard() {
                             className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-mono transition-colors ${
                               filterClass === item.value
                                 ? "bg-indigo-50 font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"
-                                : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1a1a14]"
                             }`}
                           >
                             <span>{item.icon}</span>
@@ -956,7 +956,7 @@ function Dashboard() {
                         <div
                           key={group.key}
                           onClick={() => setHistoryVehicleId(group.key)}
-                          className="flex gap-3.5 items-center p-3 rounded-xl order border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:bg-indigo-50/30 dark:hover-indigo-950/20 transition-all duration-200 shadow-sm"
+                          className="flex gap-3.5 items-center p-3 rounded-xl order border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:bg-indigo-50/30 dark:hover-indigo-950/20 transition-all duration-200 shadow-sm"
                         >
                           <div className="flex flex-shrink-0 gap-1">
                             <div className="viewfinder relative rounded overflow-hidden">
@@ -964,7 +964,7 @@ function Dashboard() {
                               <span className="vf-bl" />
                               <img
                                 src={`data:image/jpeg;base64,${masuk.gambar_base64}`}
-                                className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#253449]"
+                                className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                               />
                               <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 text-center text-[8px] font-bold text-white leading-tight">
                                 MASUK
@@ -975,7 +975,7 @@ function Dashboard() {
                               <span className="vf-bl" />
                               <img
                                 src={`data:image/jpeg;base64,${keluar.gambar_base64}`}
-                                className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#253449]"
+                                className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                               />
                               <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 text-center text-[8px] font-bold text-white leading-tight">
                                 KELUAR
@@ -1075,14 +1075,14 @@ function Dashboard() {
                       <div
                         key={v.id}
                         onClick={() => setSelectedVehicle(v)}
-                        className="flex gap-3 border-b pb-3 last:border-0 border-slate-200 dark:border-[#334155] cursor-pointer hover:bg-slate-50 dark:hover:bg-[#253449] rounded-md p-1 transition-colors"
+                        className="flex gap-3 border-b pb-3 last:border-0 border-slate-200 dark:border-[#2e2e25] cursor-pointer hover:bg-slate-50 dark:hover:bg-[#22221a] rounded-md p-1 transition-colors"
                       >
                         <div className="viewfinder relative flex-shrink-0 rounded overflow-hidden">
                           <span className="vf-tr" />
                           <span className="vf-bl" />
                           <img
                             src={`data:image/jpeg;base64,${v.gambar_base64}`}
-                            className="h-14 w-20 rounded object-cover bg-slate-100 dark:bg-[#253449]"
+                            className="h-14 w-20 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1120,14 +1120,14 @@ function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+          <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold flex items-center gap-2 font-space text-slate-900 dark:text-slate-100">
                 <Boxes className="h-4 w-4 text-slate-500 dark:text-slate-400" /> Deteksi Staging
               </span>
               <Link
                 to="/logs/staging"
-                className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
+                className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-[#26261e] dark:bg-[#13130e]/60 dark:text-slate-400 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
               >
                 <span>Lihat semua</span>
                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-600 dark:text-slate-500 dark:group-hover:text-indigo-400" />
@@ -1148,14 +1148,14 @@ function Dashboard() {
                 {stagings.slice(0, PREVIEW_LIMIT).map((s) => (
                   <div
                     key={s.id}
-                    className="flex gap-3.5 items-center p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-all duration-200 shadow-sm"
+                    className="flex gap-3.5 items-center p-3 rounded-xl border border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 hover:bg-slate-100/50 dark:hover:bg-[#1a1a14]/40 transition-all duration-200 shadow-sm"
                   >
                     <div className="viewfinder relative flex-shrink-0 rounded overflow-hidden">
                       <span className="vf-tr" />
                       <span className="vf-bl" />
                       <img
                         src={`data:image/jpeg;base64,${s.foto_base64}`}
-                        className="h-14 w-20 rounded object-cover bg-slate-100 dark:bg-[#253449]"
+                        className="h-14 w-20 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1188,7 +1188,7 @@ function Dashboard() {
         </div>
 
         {/* Camera Offline Section */}
-        <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+        <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-semibold flex items-center gap-2 font-space text-slate-900 dark:text-slate-100">
               <CameraOff className="h-4 w-4 text-red-600 dark:text-red-400" /> Laporan Kamera Mati
@@ -1239,7 +1239,7 @@ function Dashboard() {
           onClick={() => setSelectedVehicle(null)}
         >
           <div
-            className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white dark:bg-[#1e293b] shadow-2xl md:flex-row"
+            className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white dark:bg-[#1a1a14] shadow-2xl md:flex-row"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1248,7 +1248,7 @@ function Dashboard() {
             >
               <X className="h-5 w-5" />
             </button>
-            <div className="viewfinder relative flex flex-1 items-center justify-center bg-[#f1f5f9] dark:bg-[#0f172a] p-2 md:w-2/3">
+            <div className="viewfinder relative flex flex-1 items-center justify-center bg-[#f1f5f9] dark:bg-[#13130e] p-2 md:w-2/3">
               <span className="vf-tr" />
               <span className="vf-bl" />
               <span className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-white">
@@ -1260,10 +1260,10 @@ function Dashboard() {
                 className="max-h-[70vh] w-full object-contain"
               />
             </div>
-            <div className="flex-1 space-y-4 overflow-y-auto p-6 md:w-1/3 bg-white dark:bg-[#1e293b] text-[#0f172a] dark:text-[#e2e8f0]">
+            <div className="flex-1 space-y-4 overflow-y-auto p-6 md:w-1/3 bg-white dark:bg-[#1a1a14] text-[#0f172a] dark:text-[#e2e8f0]">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1e293b] text-[#4338ca] dark:text-[#6366f1]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1a1a14] text-[#4338ca] dark:text-[#6366f1]">
                     {selectedVehicle.jenis_kendaraan.includes("Truk") ? (
                       <Truck className="h-6 w-6" />
                     ) : (
@@ -1283,7 +1283,7 @@ function Dashboard() {
                 {/* LOGIKA MUATAN DI MODAL */}
                 {selectedVehicle.jenis_kendaraan.includes("Truk") && (
                   <div
-                    className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50" : "bg-[#f1f5f9] dark:bg-[#0f172a] border-[#e2e8f0] dark:border-[#334155]"}`}
+                    className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50" : "bg-[#f1f5f9] dark:bg-[#13130e] border-[#e2e8f0] dark:border-[#2e2e25]"}`}
                   >
                     <Box
                       className={`h-5 w-5 ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "text-[#ea580c] dark:text-[#f97316]" : "text-[#64748b] dark:text-[#94a3b8]"}`}
@@ -1306,11 +1306,11 @@ function Dashboard() {
               </div>
 
               {/* AUTO-GENERATED PARAGRAPH — sama seperti di halaman Kendaraan */}
-              <div className="text-sm leading-relaxed text-[#334155] dark:text-[#cbd5e1] font-sans border-b border-[#e2e8f0] dark:border-[#334155] pb-4">
+              <div className="text-sm leading-relaxed text-[#334155] dark:text-[#cbd5e1] font-sans border-b border-[#e2e8f0] dark:border-[#2e2e25] pb-4">
                 {generateAutoDescription(selectedVehicle)}
               </div>
 
-              <div className="space-y-3 pt-2 border-t border-[#e2e8f0] dark:border-[#334155]">
+              <div className="space-y-3 pt-2 border-t border-[#e2e8f0] dark:border-[#2e2e25]">
                 <div className="flex items-start gap-3">
                   <Calendar className="h-5 w-5 text-[#64748b] dark:text-[#94a3b8] mt-0.5" />
                   <div>
@@ -1377,7 +1377,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#334155] flex flex-col gap-2">
+              <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#2e2e25] flex flex-col gap-2">
                 {selectedVehicle.vehicle_id && (
                   <button
                     onClick={() => setHistoryVehicleId(selectedVehicle.vehicle_id!)}
@@ -1397,7 +1397,7 @@ function Dashboard() {
                   disabled={mutationToggleFalsePositive.isPending}
                   className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${
                     selectedVehicle.is_false_positive
-                      ? "bg-[#f1f5f9] dark:bg-[#0f172a] text-[#64748b] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#1e293b]"
+                      ? "bg-[#f1f5f9] dark:bg-[#13130e] text-[#64748b] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#1a1a14]"
                       : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-900/50"
                   }`}
                 >
@@ -1443,7 +1443,7 @@ function RecentActivityCard({
 }) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155] transition-all duration-300 hover:-translate-y-0.5 ${ACCENTS.violet.glow}`}
+      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${ACCENTS.violet.glow}`}
     >
       <span
         className={`absolute inset-y-0 left-0 w-[3px] ${ACCENTS.violet.bar} opacity-60 group-hover:opacity-100 transition-opacity duration-300`}
@@ -1457,7 +1457,7 @@ function RecentActivityCard({
           </span>
         </div>
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#334155] ${ACCENTS.violet.text} transition-transform duration-300 group-hover:scale-110`}
+          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#2e2e25] ${ACCENTS.violet.text} transition-transform duration-300 group-hover:scale-110`}
         >
           <NotebookText className="h-4 w-4" />
         </div>
@@ -1470,7 +1470,7 @@ function RecentActivityCard({
       ) : (
         <table className="mt-3 w-full table-fixed border-collapse text-left">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-[#334155]">
+            <tr className="border-b border-slate-200 dark:border-[#2e2e25]">
               <th className="w-[34%] pb-1.5 pr-2 text-[9px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
                 Waktu
               </th>
@@ -1486,7 +1486,7 @@ function RecentActivityCard({
             {items.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-slate-100 dark:border-[#253449] last:border-0"
+                className="border-b border-slate-100 dark:border-[#22221a] last:border-0"
               >
                 <td className="py-1.5 pr-2 align-top">
                   <div className="flex items-center gap-2">
@@ -1634,7 +1634,7 @@ function KpiCard({
   return (
     <div
       onClick={() => detail && setOpen((o) => !o)}
-      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155] transition-all duration-300 hover:-translate-y-0.5 ${a.glow} ${
+      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${a.glow} ${
         detail ? "cursor-pointer" : ""
       }`}
     >
@@ -1650,7 +1650,7 @@ function KpiCard({
           </span>
         </div>
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#334155] ${a.text} transition-transform duration-300 group-hover:scale-110`}
+          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#2e2e25] ${a.text} transition-transform duration-300 group-hover:scale-110`}
         >
           {icon}
         </div>
@@ -1658,7 +1658,7 @@ function KpiCard({
 
       <div className="mt-3 flex items-end justify-between gap-2">
         {isLoading ? (
-          <div className="h-8 w-16 animate-pulse rounded bg-slate-200 dark:bg-[#253449]" />
+          <div className="h-8 w-16 animate-pulse rounded bg-slate-200 dark:bg-[#22221a]" />
         ) : (
           <p className="text-3xl font-bold tracking-tight font-space tabular-nums text-slate-900 dark:text-slate-100">
             {value}
@@ -1681,7 +1681,7 @@ function KpiCard({
         <div
           className={`grid transition-all duration-300 ease-out ${
             open
-              ? "grid-rows-[1fr] opacity-100 mt-3 pt-3 border-t border-slate-200 dark:border-[#334155]"
+              ? "grid-rows-[1fr] opacity-100 mt-3 pt-3 border-t border-slate-200 dark:border-[#2e2e25]"
               : "grid-rows-[0fr] opacity-0"
           }`}
         >
@@ -1713,7 +1713,7 @@ function KpiCardBreakdown({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155] transition-all duration-300 hover:-translate-y-0.5 ${a.glow}`}
+      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${a.glow}`}
     >
       <span
         className={`absolute inset-y-0 left-0 w-[3px] ${a.bar} opacity-60 group-hover:opacity-100 transition-opacity duration-300`}
@@ -1727,7 +1727,7 @@ function KpiCardBreakdown({
           </span>
         </div>
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#334155] ${a.text} transition-transform duration-300 group-hover:scale-110`}
+          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#2e2e25] ${a.text} transition-transform duration-300 group-hover:scale-110`}
         >
           {icon}
         </div>
@@ -1735,8 +1735,8 @@ function KpiCardBreakdown({
 
       {isLoading ? (
         <div className="mt-4 flex items-center gap-3">
-          <div className="h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-[#253449]" />
-          <div className="h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-[#253449]" />
+          <div className="h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-[#22221a]" />
+          <div className="h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-[#22221a]" />
         </div>
       ) : (
         <>
@@ -1759,7 +1759,7 @@ function KpiCardBreakdown({
             </div>
           </div>
 
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#0f172a]">
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#13130e]">
             <div
               className="h-full bg-blue-500 transition-all duration-500"
               style={{ width: `${mobilPct}%` }}

@@ -50,7 +50,7 @@ type EscalationRiskResponse = {
 
 function riskColor(risk: number | null) {
   if (risk === null)
-    return { bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400" };
+    return { bg: "bg-slate-100 dark:bg-[#1a1a14]", text: "text-slate-500 dark:text-slate-400" };
   if (risk >= 0.6)
     return { bg: "bg-red-50 dark:bg-red-500/10", text: "text-red-600 dark:text-red-400" };
   if (risk >= 0.3)
@@ -76,7 +76,7 @@ export function EscalationRiskCard() {
   const items = (data?.active_items || []).slice(0, 6);
 
   return (
-    <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1e293b] border-slate-200 dark:border-[#334155]">
+    <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
       <div className="mb-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 font-space text-slate-900 dark:text-slate-100">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -90,7 +90,7 @@ export function EscalationRiskCard() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-14 rounded-lg animate-pulse bg-slate-100 dark:bg-slate-800" />
+            <div key={i} className="h-14 rounded-lg animate-pulse bg-slate-100 dark:bg-[#1a1a14]" />
           ))}
         </div>
       ) : isError ? (
@@ -115,7 +115,7 @@ export function EscalationRiskCard() {
             return (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 dark:border-slate-800 p-3"
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 dark:border-[#26261e] p-3"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold font-space text-slate-900 dark:text-slate-100 truncate">

@@ -90,7 +90,7 @@
 /* Selected */
 .react-datepicker__day--selected,
 .react-datepicker__day--keyboard-selected {
-  background: #eef2ff !important;
+  background: #4f46e5 !important;
   color: white !important;
 }
 /* Today */
@@ -107,49 +107,45 @@
   width: 100%;
 }
 /* Triangle */ 
-.react-datepicker_triangle {
+.react-datepicker__triangle {
   display: none;
 }
 
-/* --- SOFT DARK MODE (EYE-COMFORT) --- */
+/* --- SOFT DARK MODE (warm black, base #13130e) --- */
 .dark {
-  /* Background Utama: Abu-abu gelap kebiruan yang lembut */
-  --background: oklch(0.18 0.006 250);
-  
-  /* Teks Utama: Off-white (abu sangat terang, bukan putih murni) */
-  --foreground: oklch(0.88 0.005 250);
-  
-  /* Kartu: Sedikit lebih terang dari background agar ada lapisan */
-  --card: oklch(0.22 0.006 250);
-  --card-foreground: oklch(0.88 0.005 250);
-  
-  --popover: oklch(0.22 0.006 250);
-  --popover-foreground: oklch(0.88 0.005 250);
-  
-  /* Biru Aksen: Dibuat lebih kalem, tidak neon */
+  --background: oklch(0.185 0.0097 107);          /* #13130e */
+  --foreground: oklch(0.90 0.008 100);
+  --card: oklch(0.22 0.010 107);                  /* ~#1a1a14 */
+  --card-foreground: oklch(0.90 0.008 100);
+  --popover: oklch(0.22 0.010 107);
+  --popover-foreground: oklch(0.90 0.008 100);
   --primary: oklch(0.55 0.10 250);
   --primary-foreground: oklch(0.99 0 0);
-  
-  --secondary: oklch(0.26 0.006 250);
-  --secondary-foreground: oklch(0.88 0.005 250);
-  
-  --muted: oklch(0.24 0.006 250);
-  --muted-foreground: oklch(0.65 0.005 250); /* Teks abu medium, nyaman dibaca */
-  
-  --accent: oklch(0.26 0.006 250);
-  --accent-foreground: oklch(0.88 0.005 250);
-  
+  --secondary: oklch(0.26 0.010 107);
+  --secondary-foreground: oklch(0.90 0.008 100);
+  --muted: oklch(0.24 0.010 107);
+  --muted-foreground: oklch(0.68 0.010 100);
+  --accent: oklch(0.27 0.010 107);
+  --accent-foreground: oklch(0.90 0.008 100);
   --destructive: oklch(0.55 0.15 20);
-  --destructive-foreground: oklch(0.88 0 0);
-  
-  /* Border: Garis batas sangat samar agar tidak kasar */
-  --border: oklch(0.28 0.006 250);
-  --input: oklch(0.28 0.006 250);
+  --destructive-foreground: oklch(0.90 0 0);
+  --border: oklch(0.30 0.010 107);
+  --input: oklch(0.30 0.010 107);
   --ring: oklch(0.45 0.08 250);
-  
-  /* Shadow: Dibuat lebih halus */
   --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
+
+/* Date picker dark mode */
+.dark .react-datepicker { background: var(--card) !important; border-color: var(--border) !important; }
+.dark .react-datepicker__header { background: var(--card) !important; border-bottom-color: var(--border) !important; }
+.dark .react-datepicker__current-month,
+.dark .react-datepicker__day-name,
+.dark .react-datepicker__day { color: var(--foreground) !important; }
+.dark .react-datepicker__day:hover { background: var(--accent) !important; color: var(--foreground) !important; }
+.dark .react-datepicker__day--disabled,
+.dark .react-datepicker__day--outside-month { color: var(--muted-foreground) !important; }
+.dark .react-datepicker__day--selected,
+.dark .react-datepicker__day--keyboard-selected { background: #4f46e5 !important; color: white !important; }
 
 @layer base {
   * {
@@ -167,7 +163,7 @@
   /* --- OVERRIDE HALUS UNTUK KOMPONEN DI DARK MODE --- */
   :is(.dark) {
     /* Ubah semua background putih menjadi warna kartu yang gelap */
-    & .bg-white, & .bg-white\/95, & .bg-white\/90, & .bg-card, & .bg-background {
+    & .bg-white, & .bg-white\/95, & .bg-white\/90, & .bg-card {
       background-color: var(--card) !important;
       backdrop-filter: blur(0px) !important;
     }

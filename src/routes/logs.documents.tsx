@@ -217,7 +217,7 @@ function DocumentsPage() {
             onClick={() => refetch()}
             disabled={isFetching}
             title="Muat ulang daftar"
-            className="p-2 rounded-md border border-slate-200 dark:border-[#334155] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#253449] disabled:opacity-50"
+            className="p-2 rounded-md border border-slate-200 dark:border-[#2e2e25] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#22221a] disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
@@ -231,7 +231,7 @@ function DocumentsPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] p-4">
         <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -239,7 +239,7 @@ function DocumentsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Cari isi dokumen... (nomor invoice, nama pihak, item, dll)"
-              className="w-full rounded-md border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#0f172a] pl-9 pr-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40"
+              className="w-full rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] pl-9 pr-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40"
             />
           </div>
           <select
@@ -248,7 +248,7 @@ function DocumentsPage() {
               setJenis(e.target.value);
               setPage(1);
             }}
-            className="rounded-md border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#0f172a] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40"
+            className="rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40"
           >
             <option value="all">Semua Jenis</option>
             {jenisOptions.map((j) => (
@@ -264,7 +264,7 @@ function DocumentsPage() {
               setStartDate(e.target.value);
               setPage(1);
             }}
-            className="rounded-md border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#0f172a] px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+            className="rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
           />
           <input
             type="date"
@@ -273,7 +273,7 @@ function DocumentsPage() {
               setEndDate(e.target.value);
               setPage(1);
             }}
-            className="rounded-md border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#0f172a] px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+            className="rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
           />
           <button
             type="submit"
@@ -285,7 +285,7 @@ function DocumentsPage() {
       </div>
 
       {/* Tabel */}
-      <div className="rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] overflow-hidden">
+      <div className="rounded-xl border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
@@ -304,7 +304,7 @@ function DocumentsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#0f172a]">
+                <tr className="border-b border-slate-200 dark:border-[#2e2e25] bg-slate-50 dark:bg-[#13130e]">
                   <th className="text-left font-medium text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 px-4 py-3">
                     Jenis
                   </th>
@@ -324,7 +324,7 @@ function DocumentsPage() {
                   <tr
                     key={doc.id}
                     onClick={() => setSelectedId(doc.id)}
-                    className="border-b border-slate-100 dark:border-[#253449] last:border-0 hover:bg-slate-50 dark:hover:bg-[#253449]/50 cursor-pointer transition-colors"
+                    className="border-b border-slate-100 dark:border-[#22221a] last:border-0 hover:bg-slate-50 dark:hover:bg-[#22221a]/50 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-[#4338ca] dark:text-[#818cf8] px-2.5 py-1 text-xs font-medium">
@@ -355,7 +355,7 @@ function DocumentsPage() {
                         <button
                           onClick={() => handleDownload(doc)}
                           title="Unduh file Excel"
-                          className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#253449] hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                          className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#22221a] hover:text-green-600 dark:hover:text-green-400 transition-colors"
                         >
                           <FileSpreadsheet className="h-4 w-4" />
                         </button>
@@ -381,7 +381,7 @@ function DocumentsPage() {
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#334155] px-4 py-3">
+          <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#2e2e25] px-4 py-3">
             <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
               Halaman {page} dari {totalPages}
             </span>
@@ -389,14 +389,14 @@ function DocumentsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1 || isFetching}
-                className="p-1.5 rounded-md border border-slate-200 dark:border-[#334155] text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-[#253449]"
+                className="p-1.5 rounded-md border border-slate-200 dark:border-[#2e2e25] text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-[#22221a]"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages || isFetching}
-                className="p-1.5 rounded-md border border-slate-200 dark:border-[#334155] text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-[#253449]"
+                className="p-1.5 rounded-md border border-slate-200 dark:border-[#2e2e25] text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-[#22221a]"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -414,7 +414,7 @@ function DocumentsPage() {
           onClick={() => setSelectedId(null)}
         >
           <div
-            className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white dark:bg-[#1e293b] shadow-2xl"
+            className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white dark:bg-[#1a1a14] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -443,7 +443,7 @@ function DocumentsPage() {
                 </div>
 
                 {detail.informasi?.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 dark:border-[#334155] divide-y divide-slate-100 dark:divide-[#253449]">
+                  <div className="rounded-lg border border-slate-200 dark:border-[#2e2e25] divide-y divide-slate-100 dark:divide-[#22221a]">
                     {detail.informasi.map((e, i) => (
                       <div key={i} className="flex justify-between gap-4 px-4 py-2 text-sm">
                         <span className="text-slate-500 dark:text-slate-400">{e.label}</span>
@@ -462,7 +462,7 @@ function DocumentsPage() {
                         {t.nama}
                       </p>
                     )}
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#334155]">
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[#2e2e25]">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-[#305496] text-white">
@@ -480,7 +480,7 @@ function DocumentsPage() {
                           {t.baris.map((row, ri) => (
                             <tr
                               key={ri}
-                              className="border-t border-slate-100 dark:border-[#253449]"
+                              className="border-t border-slate-100 dark:border-[#22221a]"
                             >
                               {row.map((cell, ci) => (
                                 <td
@@ -499,7 +499,7 @@ function DocumentsPage() {
                 ))}
 
                 {detail.ringkasan?.length > 0 && (
-                  <div className="ml-auto max-w-xs rounded-lg border border-slate-200 dark:border-[#334155] divide-y divide-slate-100 dark:divide-[#253449]">
+                  <div className="ml-auto max-w-xs rounded-lg border border-slate-200 dark:border-[#2e2e25] divide-y divide-slate-100 dark:divide-[#22221a]">
                     {detail.ringkasan.map((e, i) => (
                       <div key={i} className="flex justify-between gap-4 px-4 py-2 text-sm">
                         <span className="text-slate-500 dark:text-slate-400">{e.label}</span>
@@ -512,7 +512,7 @@ function DocumentsPage() {
                 )}
 
                 {detail.catatan && (
-                  <div className="rounded-lg bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-[#334155] p-3">
+                  <div className="rounded-lg bg-slate-50 dark:bg-[#13130e] border border-slate-200 dark:border-[#2e2e25] p-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                       Catatan
                     </p>
@@ -522,7 +522,7 @@ function DocumentsPage() {
                   </div>
                 )}
 
-                <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-[#334155]">
+                <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-[#2e2e25]">
                   <button
                     onClick={() => handleDownload(detail)}
                     className="inline-flex items-center gap-2 rounded-md bg-[#4338ca] px-4 py-2 text-sm font-medium text-white hover:bg-[#3730a3] transition-colors"
@@ -599,13 +599,13 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
       onClick={() => !uploading && onClose()}
     >
       <div
-        className="relative w-full max-w-lg rounded-lg bg-white dark:bg-[#1e293b] p-6 shadow-2xl space-y-4"
+        className="relative w-full max-w-lg rounded-lg bg-white dark:bg-[#1a1a14] p-6 shadow-2xl space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
           disabled={uploading}
-          className="absolute right-3 top-3 rounded-full p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-[#253449] disabled:opacity-40"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-[#22221a] disabled:opacity-40"
         >
           <X className="h-5 w-5" />
         </button>
@@ -634,7 +634,7 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
             dragOver
               ? "border-[#4338ca] bg-indigo-50 dark:bg-indigo-500/10"
-              : "border-slate-300 dark:border-[#334155] hover:bg-slate-50 dark:hover:bg-[#253449]/50"
+              : "border-slate-300 dark:border-[#2e2e25] hover:bg-slate-50 dark:hover:bg-[#22221a]/50"
           }`}
         >
           {preview ? (
@@ -666,7 +666,7 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           <button
             onClick={onClose}
             disabled={uploading}
-            className="rounded-md border border-slate-200 dark:border-[#334155] px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#253449] disabled:opacity-50"
+            className="rounded-md border border-slate-200 dark:border-[#2e2e25] px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#22221a] disabled:opacity-50"
           >
             Batal
           </button>

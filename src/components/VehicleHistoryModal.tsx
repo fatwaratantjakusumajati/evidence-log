@@ -33,7 +33,7 @@ function eventColor(jenis?: string) {
     return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50";
   if (jenis === "KELUAR" || jenis === "SIKLUS_SELESAI")
     return "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900/50";
-  return "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700";
+  return "bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#1a1a14]/50 dark:text-slate-400 dark:border-[#2e2e25]";
 }
 
 function dotColor(jenis?: string) {
@@ -56,7 +56,7 @@ function muatanBadgeInfo(status?: string) {
     };
   return {
     text: status,
-    cls: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700",
+    cls: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#1a1a14]/50 dark:text-slate-400 dark:border-[#2e2e25]",
   };
 }
 
@@ -90,13 +90,13 @@ export function VehicleHistoryModal({
         onClick={onClose}
       >
         <div
-          className="viewfinder relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-xl bg-white dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] shadow-2xl flex flex-col"
+          className="viewfinder relative w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-xl bg-white dark:bg-[#1a1a14] border border-[#e2e8f0] dark:border-[#2e2e25] shadow-2xl flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <span className="vf-tr" />
           <span className="vf-bl" />
 
-          <div className="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#334155] px-5 py-4">
+          <div className="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#2e2e25] px-5 py-4">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-[#4338ca] dark:text-[#818cf8]" />
               <div>
@@ -111,7 +111,7 @@ export function VehicleHistoryModal({
             <button
               onClick={onClose}
               aria-label="Tutup"
-              className="p-1.5 rounded-md hover:bg-[#f1f5f9] dark:hover:bg-[#1e293b] transition-colors"
+              className="p-1.5 rounded-md hover:bg-[#f1f5f9] dark:hover:bg-[#1a1a14] transition-colors"
             >
               <X className="h-4 w-4 dark:text-slate-400" />
             </button>
@@ -160,7 +160,7 @@ export function VehicleHistoryModal({
                       ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-900/50"
                       : process.tone === "unloading"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50"
-                        : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700";
+                        : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#1a1a14]/40 dark:text-slate-400 dark:border-[#2e2e25]";
 
                   return (
                     <div
@@ -171,7 +171,7 @@ export function VehicleHistoryModal({
                   );
                 })()}
 
-                <ol className="relative border-l border-[#e2e8f0] dark:border-[#334155] ml-2 space-y-6">
+                <ol className="relative border-l border-[#e2e8f0] dark:border-[#2e2e25] ml-2 space-y-6">
                   {data.events.map((ev) => {
                     const isTruk = ev.jenis_kendaraan.includes("Truk");
                     const isCam1OrCam3 =
@@ -184,7 +184,7 @@ export function VehicleHistoryModal({
                     return (
                       <li key={ev.id} className="ml-4">
                         <span
-                          className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white dark:ring-[#1e293b] ${dotColor(ev.jenis_kejadian)}`}
+                          className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white dark:ring-[#1a1a14] ${dotColor(ev.jenis_kejadian)}`}
                         />
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span
@@ -202,9 +202,9 @@ export function VehicleHistoryModal({
                           )}
                         </div>
 
-                        <div className="flex gap-3 rounded-lg border border-[#e2e8f0] dark:border-[#334155] bg-[#f8fafc] dark:bg-[#10140f] p-3">
+                        <div className="flex gap-3 rounded-lg border border-[#e2e8f0] dark:border-[#2e2e25] bg-[#f8fafc] dark:bg-[#10140f] p-3">
                           {ev.gambar_base64 && (
-                            <div className="viewfinder relative h-24 w-32 flex-shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9] dark:bg-[#0f172a] shadow-sm">
+                            <div className="viewfinder relative h-24 w-32 flex-shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9] dark:bg-[#13130e] shadow-sm">
                               <span className="vf-tr" />
                               <span className="vf-bl" />
                               <img
@@ -265,7 +265,7 @@ export function VehicleHistoryModal({
           </div>
 
           {data && (
-            <div className="border-t border-[#e2e8f0] dark:border-[#334155] px-5 py-3 text-[11px] font-mono text-[#64748b] dark:text-[#94a3b8]">
+            <div className="border-t border-[#e2e8f0] dark:border-[#2e2e25] px-5 py-3 text-[11px] font-mono text-[#64748b] dark:text-[#94a3b8]">
               Total {data.total_events} kejadian tercatat untuk kendaraan ini.
             </div>
           )}
