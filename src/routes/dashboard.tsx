@@ -767,7 +767,7 @@ function Dashboard() {
                     const d = payload[0].payload as HourlyBin;
                     const total = d.Mobil + d.Truk;
                     return (
-                      <div className="rounded-xl border border-slate-700/80 bg-slate-900/95 px-4 py-3 shadow-2xl backdrop-blur-sm">
+                      <div className="rounded-xl border border-[#2e2e25] bg-[#1a1a14]/95 px-4 py-3 shadow-2xl backdrop-blur-sm">
                         <p className="mb-2 text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400">
                           Pukul {d.label}
                         </p>
@@ -790,7 +790,7 @@ function Dashboard() {
                               {d.Truk}
                             </span>
                           </div>
-                          <div className="mt-1.5 flex items-center justify-between gap-6 border-t border-slate-700/80 pt-1.5">
+                          <div className="mt-1.5 flex items-center justify-between gap-6 border-t border-[#2e2e25] pt-1.5">
                             <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
                               Total
                             </span>
@@ -966,7 +966,7 @@ function Dashboard() {
                                 src={`data:image/jpeg;base64,${masuk.gambar_base64}`}
                                 className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                               />
-                              <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 text-center text-[8px] font-bold text-white leading-tight">
+                              <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 text-center text-[10px] font-bold text-white leading-tight">
                                 MASUK
                               </span>
                             </div>
@@ -977,7 +977,7 @@ function Dashboard() {
                                 src={`data:image/jpeg;base64,${keluar.gambar_base64}`}
                                 className="h-14 w-14 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
                               />
-                              <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 text-center text-[8px] font-bold text-white leading-tight">
+                              <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 text-center text-[10px] font-bold text-white leading-tight">
                                 KELUAR
                               </span>
                             </div>
@@ -1263,7 +1263,7 @@ function Dashboard() {
             <div className="flex-1 space-y-4 overflow-y-auto p-6 md:w-1/3 bg-white dark:bg-[#1a1a14] text-[#0f172a] dark:text-[#e2e8f0]">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1a1a14] text-[#4338ca] dark:text-[#6366f1]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1a1a14] text-[#4338ca] dark:text-[#818cf8]">
                     {selectedVehicle.jenis_kendaraan.includes("Truk") ? (
                       <Truck className="h-6 w-6" />
                     ) : (
@@ -1471,13 +1471,13 @@ function RecentActivityCard({
         <table className="mt-3 w-full table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-200 dark:border-[#2e2e25]">
-              <th className="w-[34%] pb-1.5 pr-2 text-[9px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+              <th className="w-[34%] pb-1.5 pr-2 text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
                 Waktu
               </th>
-              <th className="pb-1.5 pr-2 text-[9px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+              <th className="pb-1.5 pr-2 text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
                 Aktivitas
               </th>
-              <th className="w-[26%] pb-1.5 text-right text-[9px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+              <th className="w-[26%] pb-1.5 text-right text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
                 Sumber
               </th>
             </tr>
@@ -1499,7 +1499,7 @@ function RecentActivityCard({
                       <p className="text-[11px] font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-300">
                         {formatRecentTime(item.time).time}
                       </p>
-                      <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
+                      <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
                         {formatRecentTime(item.time).dateLabel}
                       </p>
                     </div>
@@ -1509,7 +1509,7 @@ function RecentActivityCard({
                   <p className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                     {item.label}
                   </p>
-                  <p className="truncate text-[9px] font-mono text-slate-400 dark:text-slate-500">
+                  <p className="truncate text-[10px] font-mono text-slate-400 dark:text-slate-500">
                     {item.detail || "—"}
                   </p>
                 </td>

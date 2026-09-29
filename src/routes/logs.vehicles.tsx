@@ -265,13 +265,13 @@ function VehicleLogsPage() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Car className="h-5 w-5 text-[#4338ca] dark:text-[#6366f1]" />
+              <Car className="h-5 w-5 text-[#4338ca] dark:text-[#818cf8]" />
               <h1 className="text-lg font-semibold tracking-tight font-space transition-colors">
                 Log Kendaraan
               </h1>
             </div>
             {totalItems > 0 && (
-              <span className="rounded-full bg-[#eef2ff] dark:bg-[#13130e] px-3 py-1 text-xs font-medium text-[#4338ca] dark:text-[#6366f1] border border-[#c7d2fe] dark:border-[#22221a]">
+              <span className="rounded-full bg-[#eef2ff] dark:bg-[#13130e] px-3 py-1 text-xs font-medium text-[#4338ca] dark:text-[#818cf8] border border-[#c7d2fe] dark:border-[#22221a]">
                 {totalItems} total
               </span>
             )}
@@ -635,7 +635,7 @@ function VehicleLogsPage() {
                                   loading="lazy"
                                   className="h-full w-full object-cover"
                                 />
-                                <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 px-1 py-0.5 text-center text-[8px] font-bold text-white">
+                                <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 px-1 py-0.5 text-center text-[10px] font-bold leading-tight text-white">
                                   MASUK
                                 </span>
                               </div>
@@ -646,7 +646,7 @@ function VehicleLogsPage() {
                                   loading="lazy"
                                   className="h-full w-full object-cover"
                                 />
-                                <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 px-1 py-0.5 text-center text-[8px] font-bold text-white">
+                                <span className="absolute bottom-0 left-0 right-0 bg-orange-600/90 px-1 py-0.5 text-center text-[10px] font-bold leading-tight text-white">
                                   KELUAR
                                 </span>
                               </div>
@@ -820,7 +820,7 @@ function VehicleLogsPage() {
             <div className="flex-1 space-y-4 overflow-y-auto p-6 md:w-1/3 bg-white dark:bg-[#1a1a14] text-[#0f172a] dark:text-[#e2e8f0]">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1a1a14] text-[#4338ca] dark:text-[#6366f1]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] dark:bg-[#1a1a14] text-[#4338ca] dark:text-[#818cf8]">
                     {selectedVehicle.jenis_kendaraan.includes("Truk") ? (
                       <Truck className="h-6 w-6" />
                     ) : (

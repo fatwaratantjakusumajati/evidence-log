@@ -931,7 +931,7 @@ function SidebarNav({
                   <p className="text-[11px] text-[#64748b] dark:text-[#94a3b8] mt-0.5">
                     {n.description}
                   </p>
-                  <p className="text-[10px] font-mono text-[#94a3b8] dark:text-[#64748b] mt-1">
+                  <p className="text-[10px] font-mono text-[#94a3b8] dark:text-[#8a97ab] mt-1">
                     {new Date(n.time).toLocaleTimeString("id-ID", {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -961,7 +961,7 @@ function SidebarNav({
           />
         </div>
         <div className="leading-tight min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
             PT Aristides Logistik Indonesia
           </p>
           <p className="text-base font-bold tracking-tight text-[#4338ca] dark:text-[#818cf8] font-space transition-colors duration-300 truncate">
