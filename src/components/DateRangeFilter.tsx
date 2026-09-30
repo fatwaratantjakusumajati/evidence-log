@@ -1,4 +1,5 @@
-import { useState, forwardRef, type InputHTMLAttributes, type CSSProperties } from "react";
+import { useState, useRef, forwardRef, type InputHTMLAttributes, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRight, ClockPlus } from "lucide-react";
 import DatePicker from "react-datepicker";
 import { subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -71,6 +72,15 @@ ThemedDateInput.displayName = "ThemedDateInput";
 
 export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRangeFilterProps) {
   const [quickOpen, setQuickOpen] = useState(false);
+
+  const quickBtnRef = useRef<HTMLButtonElement>(null);
+  const [quickPos, setQuickPos] = useState({ top: 0, left: 0 });
+
+  const toggleQuick = () => {
+    const rect = quickBtnRef.current?.getBoundingClientRect();
+    if (rect) setQuickPos({ top: rect.bottom + 8, left: rect.right - 256 });
+    setQuickOpen((o) => !o);
+  };
 
   const start = parseDate(startDate);
   const end = parseDate(endDate);
@@ -158,8 +168,8 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
   const clockIconStyle = themed ? { color: colors!.primary } : undefined;
 
   const dropdownClass = themed
-    ? "absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border p-2 shadow-xl"
-    : "absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-[#2e2e25] dark:bg-[#13130e]";
+    ? "w-64 overflow-hidden rounded-2xl border p-2 shadow-xl"
+    : "w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-[#2e2e25] dark:bg-[#13130e]";
 
   const dropdownStyle = themed
     ? { backgroundColor: colors!.card, borderColor: colors!.border }
@@ -264,12 +274,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
       <div className="flex shrink-0 items-center gap-2">
         {/* QUICK ACCESS */}
         <div className="relative">
-          <button
-            type="button"
-            onClick={() => setQuickOpen(!quickOpen)}
-            className={quickButtonClass}
-            style={quickButtonStyle}
-          >
+          <button ref={quickBtnRef} type="button" onClick={toggleQuick}>
             <span>
               {" "}
               <ClockPlus className={clockIconClass} style={clockIconStyle} />
@@ -291,41 +296,57 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
           </button>
 
           {/* DROPDOWN MENU */}
-          {quickOpen && (
-            <div className={dropdownClass} style={dropdownStyle}>
-              <div className="mt-1 space-y-1">
-                {quickRanges.map((range) => (
-                  <button
-                    type="button"
-                    key={range.label}
-                    onClick={range.action}
-                    className={quickItemClass}
-                    onMouseEnter={(e) => {
-                      if (themed) e.currentTarget.style.backgroundColor = `${colors!.primary}1a`;
-                    }}
-                    onMouseLeave={(e) => {
-                      if (themed) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <div>
-                      <p
-                        className={quickItemLabelClass}
-                        style={themed ? { color: colors!.textMain } : undefined}
+          {quickOpen &&
+            createPortal(
+              <>
+                {/* klik di luar untuk menutup */}
+                <div className="fixed inset-0 z-[9998]" onClick={() => setQuickOpen(false)} />
+                <div
+                  className={dropdownClass}
+                  style={{
+                    position: "fixed",
+                    top: quickPos.top,
+                    left: quickPos.left,
+                    zIndex: 9999,
+                    ...dropdownStyle,
+                  }}
+                >
+                  <div className="mt-1 space-y-1">
+                    {quickRanges.map((range) => (
+                      <button
+                        type="button"
+                        key={range.label}
+                        onClick={range.action}
+                        className={quickItemClass}
+                        onMouseEnter={(e) => {
+                          if (themed)
+                            e.currentTarget.style.backgroundColor = `${colors!.primary}1a`;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (themed) e.currentTarget.style.backgroundColor = "transparent";
+                        }}
                       >
-                        {range.label}
-                      </p>
-                      <p
-                        className={quickItemDescClass}
-                        style={themed ? { color: colors!.textMuted } : undefined}
-                      >
-                        {range.description}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                        <div>
+                          <p
+                            className={quickItemLabelClass}
+                            style={themed ? { color: colors!.textMain } : undefined}
+                          >
+                            {range.label}
+                          </p>
+                          <p
+                            className={quickItemDescClass}
+                            style={themed ? { color: colors!.textMuted } : undefined}
+                          >
+                            {range.description}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>,
+              document.body,
+            )}
         </div>
 
         {/* TOMBOL RESET */}

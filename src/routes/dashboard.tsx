@@ -598,7 +598,7 @@ function Dashboard() {
             )}
           </div>
         </div> */}
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#2e2e25] dark:bg-[#13130e]">
+        <div className="realtive z-20 mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#2e2e25] dark:bg-[#13130e]">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
