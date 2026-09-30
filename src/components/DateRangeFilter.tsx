@@ -274,11 +274,14 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
       <div className="flex shrink-0 items-center gap-2">
         {/* QUICK ACCESS */}
         <div className="relative">
-          <button ref={quickBtnRef} type="button" onClick={toggleQuick}>
-            <span>
-              {" "}
-              <ClockPlus className={clockIconClass} style={clockIconStyle} />
-            </span>
+          <button
+            ref={quickBtnRef}
+            type="button"
+            onClick={toggleQuick}
+            className={quickButtonClass}
+            style={quickButtonStyle}
+          >
+            <ClockPlus className={clockIconClass} style={clockIconStyle} />
             <span>Quick Access</span>
             <svg
               className={`h-4 w-4 transition-transform ${quickOpen ? "rotate-180" : ""}`}
@@ -345,7 +348,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, colors }: DateRa
                   </div>
                 </div>
               </>,
-              document.body,
+              (document.querySelector("body .dark") as HTMLElement | null) ?? document.body,
             )}
         </div>
 
