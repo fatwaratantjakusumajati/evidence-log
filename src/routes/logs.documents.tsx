@@ -18,7 +18,10 @@ import {
   Upload,
   RefreshCw,
   ImagePlus,
+  Printer,
+  QrCode,
 } from "lucide-react";
+import { arucoMatrix, arucoSvg } from "@/lib/aruco";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -38,6 +41,8 @@ type DocumentRow = {
   judul: string | null;
   ringkasan: KV[];
   file_name: string | null;
+  po_number: string | null;
+  aruco_id: number | null;
   created_at: string;
 };
 
@@ -63,6 +68,163 @@ function formatValue(v: any) {
   if (v === null || v === undefined || v === "") return "-";
   if (typeof v === "number") return v.toLocaleString("id-ID");
   return String(v);
+}
+
+// ------------------ ArUco: tampilan marker + cetak ------------------
+function ArucoMarker({ id, size = 96 }: { id: number; size?: number }) {
+  const m = arucoMatrix(id);
+  if (!m) return null;
+  return (
+    // latar selalu putih (quiet zone), walau dark mode, supaya tetap terbaca kamera
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 7 7"
+      shapeRendering="crispEdges"
+      className="rounded-sm bg-white"
+      role="img"
+      aria-label={`Marker ArUco ID ${id}`}
+    >
+      <rect width="7" height="7" fill="#fff" />
+      {m.flatMap((row, r) =>
+        row.map((white, c) =>
+          white ? null : <rect key={`${r}-${c}`} x={c + 0.5} y={r + 0.5} width="1" height="1" />,
+        ),
+      )}
+    </svg>
+  );
+}
+
+type PrintLayout = "single" | "grid";
+
+// Desain mengikuti id_1-4.pdf: marker hitam-putih, label "ID n" tebal di bawahnya,
+// garis abu-abu tipis sebagai pemisah. "single" = 1 marker besar per halaman,
+// "grid" = 4 salinan ID yang sama dalam 2x2 (untuk dipotong jadi stiker).
+function printAruco(opts: { id: number; po?: string | null; layout: PrintLayout; sizeCm: number }) {
+  const { id, po, layout, sizeCm } = opts;
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const cell = (cm: number) => `
+    <div class="cell">
+      ${arucoSvg(id, 0).replace(/width="0" height="0"/, `width="${cm}cm" height="${cm}cm"`)}
+      <div class="id" style="font-size:${Math.max(cm * 0.14, 0.9)}cm">ID ${id}</div>
+      ${po ? `<div class="po" style="font-size:${Math.max(cm * 0.065, 0.45)}cm">${esc(po)}</div>` : ""}
+    </div>`;
+  const body =
+    layout === "grid"
+      ? `<div class="grid">${[1, 2, 3, 4].map(() => cell(8)).join("")}</div>`
+      : `<div class="single">${cell(sizeCm)}</div>`;
+
+  const w = window.open("", "_blank");
+  if (!w) {
+    toast.error("Pop-up diblokir browser. Izinkan pop-up lalu coba lagi.");
+    return;
+  }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8">
+<title>ArUco ID ${id}</title>
+<style>
+  @page { size: A4; margin: 0 }
+  * { box-sizing: border-box }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; color: #000 }
+  .cell { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center }
+  .id { font-weight: 700; margin-top: .3cm }
+  .po { margin-top: .1cm; color: #333; font-family: monospace }
+  .single { width: 210mm; height: 297mm; display: flex; align-items: center; justify-content: center }
+  .grid { width: 210mm; height: 297mm; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr }
+  .grid .cell { border: .2mm solid #ccc; margin: -.1mm }
+</style></head><body>${body}
+<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script>
+</body></html>`);
+  w.document.close();
+}
+
+function PoBadge({ po }: { po: string | null }) {
+  if (!po) return <span className="text-slate-400">-</span>;
+  return <span className="font-mono text-xs text-slate-800 dark:text-slate-100">{po}</span>;
+}
+
+function ArucoBadge({ id }: { id: number | null }) {
+  if (id === null || id === undefined) return <span className="text-slate-400">-</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <ArucoMarker id={id} size={28} />
+      <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">
+        ID {id}
+      </span>
+    </span>
+  );
+}
+
+// Kartu di modal detail: nomor PO, ID, preview marker, tombol cetak
+function ArucoCard({ po, id }: { po: string | null; id: number | null }) {
+  const [layout, setLayout] = useState<PrintLayout>("single");
+  const [sizeCm, setSizeCm] = useState(10);
+
+  if (id === null || id === undefined) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 dark:border-[#2e2e25] p-4 text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2">
+          <QrCode className="h-4 w-4" />
+          {po
+            ? `Nomor PO ${po} terdeteksi, ID ArUco belum dibuat.`
+            : "Dokumen ini bukan PO (atau nomor PO tidak terbaca), jadi belum punya ID ArUco."}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-[#2e2e25] p-4 flex flex-col sm:flex-row gap-4">
+      <div className="shrink-0 self-center rounded-md border border-slate-200 bg-white p-1">
+        <ArucoMarker id={id} size={120} />
+      </div>
+      <div className="flex-1 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Nomor PO
+            </p>
+            <p className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100 break-all">
+              {po || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              ID ArUco
+            </p>
+            <p className="font-mono text-2xl font-bold text-[#4338ca] dark:text-[#818cf8]">{id}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={layout}
+            onChange={(e) => setLayout(e.target.value as PrintLayout)}
+            className="rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+          >
+            <option value="single">1 marker per halaman</option>
+            <option value="grid">4 salinan (2×2)</option>
+          </select>
+          {layout === "single" && (
+            <select
+              value={sizeCm}
+              onChange={(e) => setSizeCm(Number(e.target.value))}
+              className="rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200"
+            >
+              <option value={5}>5 cm</option>
+              <option value={8}>8 cm</option>
+              <option value={10}>10 cm</option>
+              <option value={14}>14 cm</option>
+            </select>
+          )}
+          <button
+            onClick={() => printAruco({ id, po, layout, sizeCm })}
+            className="inline-flex items-center gap-2 rounded-md bg-[#4338ca] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3730a3] transition-colors"
+          >
+            <Printer className="h-3.5 w-3.5" /> Cetak ArUco
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export const Route = createFileRoute("/logs/documents")({
@@ -238,7 +400,7 @@ function DocumentsPage() {
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Cari isi dokumen... (nomor invoice, nama pihak, item, dll)"
+              placeholder="Cari isi dokumen... (nomor PO, nomor invoice, nama pihak, item, dll)"
               className="w-full rounded-md border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#13130e] pl-9 pr-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4338ca]/40"
             />
           </div>
@@ -312,6 +474,12 @@ function DocumentsPage() {
                     Judul / Ringkasan
                   </th>
                   <th className="text-left font-medium text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 px-4 py-3">
+                    No. PO
+                  </th>
+                  <th className="text-left font-medium text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 px-4 py-3">
+                    ArUco
+                  </th>
+                  <th className="text-left font-medium text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 px-4 py-3">
                     Tanggal Masuk
                   </th>
                   <th className="text-right font-medium text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 px-4 py-3">
@@ -344,6 +512,12 @@ function DocumentsPage() {
                         </p>
                       )}
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <PoBadge po={doc.po_number} />
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <ArucoBadge id={doc.aruco_id} />
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-slate-500 dark:text-slate-400">
                       {formatDateTime(doc.created_at)}
                     </td>
@@ -352,6 +526,22 @@ function DocumentsPage() {
                         className="flex items-center justify-end gap-1.5"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {doc.aruco_id != null && (
+                          <button
+                            onClick={() =>
+                              printAruco({
+                                id: doc.aruco_id as number,
+                                po: doc.po_number,
+                                layout: "single",
+                                sizeCm: 10,
+                              })
+                            }
+                            title="Cetak ArUco"
+                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#22221a] hover:text-[#4338ca] dark:hover:text-[#818cf8] transition-colors"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDownload(doc)}
                           title="Unduh file Excel"
@@ -441,6 +631,10 @@ function DocumentsPage() {
                     Diarsipkan {formatDateTime(detail.created_at)}
                   </p>
                 </div>
+
+                {(detail.po_number || detail.aruco_id != null) && (
+                  <ArucoCard po={detail.po_number} id={detail.aruco_id} />
+                )}
 
                 {detail.informasi?.length > 0 && (
                   <div className="rounded-lg border border-slate-200 dark:border-[#2e2e25] divide-y divide-slate-100 dark:divide-[#22221a]">

@@ -47,6 +47,21 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+// Cek x-ingest-key. Dipakai route yang dipanggil n8n (tanpa login user).
+// Mengembalikan true bila lolos; kalau gagal, respons error sudah dikirim.
+function checkIngestKey(req, res) {
+  const ingestKey = process.env.DOCUMENTS_INGEST_KEY;
+  if (!ingestKey) {
+    res.status(500).json({ error: "DOCUMENTS_INGEST_KEY belum di-set di .env" });
+    return false;
+  }
+  if (req.headers["x-ingest-key"] !== ingestKey) {
+    res.status(401).json({ error: "Unauthorized: x-ingest-key tidak valid" });
+    return false;
+  }
+  return true;
+}
+
 // ------------------ INGEST DARI N8N (tanpa login user, pakai ingest key) ------------------
 // PENTING: route ini HARUS dikecualikan dari gerbang requireAuth di server.js
 // (lihat catatan integrasi), karena yang memanggil adalah workflow n8n, bukan
@@ -54,13 +69,7 @@ function safeJsonParse(value, fallback) {
 // x-ingest-key yang dibandingkan dengan DOCUMENTS_INGEST_KEY di .env.
 router.post("/ingest", upload.single("file"), async (req, res) => {
   try {
-    const ingestKey = process.env.DOCUMENTS_INGEST_KEY;
-    if (!ingestKey) {
-      return res.status(500).json({ error: "DOCUMENTS_INGEST_KEY belum di-set di .env" });
-    }
-    if (req.headers["x-ingest-key"] !== ingestKey) {
-      return res.status(401).json({ error: "Unauthorized: x-ingest-key tidak valid" });
-    }
+    if (!checkIngestKey(req, res)) return;
 
     const jenis_dokumen = req.body.jenis_dokumen || "dokumen";
     const judul = req.body.judul || null;
@@ -111,6 +120,60 @@ router.post("/ingest", upload.single("file"), async (req, res) => {
       .json({ success: true, id: result.rows[0].id, created_at: result.rows[0].created_at });
   } catch (err) {
     sendServerError(res, err, "POST /api/documents/ingest");
+  }
+});
+
+// ------------------ SIMPAN NOMOR PO + ID ARUCO (dipanggil n8n) ------------------
+// Body JSON: { document_id, po_number, aruco_id? }
+// - aruco_id kosong  -> backend mengalokasikan ID berikutnya dari sequence.
+// - PO yang sama (po_number sama) selalu memakai ID ArUco yang sama.
+// Sama seperti /ingest, route ini harus dikecualikan dari requireAuth di server.js.
+const ARUCO_MAX_ID = 999; // DICT_4X4_1000
+
+router.post("/ingest/aruco", express.json(), async (req, res) => {
+  try {
+    if (!checkIngestKey(req, res)) return;
+
+    const documentId = Number(req.body.document_id);
+    const poNumber = String(req.body.po_number ?? "").trim();
+    if (!Number.isInteger(documentId) || documentId <= 0) {
+      return res.status(400).json({ error: "document_id tidak valid" });
+    }
+    if (!poNumber) return res.status(400).json({ error: "po_number kosong" });
+
+    let arucoId = null;
+    if (req.body.aruco_id !== undefined && req.body.aruco_id !== null && req.body.aruco_id !== "") {
+      arucoId = Number(req.body.aruco_id);
+      if (!Number.isInteger(arucoId) || arucoId < 0 || arucoId > ARUCO_MAX_ID) {
+        return res.status(400).json({ error: `aruco_id harus 0-${ARUCO_MAX_ID}` });
+      }
+    } else {
+      // PO yang sama -> pakai ID yang sudah ada
+      const existing = await pool.query(
+        `SELECT aruco_id FROM documents WHERE po_number = $1 AND aruco_id IS NOT NULL LIMIT 1`,
+        [poNumber],
+      );
+      if (existing.rows.length) {
+        arucoId = existing.rows[0].aruco_id;
+      } else {
+        const seq = await pool.query(`SELECT nextval('documents_aruco_seq') AS id`);
+        arucoId = Number(seq.rows[0].id);
+        if (arucoId > ARUCO_MAX_ID) {
+          return res.status(409).json({ error: `ID ArUco habis (maksimal ${ARUCO_MAX_ID})` });
+        }
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE documents SET po_number = $1, aruco_id = $2 WHERE id = $3 RETURNING id`,
+      [poNumber, arucoId, documentId],
+    );
+    if (!result.rows.length) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+
+    logger.info(`🔖 Dokumen #${documentId}: PO ${poNumber} -> ArUco ID ${arucoId}`);
+    res.json({ success: true, id: documentId, po_number: poNumber, aruco_id: arucoId });
+  } catch (err) {
+    sendServerError(res, err, "POST /api/documents/ingest/aruco");
   }
 });
 
@@ -204,7 +267,7 @@ router.get("/", async (req, res) => {
     const whereClause = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
 
     const dataQuery = `
-      SELECT id, jenis_dokumen, judul, ringkasan, file_name, created_at ${searchSelect}
+      SELECT id, jenis_dokumen, judul, ringkasan, file_name, po_number, aruco_id, created_at ${searchSelect}
       FROM documents
       ${whereClause}
       ORDER BY ${orderBy}
@@ -232,7 +295,7 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, jenis_dokumen, judul, informasi, tabel, ringkasan, catatan, file_name, created_at
+      `SELECT id, jenis_dokumen, judul, informasi, tabel, ringkasan, catatan, file_name, po_number, aruco_id, created_at
        FROM documents WHERE id = $1`,
       [req.params.id],
     );

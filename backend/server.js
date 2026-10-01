@@ -93,7 +93,9 @@ app.get("/api/health", async (_req, res) => {
 
 // Semua /api/* lainnya wajib login, KKECUALI /api/events (SSE)
 app.use("/api", (req, res, next) => {
-  if (req.path === "/events" || req.path === "/documents/ingest") return next();
+  // Route yang dipanggil n8n memakai x-ingest-key (bukan login user)
+  const PUBLIC_API_PATHS = ["/events", "/documents/ingest", "/documents/ingest/aruco"];
+  if (PUBLIC_API_PATHS.includes(req.path)) return next();
   return requireAuth(req, res, next);
 });
 
