@@ -30,20 +30,6 @@ app.use(cors({ origin: corsOrigins }));
 app.use((req, res, next) =>
   req.path === "/api/tracking/ingest" ? next() : express.json()(req, res, next),
 );
-// === DEBUG LOGGER ===
-app.use((req, res, next) => {
-  const start = Date.now();
-  console.log(`→ ${req.method} ${req.path}`);
-  res.on("finish", () => {
-    console.log(`← ${req.method} ${req.path} ${res.statusCode} (${Date.now() - start}ms)`);
-  });
-  res.on("close", () => {
-    if (!res.writableEnded) {
-      console.log(`✗ ${req.method} ${req.path} — CONNECTION CLOSED sebelum response selesai`);
-    }
-  });
-  next();
-});
 app.set("etag", false);
 
 app.use("/api", (_req, res, next) => {

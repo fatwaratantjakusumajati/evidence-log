@@ -68,7 +68,6 @@ function SettingsPage() {
   const isDarkMode = resolvedTheme === "dark";
 
   const t = useMemo(() => getSettingsPageColors(isDarkMode), [isDarkMode]);
-  // const currentUser = getCurrentUser();
 
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
