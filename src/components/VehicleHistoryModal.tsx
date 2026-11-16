@@ -2,7 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { X, Clock, Loader2, History, Box, MapPin, AlertCircle, ZoomIn } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-config";
 import { authFetch } from "@/lib/auth";
-import { formatDateTime, generateAutoDescription, classifyMuatanProcess } from "@/lib/evidence";
+import {
+  formatDateTime,
+  generateAutoDescription,
+  classifyMuatanProcess,
+  classifyAktivitas, // [AKTIVITAS]
+  classifyAktivitasFromEvents, // [AKTIVITAS]
+} from "@/lib/evidence";
 import { useState } from "react";
 
 type HistoryEvent = {
@@ -14,6 +20,7 @@ type HistoryEvent = {
   gambar_base64: string;
   kamera_nama?: string;
   status_muatan?: string;
+  status_aktivitas?: string | null; // [AKTIVITAS]
   track_id?: string;
   vehicle_id: string;
   plat_nomor?: string;
@@ -42,23 +49,7 @@ function dotColor(jenis?: string) {
   return "bg-slate-400";
 }
 
-function muatanBadgeInfo(status?: string) {
-  if (!status || status.trim() === "") return null;
-  if (status === "Bermuatan")
-    return {
-      text: status,
-      cls: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900/50",
-    };
-  if (status === "Kosong / bak tertutup")
-    return {
-      text: status,
-      cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50",
-    };
-  return {
-    text: status,
-    cls: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#1a1a14]/50 dark:text-slate-400 dark:border-[#2e2e25]",
-  };
-}
+// [AKTIVITAS] muatanBadgeInfo dihapus: badge status muatan per event diganti badge aktivitas.
 
 export function VehicleHistoryModal({
   vehicleId,
@@ -145,13 +136,16 @@ export function VehicleHistoryModal({
                     .sort(
                       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
                     );
+                  // [AKTIVITAS] status_aktivitas dari activity_estimator diutamakan; data lama (tanpa status_aktivitas)
+                  // tetap memakai klasifikasi lama dari status_muatan.
                   const process =
-                    isTrukHistory && muatanEvents.length >= 1
+                    (isTrukHistory ? classifyAktivitasFromEvents(data.events) : null) ??
+                    (isTrukHistory && muatanEvents.length >= 1
                       ? classifyMuatanProcess(
                           muatanEvents[0].status_muatan,
                           muatanEvents[muatanEvents.length - 1].status_muatan,
                         )
-                      : null;
+                      : null);
 
                   if (!process) return null;
 
@@ -174,12 +168,8 @@ export function VehicleHistoryModal({
                 <ol className="relative border-l border-[#e2e8f0] dark:border-[#2e2e25] ml-2 space-y-6">
                   {data.events.map((ev) => {
                     const isTruk = ev.jenis_kendaraan.includes("Truk");
-                    const isCam1OrCam3 =
-                      ev.kamera_nama &&
-                      (ev.kamera_nama === "Loading Kiri" || ev.kamera_nama === "Loading Kanan");
-
-                    const muatan =
-                      isTruk && isCam1OrCam3 ? muatanBadgeInfo(ev.status_muatan) : null;
+                    // [AKTIVITAS] badge per event: aktivitas menggantikan status muatan
+                    const aktivitasEv = isTruk ? classifyAktivitas(ev.status_aktivitas) : null;
 
                     return (
                       <li key={ev.id} className="ml-4">
@@ -232,23 +222,29 @@ export function VehicleHistoryModal({
                               {generateAutoDescription(ev)}
                             </p>
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {muatan && (
+                              {aktivitasEv && (
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold font-mono ${muatan.cls}`}
+                                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold font-mono ${
+                                    aktivitasEv.tone === "loading"
+                                      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900/50"
+                                      : aktivitasEv.tone === "unloading"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50"
+                                        : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#1a1a14]/50 dark:text-slate-400 dark:border-[#2e2e25]"
+                                  }`}
                                 >
-                                  <Box className="h-3 w-3" /> {muatan.text}
+                                  <Box className="h-3 w-3" /> {aktivitasEv.label}
                                 </span>
                               )}
                               {ev.plat_nomor ? (
                                 <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400 font-mono">
                                   📋 {ev.plat_nomor}
-                                  {ev.plat_confidence && (
+                                  {Number(ev.plat_confidence) > 0 && (
                                     <span className="opacity-70">
                                       ({Math.round(ev.plat_confidence * 100)}%)
                                     </span>
                                   )}
                                 </span>
-                              ) : (
+                              ) : ev.kamera_nama === "Loading Kiri" ? null : (
                                 <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400 font-mono">
                                   <AlertCircle className="h-3 w-3" /> Plat tidak terdeteksi
                                 </span>

@@ -91,12 +91,12 @@ type LiveNotification = {
   title: string;
   description: string;
   time: string; // ISO timestamp
-  kind: "vehicle" | "alert" | "camera" | "info";
+  kind: "vehicle" | "alert" | "camera" | "tracking" | "info";
 };
 
 // Payload dari backend bentuknya longgar (tergantung channel), jadi kita
 // baca secara defensif supaya tidak crash kalau ada field yang tidak ada.
-function buildNotificationFromPayload(channel: string, payload: any): LiveNotification {
+function buildNotificationFromPayload(channel: string, payload: any): LiveNotification | null {
   const now = new Date().toISOString();
   const id = `${channel}-${payload?.id ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -134,13 +134,58 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
         kind: "camera",
       };
     }
-    return {
-      id,
-      title: "Deteksi staging baru",
-      description: `Barang terdeteksi mengendap${kamera}.`,
-      time: payload?.timestamp || now,
-      kind: "alert",
-    };
+    // Staging sudah diganti tracking PO -> alert_log non-kamera tidak diumumkan lagi.
+    return null;
+  }
+
+  if (channel === "pallet_event") {
+    const type = String(payload?.event_type || "");
+    const outcome = String(payload?.outcome || "");
+    const po = payload?.po_number ? `PO ${payload.po_number}` : `Marker ID ${payload?.aruco_id ?? "?"}`;
+    const zone = payload?.zone || payload?.to_zone || payload?.from_zone || "-";
+    const time = payload?.timestamp || now;
+
+    if (type === "CAMERA_OFFLINE") {
+      return { id, title: "Kamera offline", description: `Kamera — ${zone} terpantau offline.`, time, kind: "camera" };
+    }
+    if (type === "CAMERA_ONLINE") {
+      return { id, title: "Kamera kembali online", description: `Kamera — ${zone} sudah normal kembali.`, time, kind: "camera" };
+    }
+    if (type === "MISSING") {
+      if (outcome === "COMPLETED_OUTBOUND") {
+        return { id, title: "Pallet selesai (outbound)", description: `${po} keluar lewat zona ${zone}.`, time, kind: "tracking" };
+      }
+      if (outcome === "NEEDS_APPROVAL") {
+        return {
+          id,
+          title: "Pallet hilang — perlu ACC",
+          description: `${po} hilang dari zona ${zone}. Buka Tracking PO untuk menyetujui selesai.`,
+          time,
+          kind: "alert",
+        };
+      }
+      return { id, title: "Marker hilang", description: `${po} hilang dari zona ${zone}.`, time, kind: "alert" };
+    }
+    if (type === "RETURNED") {
+      const batal = outcome === "APPROVAL_CANCELLED" ? " Permintaan ACC dibatalkan." : "";
+      return { id, title: "Pallet terlihat kembali", description: `${po} muncul lagi di zona ${zone}.${batal}`, time, kind: "tracking" };
+    }
+    if (type === "MOVED_ZONE") {
+      return {
+        id,
+        title: "Pallet pindah zona",
+        description: `${po}: ${payload?.from_zone ?? "?"} → ${payload?.to_zone ?? "?"}`,
+        time,
+        kind: "tracking",
+      };
+    }
+    if (type === "NEW") {
+      return { id, title: "Pallet baru terbaca", description: `${po} terbaca di zona ${zone}.`, time, kind: "tracking" };
+    }
+    if (type === "APPROVED") {
+      const oleh = payload?.approved_by ? ` oleh ${payload.approved_by}` : "";
+      return { id, title: "Pallet disetujui selesai", description: `${po} di-ACC${oleh}.`, time, kind: "tracking" };
+    }
   }
 
   return {
@@ -302,7 +347,7 @@ function BreadcrumbNav() {
     if (segment === "dashboard") return "Dashboard";
     if (segment === "vehicles") return "Kendaraan";
     if (segment === "cameras") return "Kamera";
-    if (segment === "staging") return "Staging";
+    if (segment === "tracking") return "Tracking PO";
     if (segment === "documents") return "Dokumen";
     if (segment === "settings") return "Pengaturan";
     if (segment === "live") return "Live Feed";
@@ -446,10 +491,11 @@ function RootComponent() {
         if (!channel) return;
 
         const notif = buildNotificationFromPayload(channel, payload);
+        if (!notif) return;
         setNotifications((prev) => [notif, ...prev].slice(0, 30));
         setUnreadCount((prev) => prev + 1);
 
-        if (notif.kind === "camera") {
+        if (notif.kind === "camera" || notif.kind === "alert") {
           toast.warning(notif.title, { description: notif.description });
         } else {
           toast(notif.title, { description: notif.description });
@@ -557,6 +603,11 @@ function RootComponent() {
 
   // Download laporan (DIMODIFIKASI untuk mendukung format)
   const [isDownloading, setIsDownloading] = useState(false);
+  // PERBAIKAN: state terpisah untuk laporan Harian/Mingguan/Bulanan (modal).
+  // Sebelumnya modal memakai `isDownloading` yang sama dengan Laporan Lengkap,
+  // jadi kalau unduhan Laporan Lengkap (file besar) masih jalan/macet, tombol
+  // Download di modal ikut terkunci ("Mendownload...") sampai halaman di-refresh.
+  const [isDownloadingPeriodic, setIsDownloadingPeriodic] = useState(false);
 
   const handleDownload = async () => {
     let baseUrl = "";
@@ -573,14 +624,15 @@ function RootComponent() {
     // NEW: Tambahkan parameter format
     const url = `${baseUrl}&format=${exportFormat}`;
 
-    setIsDownloading(true);
+    setIsDownloadingPeriodic(true);
 
     try {
       await downloadFile(url, `laporan_${reportType}.${exportFormat}`);
     } catch (err) {
       toast.error("Gagal mengunduh laporan.");
+      console.error(err);
     } finally {
-      setIsDownloading(false);
+      setIsDownloadingPeriodic(false);
       setDateModalOpen(false);
     }
   };
@@ -726,10 +778,10 @@ function RootComponent() {
                 </button>
                 <button
                   onClick={handleDownload}
-                  disabled={isDownloading}
+                  disabled={isDownloadingPeriodic}
                   className="px-4 py-2 text-sm font-medium bg-[#4338ca] text-white hover:bg-[#3730a3] rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isDownloading ? (
+                  {isDownloadingPeriodic ? (
                     <>
                       <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                       Mendownload...
@@ -843,7 +895,7 @@ function SidebarNav({
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/logs/vehicles", label: "Kendaraan", icon: Car },
-    { to: "/logs/staging", label: "Staging", icon: Boxes },
+    { to: "/logs/tracking", label: "Tracking PO", icon: Boxes },
     { to: "/logs/cameras", label: "Kamera", icon: Camera },
     { to: "/logs/documents", label: "Dokumen", icon: FileText },
   ];
@@ -921,9 +973,13 @@ function SidebarNav({
                   className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
                     n.kind === "camera"
                       ? "bg-orange-500"
-                      : n.kind === "vehicle"
-                        ? "bg-[#4f46e5]"
-                        : "bg-slate-400"
+                      : n.kind === "alert"
+                        ? "bg-red-500"
+                        : n.kind === "tracking"
+                          ? "bg-amber-500"
+                          : n.kind === "vehicle"
+                            ? "bg-[#4f46e5]"
+                            : "bg-slate-400"
                   }`}
                 />
                 <div className="min-w-0">

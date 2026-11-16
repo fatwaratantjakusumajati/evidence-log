@@ -1,19 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import { subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { API_BASE_URL } from "@/lib/api-config";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { authFetch } from "@/lib/auth";
-import { EscalationRiskCard } from "@/components/EscalationRiskCard";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -28,7 +23,6 @@ import {
   NotebookText,
   Calendar,
   Box,
-  Clock,
   X,
   MapPin,
   Flag,
@@ -36,14 +30,18 @@ import {
   RotateCcw,
   Loader2,
   History,
-  Calendar as CalendarIcon,
   CalendarRange,
   ShipWheel,
   ArrowRight,
-  TrendingUp,
   VideoOff,
 } from "lucide-react";
-import { formatDateTime, generateAutoDescription, classifyMuatanProcess } from "@/lib/evidence";
+import {
+  formatDateTime,
+  generateAutoDescription,
+  classifyMuatanProcess,
+  classifyAktivitas, // [AKTIVITAS]
+  classifyAktivitasFromEvents, // [AKTIVITAS]
+} from "@/lib/evidence";
 import { VehicleHistoryModal } from "@/components/VehicleHistoryModal";
 import {
   Breadcrumb,
@@ -71,55 +69,49 @@ type VehicleLog = {
   created_at: string;
   is_false_positive?: boolean;
   status_muatan?: string | null;
+  status_aktivitas?: string | null; // [AKTIVITAS]
   jenis_kejadian?: string;
   track_id?: number;
   vehicle_id?: string | null;
   plat_nomor?: string | null;
   plat_confidence?: number | null;
 };
-type StagingDetection = {
+type TrackingEvent = {
   id: number;
-  camera: string;
-  class_name: string | null;
-  duration: number;
-  timestamp: string;
-  foto_base64: string;
-  file_name: string;
-  alert_level: string;
-  created_at: string;
-  alert_sent_1: boolean;
-  alert_sent_2: boolean;
-  alert_sent_3: boolean;
-  first_detected: string;
+  event_time: string;
+  event_type: string;
+  aruco_id: number;
+  zone: string;
+  from_zone: string | null;
+  to_zone: string | null;
+  po_number: string | null;
+  pallet_id: number | null;
 };
+type TrackingSummary = {
+  po_aktif: number;
+  po_perlu_acc: number;
+  total_pallet: number;
+  present: number;
+  missing: number;
+  unseen: number;
+  pending_approval: number;
+  moved_today: number;
+};
+const TRACKING_EVENT_LABEL: Record<string, string> = {
+  NEW: "Pertama terbaca",
+  MOVED_ZONE: "Pindah zona",
+  MOVED_POS: "Bergeser posisi",
+  MISSING: "Hilang",
+  RETURNED: "Terlihat kembali",
+  COMPLETED_OUTBOUND: "Selesai (outbound)",
+  APPROVED: "Disetujui selesai",
+};
+function trackingZoneText(e: TrackingEvent) {
+  if (e.event_type === "MOVED_ZONE") return `${e.from_zone ?? "?"} → ${e.to_zone ?? "?"}`;
+  return e.zone || e.to_zone || e.from_zone || "-";
+}
 type CameraOfflineEvent = { id: number; camera: string; class_name: string; created_at: string };
 type VehicleIntervalRaw = { hour: string; jenis_kendaraan: string; total: number };
-
-const CHART_COLORS = {
-  blue: "#3b82f6",
-  orange: "#f97316",
-  purple: "#a855f7",
-  red: "#ef4444",
-  gray: "#6b7280",
-};
-
-// PERBAIKAN: sebelumnya chart dipecah per JAM (24 titik), padahal deteksi
-// kendaraan nyatanya cuma tercatat tiap ± 2-3 jam -- membuat chart didominasi
-// garis datar di nol. Sekarang dikelompokkan jadi bucket 3 jam (8 titik),
-// setiap bucket menjumlahkan aktivitas nyata dalam rentang itu.
-const BUCKET_SIZE_HOURS = 3;
-const REPORT_BUCKETS = Array.from({ length: 24 / BUCKET_SIZE_HOURS }, (_, i) => {
-  const startH = i * BUCKET_SIZE_HOURS;
-  const endH = startH + BUCKET_SIZE_HOURS;
-  return `${String(startH).padStart(2, "0")}-${String(endH).padStart(2, "0")}`;
-});
-
-function colorForClass(name: string) {
-  const lower = name.toLowerCase();
-  if (lower.includes("truk")) return CHART_COLORS.orange;
-  if (lower.includes("mobil")) return CHART_COLORS.blue;
-  return CHART_COLORS.purple;
-}
 
 type HourlyBin = {
   hour: number;
@@ -221,31 +213,6 @@ function formatRecentTime(iso: string) {
   return { time, dateLabel };
 }
 
-function formatDurationFromSeconds(totalSeconds: number | string) {
-  const detik = typeof totalSeconds === "string" ? parseInt(totalSeconds, 10) : totalSeconds;
-  const days = Math.floor(detik / 86400);
-  const hours = Math.floor((detik % 86400) / 3600);
-  const minutes = Math.floor((detik % 3600) / 60);
-  if (days > 0) return `${days} hari ${hours} jam`;
-  if (hours > 0) return `${hours} jam ${minutes} menit`;
-  return `${minutes} menit`;
-}
-
-function fillWeeklyGaps(raw: { day: string; barang: number }[]) {
-  const DAY_ABBR = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-  const getLast7DayLabels = () => {
-    const labels: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      labels.push(DAY_ABBR[d.getDay()]);
-    }
-    return labels;
-  };
-  const byDay = new Map(raw.map((r) => [r.day, Number(r.barang)]));
-  return getLast7DayLabels().map((day) => ({ day, barang: byDay.get(day) ?? 0 }));
-}
-
 function BreadcrumbNavInside() {
   return (
     <Breadcrumb className="mb-4">
@@ -277,7 +244,7 @@ export const Route = createFileRoute("/dashboard")({
       { title: "Dashboard · Control Room" },
       {
         name: "description",
-        content: "Dashboard pemantauan deteksi barang, kamera, dan kendaraan.",
+        content: "Dashboard pemantauan tracking PO, kamera, dan kendaraan.",
       },
     ],
   }),
@@ -311,9 +278,11 @@ function Dashboard() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const queryClient = useQueryClient();
-
-  const [selectedStaging, setSelectedStaging] = useState<StagingDetection | null>(null);
-  const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+  const navigate = useNavigate();
+  const goTracking = () => navigate({ to: "/logs/tracking" });
+  const [trackingDetail, setTrackingDetail] = useState<TrackingEvent | null>(null);
+  // Popup detail untuk kartu "Tracking PO" (per nomor PO, bukan per kejadian)
+  const [trackingPoDetail, setTrackingPoDetail] = useState<string | null>(null);
 
   const mutationToggleFalsePositive = useMutation({
     mutationFn: async ({ id, value }: { id: number; value: boolean }) => {
@@ -345,7 +314,7 @@ function Dashboard() {
   // bersamaan ke endpoint yang sama, memboroskan slot koneksi browser (yang
   // dibatasi per origin) dan berkontribusi ke masalah reconnect yang lambat/flaky.
 
-  const { data: vehicles = [] } = useQuery<VehicleLog[]>({
+  const { data: vehicles = [], dataUpdatedAt: vehiclesAt } = useQuery<VehicleLog[]>({
     queryKey: ["vehicle_log", "preview", filterClass, startDate, endDate],
     meta: { showErrorToast: true, errorLabel: "Log Kendaraan" },
     queryFn: async () => {
@@ -360,20 +329,50 @@ function Dashboard() {
     },
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const { data: stagings = [] } = useQuery<StagingDetection[]>({
-    queryKey: ["staging_detections", "preview", startDate, endDate],
-    meta: { showErrorToast: true, errorLabel: "Deteksi Barang" },
+  const { data: trackingEvents = [], dataUpdatedAt: eventsAt } = useQuery<TrackingEvent[]>({
+    queryKey: ["tracking_events", "preview", startDate, endDate],
+    meta: { showErrorToast: true, errorLabel: "Tracking PO" },
+    refetchInterval: 15000,
     queryFn: async () => {
-      const params = new URLSearchParams({ class_name: "box", limit: "4" });
+      const params = new URLSearchParams({ limit: "4" });
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
-      const res = await authFetch(`${API_BASE_URL}/api/alerts?${params}`);
+      const res = await authFetch(`${API_BASE_URL}/api/tracking/events?${params}`);
       if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
       const json = await res.json();
-      return json.data || (Array.isArray(json) ? json : []);
+      return Array.isArray(json) ? json : json.data || [];
     },
   });
-  const { data: offlineCams = [] } = useQuery<CameraOfflineEvent[]>({
+  // Kartu "Tracking PO": SATU baris = SATU PO (ringkasan gabungan semua pallet-nya),
+  // bukan daftar kejadian. Sudah terurut dari backend: PO yang perlu ACC dulu,
+  // lalu yang kejadiannya paling baru.
+  const { data: trackingPos = [], dataUpdatedAt: posAt } = useQuery<QuickPoRow[]>({
+    queryKey: ["tracking_pos", "preview"],
+    meta: { showErrorToast: true, errorLabel: "Tracking PO" },
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: String(PREVIEW_LIMIT) });
+      const res = await authFetch(`${API_BASE_URL}/api/tracking/pos?${params}`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      const json = await res.json();
+      return json?.data || [];
+    },
+  });
+  const {
+    data: trackingSummary,
+    isLoading: isTrackingSummaryLoading,
+    dataUpdatedAt: summaryAt,
+  } = useQuery<TrackingSummary>({
+    queryKey: ["tracking_summary"],
+    meta: { showErrorToast: true, errorLabel: "Ringkasan Tracking PO" },
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const res = await authFetch(`${API_BASE_URL}/api/tracking/summary`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      return res.json();
+    },
+  });
+  const { data: offlineCams = [], dataUpdatedAt: camsAt } = useQuery<CameraOfflineEvent[]>({
     queryKey: ["camera_offline_events", "preview", startDate, endDate],
     meta: { showErrorToast: true, errorLabel: "Status Kamera" },
     queryFn: async () => {
@@ -386,7 +385,11 @@ function Dashboard() {
       return json.data || (Array.isArray(json) ? json : []);
     },
   });
-  const { data: vehicleIntervalRaw = [], isLoading: isVehicleIntervalLoading } = useQuery<
+  const {
+    data: vehicleIntervalRaw = [],
+    isLoading: isVehicleIntervalLoading,
+    dataUpdatedAt: intervalAt,
+  } = useQuery<
     VehicleIntervalRaw[]
   >({
     queryKey: ["vehicle_interval", startDate, endDate],
@@ -402,23 +405,11 @@ function Dashboard() {
       return res.json() as Promise<VehicleIntervalRaw[]>;
     },
   });
-  const { data: detectionData = [], isLoading: isDetectionLoading } = useQuery<
-    { day: string; barang: number }[]
-  >({
-    queryKey: ["detection_weekly", startDate, endDate],
-    meta: { showErrorToast: true, errorLabel: "Statistik Deteksi" },
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (startDate) params.append("start_date", startDate);
-      if (endDate) params.append("end_date", endDate);
-      const qs = params.toString();
-      const url = `${API_BASE_URL}/api/alerts/stats/weekly${qs ? `?${qs}` : ""}`;
-      const res = await authFetch(url);
-      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
-      return res.json();
-    },
-  });
-  const { data: cameraStats, isLoading: isCameraStatsLoading } = useQuery<{ mati: number }>({
+  const {
+    data: cameraStats,
+    isLoading: isCameraStatsLoading,
+    dataUpdatedAt: camStatsAt,
+  } = useQuery<{ mati: number }>({
     queryKey: ["camera_status", startDate, endDate],
     // PENTING: sebelumnya kegagalan fetch di sini mengembalikan { mati: 0 },
     // yang berarti "0 kamera mati" ditampilkan ke dashboard walau requestnya
@@ -440,9 +431,11 @@ function Dashboard() {
   const todayBreakdown = useMemo(() => {
     let mobil = 0,
       truk = 0;
+    // Aturan yang sama dengan buildHourlyFromStats: mengandung "Truk" = Truk, selain itu Mobil.
     vehicleIntervalRaw.forEach((item) => {
-      if (item.jenis_kendaraan === "Mobil") mobil += item.total;
-      else if (item.jenis_kendaraan === "Truk") truk += item.total;
+      const n = Number(item.total) || 0;
+      if ((item.jenis_kendaraan || "").includes("Truk")) truk += n;
+      else mobil += n;
     });
     return { mobil, truk };
   }, [vehicleIntervalRaw]);
@@ -482,11 +475,11 @@ function Dashboard() {
     return result;
   }, [filteredVehicles]);
 
-  // Feed "Log Terbaru": gabungan 3 sumber (kendaraan, staging, kamera
+  // Feed "Log Terbaru": gabungan 3 sumber (kendaraan, tracking PO, kamera
   // offline), MURNI diurutkan dari yang paling baru -- tidak ada
   // "pemaksaan" supaya tiap kategori kebagian slot. Kalau kebetulan 4
   // aktivitas paling baru semuanya kendaraan, ya ditampilkan begitu apa
-  // adanya; kalau tidak ada staging/kamera yang cukup baru, tidak akan
+  // adanya; kalau tidak ada tracking/kamera yang cukup baru, tidak akan
   // dipaksakan muncul.
   const recentActivity = useMemo(() => {
     type ActivityItem = {
@@ -497,6 +490,7 @@ function Dashboard() {
       detail?: string;
       accent: Accent;
       icon: React.ReactNode;
+      onSelect: () => void;
     };
 
     // FIX: sebelumnya feed ini memakai EVENT mentah (tiap baris vehicle_log),
@@ -517,17 +511,20 @@ function Dashboard() {
         detail: masuk.plat_nomor || latest.plat_nomor || masuk.kamera_nama || undefined,
         accent: isTruk ? "orange" : "blue",
         icon: isTruk ? <Truck className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />,
+        onSelect: () =>
+          g.events.length >= 2 ? setHistoryVehicleId(g.key) : setSelectedVehicle(g.events[0]),
       };
     });
 
-    const stagingItems: ActivityItem[] = stagings.map((s) => ({
-      id: `staging-${s.id}`,
-      time: s.created_at,
-      label: "Box",
-      category: "Staging",
-      detail: s.camera || undefined,
-      accent: "amber",
+    const trackingItems: ActivityItem[] = trackingEvents.map((e) => ({
+      id: `tracking-${e.id}`,
+      time: e.event_time,
+      label: TRACKING_EVENT_LABEL[e.event_type] ?? e.event_type,
+      category: "Tracking",
+      detail: `${e.po_number ?? `Marker ${e.aruco_id}`} · ${trackingZoneText(e)}`,
+      accent: e.event_type === "MISSING" ? "rose" : "amber",
       icon: <Package className="h-3.5 w-3.5" />,
+      onSelect: () => setTrackingDetail(e),
     }));
 
     const cameraItems: ActivityItem[] = offlineCams.map((c) => ({
@@ -538,19 +535,29 @@ function Dashboard() {
       detail: c.camera || undefined,
       accent: "rose",
       icon: <VideoOff className="h-3.5 w-3.5" />,
+      onSelect: () => navigate({ to: "/logs/cameras" }),
     }));
 
-    return [...vehicleItems, ...stagingItems, ...cameraItems]
+    return [...vehicleItems, ...trackingItems, ...cameraItems]
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, PREVIEW_LIMIT);
-  }, [groupedVehicles, stagings, offlineCams]);
+  }, [groupedVehicles, trackingEvents, offlineCams, navigate]);
 
   const vehicleHourly = useMemo(
     () => buildHourlyFromStats(vehicleIntervalRaw),
     [vehicleIntervalRaw],
   );
-  const totalDetections = detectionData.reduce((s, d) => s + Number(d.barang), 0);
   const camerasDown = Number(cameraStats?.mati ?? 0);
+  // Waktu terakhir browser berhasil mengambil data dari server (yang terbaru di antara semua query halaman ini)
+  const lastUpdatedAt = Math.max(
+    vehiclesAt,
+    eventsAt,
+    posAt,
+    summaryAt,
+    camsAt,
+    intervalAt,
+    camStatsAt,
+  );
   const totalVehicles = vehicleIntervalRaw.reduce((s, r) => s + r.total, 0);
 
   return (
@@ -563,42 +570,15 @@ function Dashboard() {
               Dashboard Pemantauan
             </h1>
             <p className="text-sm font-mono mt-1 text-slate-500 dark:text-slate-400">
-              Aktivitas staging, kendaraan, & kamera
+              Aktivitas tracking PO, kendaraan, & kamera
             </p>
           </div>
+          <LastUpdated at={lastUpdatedAt} />
         </div>
       </div>
 
       <div className="mx-auto max-w-[1680px] px-6 py-6">
-        {/* Filter Date */}
-        {/* <div className="mb-8 flex flex-wrap items-center gap-3 p-3 rounded-xl border shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
-          <span className="text-xs font-medium font-mono text-slate-500 dark:text-slate-400">
-            Periode:
-          </span>
-          <div className="flex items-center gap-2">
-            <DateRangeFilter
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(start, end) => {
-                setStartDate(start);
-                setEndDate(end);
-              }}
-            />
-
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="h-7 rounded-full px-3 text-[10px] font-medium transition-colors hover:opacity-80 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400"
-              >
-                Reset Filter
-              </button>
-            )}
-          </div>
-        </div> */}
-        <div className="realtive z-20 mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#2e2e25] dark:bg-[#13130e]">
+        <div className="relative z-20 mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-[#2e2e25] dark:bg-[#13130e]">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
@@ -626,32 +606,27 @@ function Dashboard() {
         </div>
         {/* KPI Cards */}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-          {/* Deteksi Staging: total alert class_name='box' dari alert_log,
-              dalam rentang tanggal terpilih (default 7 hari terakhir) —
-              sumbernya sama dengan chart "Deteksi Kendaraan" (stats/weekly),
-              BUKAN dari daftar preview stagings (yang cuma barang diam >= 3 hari). */}
+          {/* PO Aktif: ringkasan posisi saat ini dari /api/tracking/summary
+              (bukan hitungan per rentang tanggal). */}
           <KpiCard
             icon={
               <div className="relative flex items-center justify-center">
-                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 z-10" />
-                {totalDetections > 0 && (
+                <Boxes className="h-5 w-5 text-amber-600 dark:text-amber-400 z-10" />
+                {(trackingSummary?.pending_approval ?? 0) > 0 && (
                   <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-500/20"></span>
                 )}
               </div>
             }
             accent="amber"
-            label="Deteksi Staging"
-            value={String(totalDetections)}
+            label="PO Aktif"
+            value={String(trackingSummary?.po_aktif ?? 0)}
             hint={
-              startDate || endDate
-                ? "Alert box · rentang tanggal terpilih"
-                : "Alert box · 7 hari terakhir"
+              trackingSummary
+                ? `${trackingSummary.total_pallet} pallet${trackingSummary.pending_approval > 0 ? ` · ${trackingSummary.pending_approval} perlu ACC` : ` · ${trackingSummary.missing} hilang`}`
+                : "Memuat…"
             }
-            trend={startDate || endDate ? undefined : "7 hari"}
-            sparklineData={
-              detectionData.length > 1 ? detectionData.map((d) => Number(d.barang)) : undefined
-            }
-            isLoading={isDetectionLoading}
+            isLoading={isTrackingSummaryLoading}
+            onClick={() => goTracking()}
           />
           <KpiCard
             icon={
@@ -668,9 +643,12 @@ function Dashboard() {
             label="Status Kamera"
             value={camerasDown === 0 ? "100% Online" : `${camerasDown} Offline`}
             hint={
-              camerasDown === 0 ? `22/22 Kamera Beroperasi` : `dari ${TOTAL_CAMERAS} total kamera`
+              camerasDown === 0
+                ? `${TOTAL_CAMERAS}/${TOTAL_CAMERAS} Kamera Beroperasi`
+                : `dari ${TOTAL_CAMERAS} total kamera`
             }
             isLoading={isCameraStatsLoading}
+            onClick={() => navigate({ to: "/logs/cameras" })}
           />
           {/* Total Kendaraan */}
           <KpiCardBreakdown
@@ -678,8 +656,9 @@ function Dashboard() {
             accent="blue"
             label="Total Kendaraan"
             breakdown={todayBreakdown}
-            hint="Terekam hari ini"
+            hint={startDate || endDate ? "Pada periode terpilih" : "Terekam hari ini"}
             isLoading={isVehicleIntervalLoading}
+            onClick={() => navigate({ to: "/logs/vehicles" })}
           />
           {/* Log Terbaru: feed kecil, bukan angka — biar tetap informatif
               tanpa harus mendefinisikan ulang arti "pelanggaran" */}
@@ -933,7 +912,7 @@ function Dashboard() {
                       const keluar =
                         group.events.find(
                           (e) =>
-                            e.jenis_kejadian === "SIKLUS_KEJADIAN" || e.jenis_kejadian === "KELUAR",
+                            e.jenis_kejadian === "SIKLUS_SELESAI" || e.jenis_kejadian === "KELUAR",
                         ) || group.events[group.events.length - 1];
                       const platNomor = masuk.plat_nomor || keluar.plat_nomor;
 
@@ -944,19 +923,22 @@ function Dashboard() {
                           (a, b) =>
                             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
                         );
+                      // [AKTIVITAS] status_aktivitas dari activity_estimator diutamakan; data lama (tanpa status_aktivitas)
+                      // tetap memakai klasifikasi lama dari status_muatan.
                       const muatanProcessPrev =
-                        isTrukGroup && muatanEventsPrev.length >= 1
+                        (isTrukGroup ? classifyAktivitasFromEvents(group.events) : null) ??
+                        (isTrukGroup && muatanEventsPrev.length >= 1
                           ? classifyMuatanProcess(
                               muatanEventsPrev[0].status_muatan,
                               muatanEventsPrev[muatanEventsPrev.length - 1].status_muatan,
                             )
-                          : null;
+                          : null);
 
                       return (
                         <div
                           key={group.key}
                           onClick={() => setHistoryVehicleId(group.key)}
-                          className="flex gap-3.5 items-center p-3 rounded-xl order border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:bg-indigo-50/30 dark:hover-indigo-950/20 transition-all duration-200 shadow-sm"
+                          className="flex gap-3.5 items-center p-3 rounded-xl border border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all duration-200 shadow-sm"
                         >
                           <div className="flex flex-shrink-0 gap-1">
                             <div className="viewfinder relative rounded overflow-hidden">
@@ -1033,23 +1015,21 @@ function Dashboard() {
                     const isCam1 = v.kamera_nama === "Loading Kiri";
 
                     let muatanBadge = null;
-                    if (isTruk && isCam1) {
-                      const status = v.status_muatan || "";
-                      let textColor = "text-slate-500 dark:text-slate-400";
-                      let displayText = status || "Tidak dapat dipastikan";
-
-                      if (status === "Bermuatan") {
-                        textColor = "text-orange-600 dark:text-orange-400";
-                      } else if (status === "Kosong / bak tertutup") {
-                        textColor = "text-emerald-700 dark:text-emerald-400";
-                      }
-
+                    // [AKTIVITAS] badge aktivitas menggantikan badge status muatan
+                    const aktivitasV = isTruk ? classifyAktivitas(v.status_aktivitas) : null;
+                    if (aktivitasV) {
+                      const textColor =
+                        aktivitasV.tone === "loading"
+                          ? "text-orange-600 dark:text-orange-400"
+                          : aktivitasV.tone === "unloading"
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : "text-slate-500 dark:text-slate-400";
                       muatanBadge = (
                         <span
                           className={`inline-flex items-center gap-1 text-[11px] font-medium mt-0.5 ${textColor}`}
                         >
                           <Box className="h-3 w-3" />
-                          {displayText}
+                          {aktivitasV.label}
                         </span>
                       );
                     }
@@ -1062,7 +1042,7 @@ function Dashboard() {
                         </span>
                       );
                     } else if (
-                      v.jenis_kejadian === "SIKLUS_KEJADIAN" ||
+                      v.jenis_kejadian === "SIKLUS_SELESAI" ||
                       v.jenis_kejadian === "KELUAR"
                     ) {
                       statusKejadianBadge = (
@@ -1123,65 +1103,108 @@ function Dashboard() {
           <div className="rounded-xl border p-5 shadow-sm transition-colors duration-300 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25]">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold flex items-center gap-2 font-space text-slate-900 dark:text-slate-100">
-                <Boxes className="h-4 w-4 text-slate-500 dark:text-slate-400" /> Deteksi Staging
+                <Boxes className="h-4 w-4 text-slate-500 dark:text-slate-400" /> Tracking PO
               </span>
               <Link
-                to="/logs/staging"
+                to="/logs/tracking"
                 className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-[#26261e] dark:bg-[#13130e]/60 dark:text-slate-400 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
               >
                 <span>Lihat semua</span>
                 <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-600 dark:text-slate-500 dark:group-hover:text-indigo-400" />
               </Link>
             </div>
-            {stagings.length === 0 ? (
+            {trackingPos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Boxes className="h-12 w-12 mb-3 text-slate-400" strokeWidth={1.5} />
                 <h4 className="text-base font-semibold font-space text-slate-700 dark:text-slate-300">
-                  Belum Ada Staging
+                  Belum Ada PO Aktif
                 </h4>
                 <p className="mt-1 text-sm font-mono text-slate-500 dark:text-slate-400">
-                  Belum ada barang staging yang terdeteksi
+                  PO muncul setelah dokumen dipindai dan marker ditempel
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {stagings.slice(0, PREVIEW_LIMIT).map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex gap-3.5 items-center p-3 rounded-xl border border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 hover:bg-slate-100/50 dark:hover:bg-[#1a1a14]/40 transition-all duration-200 shadow-sm"
-                  >
-                    <div className="viewfinder relative flex-shrink-0 rounded overflow-hidden">
-                      <span className="vf-tr" />
-                      <span className="vf-bl" />
-                      <img
-                        src={`data:image/jpeg;base64,${s.foto_base64}`}
-                        className="h-14 w-20 rounded object-cover bg-slate-100 dark:bg-[#22221a]"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium truncate text-slate-900 dark:text-slate-100">
-                          {s.class_name ?? "Box"}
-                        </p>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400 shrink-0">
-                          <Clock className="h-3 w-3" />
-                          {formatDurationFromSeconds(s.duration)}
-                        </span>
+                {trackingPos.slice(0, PREVIEW_LIMIT).map((po) => {
+                  const chips = quickPoChips(po);
+                  const zones = zoneCountsQuick(po.zones);
+                  const urgent = po.pending_approval > 0;
+                  const done = po.active_pallet === 0;
+                  return (
+                    <div
+                      key={po.document_id}
+                      onClick={() => setTrackingPoDetail(po.po_number)}
+                      className="flex gap-3.5 items-center p-3 rounded-xl border border-slate-100 dark:border-[#26261e]/80 bg-slate-50/50 dark:bg-[#13130e]/40 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-[#1a1a14]/40 transition-all duration-200 shadow-sm"
+                    >
+                      <div
+                        className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg ${
+                          urgent
+                            ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                            : done
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        <Package className="h-6 w-6" />
                       </div>
-                      {s.camera && (
-                        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                          <MapPin className="h-3 w-3" /> {s.camera}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium truncate text-slate-900 dark:text-slate-100">
+                            {po.po_number ?? "PO tidak diketahui"}
+                          </p>
+                          <span className="shrink-0 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            {po.active_pallet > 0
+                              ? `${po.active_pallet} pallet aktif${po.completed_pallet > 0 ? ` · ${po.completed_pallet} selesai` : ""}`
+                              : `${po.completed_pallet} pallet selesai`}
+                          </span>
+                        </div>
+
+                        {chips.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {chips.map((c) => (
+                              <span
+                                key={c.label}
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold font-mono ${c.cls}`}
+                              >
+                                {c.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          {zones.length > 0 ? (
+                            zones.map(([z, n]) => (
+                              <span key={z} className="inline-flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {z}
+                                {zones.length > 1 || n > 1 ? (
+                                  <span className="font-mono text-slate-400 dark:text-slate-500">
+                                    ×{n}
+                                  </span>
+                                ) : null}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {done ? "Selesai" : "Belum ada posisi"}
+                            </span>
+                          )}
+                          {po.zone_moves > 0 && <span>{po.zone_moves}× pindah zona</span>}
+                        </div>
+
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          {done
+                            ? po.completed_at
+                              ? `Selesai ${timeAgo(po.completed_at)}`
+                              : "Selesai"
+                            : po.last_event_time
+                              ? `Kejadian terakhir ${timeAgo(po.last_event_time)} · ${formatDateTime(po.last_event_time)}`
+                              : "Belum ada kejadian"}
                         </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-x-3 text-[11px] mt-0.5 text-slate-500 dark:text-slate-400">
-                        <span>
-                          Mulai: {s.first_detected ? formatDateTime(s.first_detected) : "-"}
-                        </span>
-                        <span>Alert: {formatDateTime(s.timestamp)}</span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1215,7 +1238,8 @@ function Dashboard() {
               {offlineCams.slice(0, PREVIEW_LIMIT).map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50"
+                  onClick={() => navigate({ to: "/logs/cameras" })}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
                 >
                   <span className="text-sm font-medium font-mono text-red-700 dark:text-red-400">
                     {c.camera}
@@ -1280,29 +1304,35 @@ function Dashboard() {
                   </div>
                 </div>
 
-                {/* LOGIKA MUATAN DI MODAL */}
-                {selectedVehicle.jenis_kendaraan.includes("Truk") && (
-                  <div
-                    className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50" : "bg-[#f1f5f9] dark:bg-[#13130e] border-[#e2e8f0] dark:border-[#2e2e25]"}`}
-                  >
-                    <Box
-                      className={`h-5 w-5 ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "text-[#ea580c] dark:text-[#f97316]" : "text-[#64748b] dark:text-[#94a3b8]"}`}
-                    />
-                    <div>
-                      <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
-                        Muatan Terdeteksi
-                      </p>
-                      <p
-                        className={`text-sm font-semibold font-mono ${selectedVehicle.status_muatan && selectedVehicle.status_muatan.trim() !== "" ? "text-[#ea580c] dark:text-[#f97316]" : "text-[#64748b] dark:text-[#94a3b8]"}`}
-                      >
-                        {selectedVehicle.status_muatan &&
-                        selectedVehicle.status_muatan.trim() !== ""
-                          ? selectedVehicle.status_muatan
-                          : "Kosong"}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {/* [AKTIVITAS] Kotak aktivitas (Loading / Unloading) menggantikan kotak "Muatan Terdeteksi" */}
+                {selectedVehicle.jenis_kendaraan.includes("Truk") &&
+                  (() => {
+                    const akt = classifyAktivitas(selectedVehicle.status_aktivitas);
+                    if (!akt) return null;
+                    const warna =
+                      akt.tone === "loading"
+                        ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50"
+                        : akt.tone === "unloading"
+                          ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50"
+                          : "bg-slate-50 dark:bg-[#1a1a14]/40 border-slate-200 dark:border-[#2e2e25]";
+                    const teks =
+                      akt.tone === "loading"
+                        ? "text-[#ea580c] dark:text-[#f97316]"
+                        : akt.tone === "unloading"
+                          ? "text-[#15803d] dark:text-[#34d399]"
+                          : "text-[#64748b] dark:text-[#94a3b8]";
+                    return (
+                      <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}>
+                        <Box className={`h-5 w-5 ${teks}`} />
+                        <div>
+                          <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
+                            Aktivitas Terdeteksi
+                          </p>
+                          <p className={`text-sm font-semibold font-mono ${teks}`}>{akt.label}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
               </div>
 
               {/* AUTO-GENERATED PARAGRAPH — sama seperti di halaman Kendaraan */}
@@ -1418,6 +1448,21 @@ function Dashboard() {
         </div>
       )}
 
+      {trackingDetail && (
+        <TrackingPoQuickModal
+          poNumber={trackingDetail.po_number}
+          event={trackingDetail}
+          onClose={() => setTrackingDetail(null)}
+        />
+      )}
+
+      {trackingPoDetail && (
+        <TrackingPoQuickModal
+          poNumber={trackingPoDetail}
+          onClose={() => setTrackingPoDetail(null)}
+        />
+      )}
+
       {historyVehicleId && (
         <VehicleHistoryModal
           vehicleId={historyVehicleId}
@@ -1439,6 +1484,7 @@ function RecentActivityCard({
     detail?: string;
     accent: Accent;
     icon: React.ReactNode;
+    onSelect: () => void;
   }[];
 }) {
   return (
@@ -1486,7 +1532,12 @@ function RecentActivityCard({
             {items.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-slate-100 dark:border-[#22221a] last:border-0"
+                tabIndex={0}
+                onClick={item.onSelect}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter") item.onSelect();
+                }}
+                className="cursor-pointer border-b border-slate-100 dark:border-[#22221a] last:border-0 hover:bg-slate-50 dark:hover:bg-[#22221a]/60 transition-colors"
               >
                 <td className="py-1.5 pr-2 align-top">
                   <div className="flex items-center gap-2">
@@ -1617,6 +1668,7 @@ function KpiCard({
   sparklineData,
   detail,
   isLoading,
+  onClick,
 }: {
   icon: React.ReactNode;
   accent?: Accent;
@@ -1627,15 +1679,16 @@ function KpiCard({
   sparklineData?: number[];
   detail?: React.ReactNode;
   isLoading?: boolean;
+  onClick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const a = ACCENTS[accent];
 
   return (
     <div
-      onClick={() => detail && setOpen((o) => !o)}
+      onClick={() => (onClick ? onClick() : detail && setOpen((o) => !o))}
       className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${a.glow} ${
-        detail ? "cursor-pointer" : ""
+        detail || onClick ? "cursor-pointer" : ""
       }`}
     >
       <span
@@ -1699,6 +1752,7 @@ function KpiCardBreakdown({
   breakdown,
   hint,
   isLoading,
+  onClick,
 }: {
   icon: React.ReactNode;
   accent?: Accent;
@@ -1706,6 +1760,7 @@ function KpiCardBreakdown({
   breakdown: { mobil: number; truk: number };
   hint?: string;
   isLoading?: boolean;
+  onClick?: () => void;
 }) {
   const a = ACCENTS[accent];
   const total = breakdown.mobil + breakdown.truk;
@@ -1713,7 +1768,10 @@ function KpiCardBreakdown({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${a.glow}`}
+      onClick={onClick}
+      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${a.glow} ${
+        onClick ? "cursor-pointer" : ""
+      }`}
     >
       <span
         className={`absolute inset-y-0 left-0 w-[3px] ${a.bar} opacity-60 group-hover:opacity-100 transition-opacity duration-300`}
@@ -1770,5 +1828,369 @@ function KpiCardBreakdown({
 
       <p className="mt-2 text-xs font-mono text-slate-500 dark:text-slate-400">{hint}</p>
     </div>
+  );
+}
+
+// --- POPUP RINGKAS DETAIL PO (dari kartu Tracking PO & Log Terbaru) ---
+// Versi singkat dari PoModal di halaman /logs/tracking: hanya baca data
+// (tanpa riwayat, foto, atau tombol ACC) supaya dashboard tetap ringan.
+
+type QuickPoRow = {
+  document_id: number;
+  po_number: string | null;
+  total_pallet: number;
+  active_pallet: number;
+  completed_pallet: number;
+  present: number;
+  missing: number;
+  unseen: number;
+  pending_approval: number;
+  zones: string[] | null;
+  completed_at: string | null;
+  po_created_at: string | null;
+  first_seen: string | null;
+  last_event_time: string | null;
+  zone_moves: number;
+  alert_level: number | null;
+};
+type QuickPalletRow = {
+  pallet_id: number;
+  pallet_no: number | null;
+  aruco_id: number;
+  current_zone: string | null;
+  last_event_time: string | null;
+  state: "PRESENT" | "MISSING" | "UNSEEN" | "COMPLETED";
+  approval_status: "PENDING" | "APPROVED" | null;
+};
+
+const CHIP_GOOD = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400";
+const CHIP_BAD = "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400";
+const CHIP_MUTED = "bg-slate-100 text-slate-600 dark:bg-[#13130e] dark:text-slate-400";
+
+function timeAgo(iso: string | null | undefined) {
+  if (!iso) return "-";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return "-";
+  const m = Math.floor(Math.abs(ms) / 60000);
+  if (m < 1) return "baru saja";
+  if (m < 60) return `${m} mnt lalu`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} jam lalu`;
+  return `${Math.floor(h / 24)} hari lalu`;
+}
+
+// ["A","A","B"] -> [["A",2],["B",1]]
+function zoneCountsQuick(zones: string[] | null) {
+  const m = new Map<string, number>();
+  for (const z of zones ?? []) m.set(z, (m.get(z) ?? 0) + 1);
+  return Array.from(m.entries());
+}
+
+function quickPoChips(r: QuickPoRow) {
+  const chips: { label: string; cls: string }[] = [];
+  if (r.active_pallet === 0) chips.push({ label: "Selesai", cls: CHIP_GOOD });
+  if ((r.alert_level ?? 0) > 0) chips.push({ label: `Alert level ${r.alert_level}`, cls: CHIP_BAD });
+  if (r.pending_approval > 0) chips.push({ label: `${r.pending_approval} perlu ACC`, cls: CHIP_BAD });
+  const hilangLain = r.missing - r.pending_approval;
+  if (hilangLain > 0) chips.push({ label: `${hilangLain} hilang`, cls: CHIP_BAD });
+  if (r.present > 0) chips.push({ label: `${r.present} terlihat`, cls: CHIP_GOOD });
+  if (r.unseen > 0) chips.push({ label: `${r.unseen} belum terbaca`, cls: CHIP_MUTED });
+  return chips;
+}
+
+function quickPalletStatus(p: QuickPalletRow) {
+  if (p.state === "COMPLETED") return { label: "Selesai", cls: CHIP_GOOD };
+  if (p.approval_status === "PENDING") return { label: "Hilang · perlu ACC", cls: CHIP_BAD };
+  if (p.state === "PRESENT") return { label: "Terlihat", cls: CHIP_GOOD };
+  if (p.state === "MISSING") return { label: "Hilang", cls: CHIP_BAD };
+  return { label: "Belum terbaca", cls: CHIP_MUTED };
+}
+
+function TrackingPoQuickModal({
+  poNumber,
+  event,
+  onClose,
+}: {
+  poNumber: string | null;
+  event?: TrackingEvent | null; // opsional: hanya ada kalau dibuka dari feed "Log Terbaru"
+  onClose: () => void;
+}) {
+  const po = poNumber;
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") onClose();
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  // 1) Cari ringkasan PO dari nomor PO. Daftar /pos secara bawaan tampaknya hanya
+  //    PO aktif, jadi kalau tidak ketemu dicoba lagi dengan state=COMPLETED.
+  const {
+    data: poRow,
+    isLoading: poLoading,
+    isError: poError,
+    dataUpdatedAt: poAt,
+  } = useQuery<QuickPoRow | null>({
+    queryKey: ["tracking_quick_po", po],
+    enabled: !!po,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      // Nomor PO gabungan ditulis "A, B" di feed kejadian tapi "A + B" di kartu PO.
+      // Pecah dulu jadi nomor tunggal, cari lewat nomor pertama, lalu cocokkan ke kartu
+      // yang memuat salah satu nomor itu.
+      const parts = po!
+        .split(/\s*[,+]\s*/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      if (parts.length === 0) return null;
+      for (const state of ["", "COMPLETED"]) {
+        const params = new URLSearchParams({ search: parts[0], limit: "20" });
+        if (state) params.append("state", state);
+        const res = await authFetch(`${API_BASE_URL}/api/tracking/pos?${params}`);
+        if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+        const json = await res.json();
+        const rows: QuickPoRow[] = json?.data || [];
+        const found = rows.find((r) => {
+          const nomor = (r.po_number ?? "").split(" + ").map((x) => x.trim());
+          return r.po_number === po || parts.some((p) => nomor.includes(p));
+        });
+        if (found) return found;
+      }
+      return null;
+    },
+  });
+
+  // 2) Daftar pallet milik PO itu
+  const docId = poRow?.document_id;
+  const {
+    data: palletData,
+    isLoading: palletsLoading,
+    dataUpdatedAt: palletsAt,
+  } = useQuery<{ pallets: QuickPalletRow[] }>({
+    queryKey: ["tracking_quick_pallets", docId],
+    enabled: !!docId,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const res = await authFetch(`${API_BASE_URL}/api/tracking/pos/${docId}/pallets`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      return res.json();
+    },
+  });
+  const pallets = palletData?.pallets ?? [];
+
+  const stats = poRow
+    ? [
+        { label: "Total", value: poRow.total_pallet, cls: "" },
+        { label: "Terlihat", value: poRow.present, cls: "text-emerald-600 dark:text-emerald-400" },
+        {
+          label: "Hilang",
+          value: poRow.missing,
+          cls: poRow.missing > 0 ? "text-red-600 dark:text-red-400" : "",
+        },
+        { label: "Belum terbaca", value: poRow.unseen, cls: "" },
+        { label: "Selesai", value: poRow.completed_pallet, cls: "" },
+      ]
+    : [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detail PO ${po ?? ""}`}
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-[#2e2e25] dark:bg-[#1a1a14] dark:text-slate-100"
+      >
+        <button
+          onClick={onClose}
+          aria-label="Tutup"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-[#22221a]"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="shrink-0 border-b border-slate-200 p-5 pr-12 dark:border-[#2e2e25]">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold font-space">{po ?? (event ? `Marker ID ${event.aruco_id}` : "PO tidak diketahui")}</h2>
+            {poRow &&
+              quickPoChips(poRow).map((c) => (
+                <span
+                  key={c.label}
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold font-mono ${c.cls}`}
+                >
+                  {c.label}
+                </span>
+              ))}
+          </div>
+          {poRow?.po_created_at && (
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              PO masuk {formatDateTime(poRow.po_created_at)}
+              {poRow.first_seen
+                ? ` · barang pertama terdeteksi ${timeAgo(poRow.first_seen)}`
+                : " · barang belum terdeteksi di warehouse"}
+              {poRow.completed_at ? ` · selesai ${timeAgo(poRow.completed_at)}` : ""}
+            </p>
+          )}
+
+          {/* Kejadian yang barusan diklik (hanya bila dibuka dari feed kejadian) */}
+          {event && (
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-[#2e2e25] dark:bg-[#13130e]">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              {TRACKING_EVENT_LABEL[event.event_type] ?? event.event_type}
+              <span className="font-mono font-normal text-slate-500 dark:text-slate-400">
+                {" · "}Marker {event.aruco_id}
+              </span>
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 font-mono text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {trackingZoneText(event)}
+              </span>
+              <span>{formatDateTime(event.event_time)}</span>
+            </p>
+          </div>
+          )}
+        </div>
+
+        <div className="overflow-y-auto p-5">
+          {!po ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Marker ini belum terhubung ke nomor PO, jadi hanya detail kejadiannya yang tersedia.
+            </p>
+          ) : poLoading ? (
+            <div className="space-y-3">
+              <div className="h-14 animate-pulse rounded-lg bg-slate-100 dark:bg-[#22221a]" />
+              <div className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-[#22221a]" />
+            </div>
+          ) : poError ? (
+            <p className="text-sm text-red-600 dark:text-red-400">Gagal memuat detail PO.</p>
+          ) : !poRow ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Detail PO {po} tidak ditemukan. Coba buka halaman Tracking PO.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {stats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-[#2e2e25] dark:bg-[#13130e]"
+                  >
+                    <p className={`text-xl font-semibold font-space leading-none ${s.cls}`}>
+                      {s.value}
+                    </p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {s.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Daftar pallet
+              </p>
+              {palletsLoading ? (
+                <div className="h-16 animate-pulse rounded-lg bg-slate-100 dark:bg-[#22221a]" />
+              ) : pallets.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">Belum ada pallet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {pallets.map((p) => {
+                    const st = quickPalletStatus(p);
+                    const isThis = !!event && p.pallet_id === event.pallet_id;
+                    return (
+                      <li
+                        key={p.pallet_id}
+                        className={`rounded-lg border px-3 py-2 ${
+                          isThis
+                            ? "border-indigo-300 bg-indigo-50/50 dark:border-indigo-500/40 dark:bg-indigo-500/10"
+                            : "border-slate-200 dark:border-[#2e2e25]"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold font-space">
+                            Pallet #{p.pallet_no ?? "?"}
+                          </span>
+                          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-500 dark:bg-[#13130e] dark:text-slate-400">
+                            Marker {p.aruco_id}
+                          </span>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold font-mono ${st.cls}`}
+                          >
+                            {st.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {p.current_zone ?? "Belum ada posisi"}
+                          </span>
+                          <span>
+                            {p.last_event_time ? `Kejadian terakhir ${timeAgo(p.last_event_time)}` : "Belum terbaca"}
+                          </span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 dark:border-[#2e2e25]">
+          <div className="min-w-0 space-y-1">
+            <LastUpdated at={poRow ? Math.max(poAt, palletsAt) : 0} />
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Riwayat pallet, foto, dan tindakan ACC ada di halaman Tracking PO.
+            </p>
+          </div>
+          <Link
+            to="/logs/tracking"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-[#26261e] dark:bg-[#13130e]/60 dark:text-slate-300 dark:hover:text-indigo-400"
+          >
+            Detail lengkap <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Penanda "terakhir diperbarui": kapan browser terakhir berhasil mengambil data dari
+// server. Titik jadi kuning kalau sudah > 2 menit (mis. tab di background / koneksi putus).
+function LastUpdated({ at, compact = false }: { at: number; compact?: boolean }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+  if (!at) return null;
+  const d = new Date(at);
+  const stale = Date.now() - at > 120000;
+  const clock = d.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const rel = timeAgo(d.toISOString());
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400"
+      title={`Data terakhir diambil dari server: ${d.toLocaleString("id-ID")}${
+        stale ? " — sudah lebih dari 2 menit, data mungkin belum terbaru" : ""
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${stale ? "bg-amber-500" : "bg-emerald-500"}`} />
+      {compact ? `Dimuat ${rel}` : `Dimuat ${clock} · ${rel}`}
+    </span>
   );
 }

@@ -25,7 +25,11 @@ const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:8081")
   .split(",")
   .map((o) => o.trim());
 app.use(cors({ origin: corsOrigins }));
-app.use(express.json());
+// Body JSON dibatasi default 100kb; endpoint ingest tracking membawa foto base64,
+// jadi parsernya diatur sendiri di routes/tracking.js (limit 10mb).
+app.use((req, res, next) =>
+  req.path === "/api/tracking/ingest" ? next() : express.json()(req, res, next),
+);
 // === DEBUG LOGGER ===
 app.use((req, res, next) => {
   const start = Date.now();
@@ -94,7 +98,7 @@ app.get("/api/health", async (_req, res) => {
 // Semua /api/* lainnya wajib login, KKECUALI /api/events (SSE)
 app.use("/api", (req, res, next) => {
   // Route yang dipanggil n8n memakai x-ingest-key (bukan login user)
-  const PUBLIC_API_PATHS = ["/events", "/documents/ingest", "/documents/ingest/aruco"];
+  const PUBLIC_API_PATHS = ["/events", "/documents/ingest", "/documents/ingest/aruco", "/tracking/ingest"];
   if (PUBLIC_API_PATHS.includes(req.path)) return next();
   return requireAuth(req, res, next);
 });
@@ -108,6 +112,7 @@ app.use("/api/report-recipients", require("./routes/report-recipients"));
 app.use("/api/audit-log", require("./routes/audit-log"));
 app.use("/api/export", require("./routes/export"));
 app.use("/api/documents", require("./routes/documents"));
+app.use("/api/tracking", require("./routes/tracking"));
 
 // --- KONFIGURASI SSE (REAL-TIME) ---
 const listenerPool = new Pool({
@@ -174,15 +179,20 @@ listenerPool.connect((err, client, done) => {
   client
     .query("LISTEN vehicle_log_event")
     .then(() => client.query("LISTEN alert_log_event"))
+    .then(() => client.query("LISTEN pallet_event"))
     .catch((listenErr) => logger.error("❌ Gagal setup LISTEN:", listenErr));
 
   // Saat ada notifikasi dari PostgreSQL
   client.on("notification", (msg) => {
-    if (msg.channel === "vehicle_log_event" || msg.channel === "alert_log_event") {
+    if (
+      msg.channel === "vehicle_log_event" ||
+      msg.channel === "alert_log_event" ||
+      msg.channel === "pallet_event"
+    ) {
       const payload = JSON.parse(msg.payload);
       logger.info(
         `📡 Real-time update dari ${msg.channel}:`,
-        payload.jenis_kendaraan || payload.class_name,
+        payload.jenis_kendaraan || payload.class_name || payload.event_type,
       );
 
       // Kirim ke semua client frontend yang terhubung

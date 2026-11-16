@@ -1,5 +1,3 @@
-import { time } from "node:console";
-
 export type EvidenceEntry = {
   id: number;
   image_url: string;
@@ -82,6 +80,40 @@ export function classifyMuatanProcess(
   return null;
 }
 
+// [AKTIVITAS] Mengubah teks status_aktivitas (hasil activity_estimator di aw.py) jadi label + warna.
+// Nilai dari aw.py: "Mengambil Muatan (Loading)", "Bongkar Muatan (Unloading)", "Transit / membawa Muatan",
+// "Lewat Kosong", "Tidak Dapat Dipastikan", "Aktivitas Forklift (arah belum pasti)".
+export function classifyAktivitas(
+  statusAktivitas?: string | null,
+): { label: string; tone: "loading" | "unloading" | "neutral" } | null {
+  const s = (statusAktivitas || "").trim();
+  if (!s) return null;
+  const low = s.toLowerCase();
+  // "unloading" dicek duluan karena kata itu mengandung "loading".
+  if (low.includes("unloading") || low.includes("bongkar")) {
+    return { label: "Unloading", tone: "unloading" };
+  }
+  if (low.includes("loading") || low.includes("mengambil muatan")) {
+    return { label: "Loading", tone: "loading" };
+  }
+  return { label: s, tone: "neutral" };
+}
+
+// [AKTIVITAS] Aktivitas hanya terisi di event KELUAR/SIKLUS_SELESAI, jadi ambil dari event terbaru
+// (di antara event satu kendaraan) yang punya status_aktivitas.
+export function classifyAktivitasFromEvents(
+  events: { timestamp: string; status_aktivitas?: string | null }[],
+): { label: string; tone: "loading" | "unloading" | "neutral" } | null {
+  const sorted = [...events].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+  for (const e of sorted) {
+    const r = classifyAktivitas(e.status_aktivitas);
+    if (r) return r;
+  }
+  return null;
+}
+
 export function generateAutoDescription(vehicle: VehicleForDescription) {
   const { jenis_kendaraan, kamera_nama, plat_nomor, confidence, timestamp, status_muatan } =
     vehicle;
@@ -104,7 +136,13 @@ export function generateAutoDescription(vehicle: VehicleForDescription) {
   }
 
   // Info muatan - HANYA untuk truk di cam1/cam3 DAN jika ada data
-  if (jenis_kendaraan.includes("Truk") && status_muatan && status_muatan.trim() !== "") {
+  // "-" = penanda sementara dari aw.py (status muatan baru ditentukan saat KELUAR), jangan ditampilkan
+  if (
+    jenis_kendaraan.includes("Truk") &&
+    status_muatan &&
+    status_muatan.trim() !== "" &&
+    status_muatan.trim() !== "-"
+  ) {
     desc += `Status muatan kendaraan terdeteksi: ${status_muatan}. `;
   }
 

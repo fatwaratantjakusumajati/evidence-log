@@ -37,6 +37,8 @@ import {
   formatShortDate,
   generateAutoDescription,
   classifyMuatanProcess,
+  classifyAktivitas, // [AKTIVITAS]
+  classifyAktivitasFromEvents, // [AKTIVITAS]
 } from "@/lib/evidence";
 import { toast } from "sonner";
 import { authFetch } from "@/lib/auth";
@@ -59,6 +61,7 @@ type VehicleLog = {
   created_at: string;
   is_false_positive?: boolean;
   status_muatan?: string | null;
+  status_aktivitas?: string | null; // [AKTIVITAS]
   jenis_kejadian?: string;
   track_id?: number;
   vehicle_id?: string | null;
@@ -554,13 +557,16 @@ function VehicleLogsPage() {
                           (a, b) =>
                             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
                         );
+                      // [AKTIVITAS] status_aktivitas dari activity_estimator diutamakan; data lama (tanpa status_aktivitas)
+                      // tetap memakai klasifikasi lama dari status_muatan.
                       const muatanProcess =
-                        isTrukGroup && muatanEvents.length >= 1
+                        (isTrukGroup ? classifyAktivitasFromEvents(group.events) : null) ??
+                        (isTrukGroup && muatanEvents.length >= 1
                           ? classifyMuatanProcess(
                               muatanEvents[0].status_muatan,
                               muatanEvents[muatanEvents.length - 1].status_muatan,
                             )
-                          : null;
+                          : null);
 
                       return (
                         <tr
@@ -683,31 +689,20 @@ function VehicleLogsPage() {
                     }
 
                     let muatanBadge = null;
-                    const isCam2 = v.kamera_nama && v.kamera_nama.toLowerCase().includes("depan");
-                    const isCam1OrCam3 =
-                      v.kamera_nama &&
-                      (v.kamera_nama === "Loading Kiri" || v.kamera_nama === "Loading Kanan");
-
-                    if (
-                      isTruk &&
-                      isCam1OrCam3 &&
-                      v.status_muatan &&
-                      v.status_muatan.trim() !== ""
-                    ) {
-                      const status = v.status_muatan;
-
-                      let textColor = "text-[#64748b] dark:text-[#94a3b8]";
-                      if (status === "Bermuatan") {
-                        textColor = "text-[#ea580c] dark:text-[#f97316]";
-                      } else if (status === "Kosong / bak tertutup") {
-                        textColor = "text-[#15803d] dark:text-[#34d399]";
-                      }
-
+                    // [AKTIVITAS] badge aktivitas menggantikan badge status muatan
+                    const aktivitasV = isTruk ? classifyAktivitas(v.status_aktivitas) : null;
+                    if (aktivitasV) {
+                      const textColor =
+                        aktivitasV.tone === "loading"
+                          ? "text-[#ea580c] dark:text-[#f97316]"
+                          : aktivitasV.tone === "unloading"
+                            ? "text-[#15803d] dark:text-[#34d399]"
+                            : "text-[#64748b] dark:text-[#94a3b8]";
                       muatanBadge = (
                         <span
                           className={`inline-flex items-center gap-1.5 text-xs font-medium ${textColor}`}
                         >
-                          <Box className="h-3.5 w-3.5" /> {status}
+                          <Box className="h-3.5 w-3.5" /> {aktivitasV.label}
                         </span>
                       );
                     }
@@ -728,9 +723,14 @@ function VehicleLogsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 align-middle">
-                          {statusKejadianBadge || muatanBadge || (
-                            <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
-                          )}
+                          {/* [AKTIVITAS] badge kejadian dan badge aktivitas ditampilkan bersama */}
+                          <div className="flex flex-col items-start gap-1">
+                            {statusKejadianBadge ||
+                              (!muatanBadge && (
+                                <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
+                              ))}
+                            {muatanBadge}
+                          </div>
                         </td>
                         <td className="px-4 py-3 align-middle">
                           {v.plat_nomor ? (
@@ -842,25 +842,35 @@ function VehicleLogsPage() {
                   </div>
                 </div>
 
-                {/* LOGIKA MUATAN DI MODAL - HANYA cam1 & cam3 (bukan cam2) */}
+                {/* [AKTIVITAS] Kotak aktivitas (Loading / Unloading) menggantikan kotak "Muatan Terdeteksi" */}
                 {selectedVehicle.jenis_kendaraan.includes("Truk") &&
-                  selectedVehicle.kamera_nama &&
-                  (selectedVehicle.kamera_nama === "Loading Kiri" ||
-                    selectedVehicle.kamera_nama === "Loading Kanan") &&
-                  selectedVehicle.status_muatan &&
-                  selectedVehicle.status_muatan.trim() !== "" && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50">
-                      <Box className="h-5 w-5 text-[#ea580c] dark:text-[#f97316]" />
-                      <div>
-                        <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
-                          Muatan Terdeteksi
-                        </p>
-                        <p className="text-sm font-semibold font-mono text-[#ea580c] dark:text-[#f97316]">
-                          {selectedVehicle.status_muatan}
-                        </p>
+                  (() => {
+                    const akt = classifyAktivitas(selectedVehicle.status_aktivitas);
+                    if (!akt) return null;
+                    const warna =
+                      akt.tone === "loading"
+                        ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900/50"
+                        : akt.tone === "unloading"
+                          ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50"
+                          : "bg-slate-50 dark:bg-[#1a1a14]/40 border-slate-200 dark:border-[#2e2e25]";
+                    const teks =
+                      akt.tone === "loading"
+                        ? "text-[#ea580c] dark:text-[#f97316]"
+                        : akt.tone === "unloading"
+                          ? "text-[#15803d] dark:text-[#34d399]"
+                          : "text-[#64748b] dark:text-[#94a3b8]";
+                    return (
+                      <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}>
+                        <Box className={`h-5 w-5 ${teks}`} />
+                        <div>
+                          <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
+                            Aktivitas Terdeteksi
+                          </p>
+                          <p className={`text-sm font-semibold font-mono ${teks}`}>{akt.label}</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
               </div>
 
               {/* AUTO-GENERATED PARAGRAPH */}
@@ -901,7 +911,7 @@ function VehicleLogsPage() {
                         <p className="text-sm font-semibold font-mono plate-number">
                           {selectedVehicle.plat_nomor}
                         </p>
-                        {selectedVehicle.plat_confidence && (
+                        {Number(selectedVehicle.plat_confidence) > 0 && (
                           <p className="text-[10px] text-[#64748b] dark:text-[#94a3b8] font-mono mt-0.5">
                             Akurasi: {Math.round(selectedVehicle.plat_confidence * 100)}%
                           </p>

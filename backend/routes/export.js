@@ -2,13 +2,12 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const ExcelJS = require("exceljs");
-const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
 const logger = require("../utils/logger");
 
-logger.info("✅ ExportZ API loaded (EXCEL 3 SHEETS + PDF PREMIUM - MERGED CYCLES FIX)");
+logger.info("✅ ExportZ API loaded (EXCEL 3 SHEETS + PDF PREMIUM - AKTIVITAS FROM DB)");
 
 // ============================================================
 // CARI LOGO
@@ -97,73 +96,11 @@ const BORDERS = {
   thin: { style: "thin", color: { argb: THEME.borderLight } },
   outer: { style: "thin", color: { argb: THEME.borderMedium } },
 };
-const CHART_COLORS = ["#4F46E5", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#A855F7", "#F97316"];
-
-// ============================================================
-// CHART RENDERER (Excel)
-// ============================================================
-const DPR = 2;
-const VEHICLE_CHART_DISPLAY = { width: 460, height: 260 };
-const vehicleChartCanvas = new ChartJSNodeCanvas({
-  width: VEHICLE_CHART_DISPLAY.width * DPR,
-  height: VEHICLE_CHART_DISPLAY.height * DPR,
-  backgroundColour: "white",
-});
-
-async function renderChartBuffer(canvas, config) {
-  try {
-    return await canvas.renderToBuffer(config);
-  } catch (err) {
-    logger.error("Chart render error:", err.message);
-    return null;
-  }
-}
-
-function buildVehicleChartConfig(vStatsRows) {
-  const hasData = vStatsRows.length > 0;
-  return {
-    type: "bar",
-    data: {
-      labels: hasData
-        ? vStatsRows.map((r) => (r.jenis_kendaraan || "LAINNYA").toUpperCase())
-        : ["Tidak ada data"],
-      datasets: [
-        {
-          label: "Jumlah Kendaraan",
-          data: hasData ? vStatsRows.map((r) => Number(r.total)) : [0],
-          backgroundColor: hasData
-            ? vStatsRows.map((_, i) => CHART_COLORS[i % CHART_COLORS.length])
-            : ["#CBD5E1"],
-          borderRadius: 6,
-          maxBarThickness: 60,
-        },
-      ],
-    },
-    options: {
-      devicePixelRatio: DPR,
-      layout: { padding: { top: 8, right: 16, bottom: 4, left: 4 } },
-      plugins: {
-        legend: { display: false },
-        title: {
-          display: true,
-          text: "Distribusi Jenis Kendaraan",
-          font: { size: 16, weight: "bold" },
-          color: "#1E293B",
-          padding: { bottom: 12 },
-        },
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#E2E8F0" } },
-        x: { grid: { display: false } },
-      },
-    },
-  };
-}
 
 // ============================================================
 // EXCEL: formatPremiumLogSheet (clean banded table, no double-grid)
 // ============================================================
-function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summary) {
+function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summary, subtitle = "") {
   ws.views = [{ showGridLines: false }];
 
   // --- Accent rule + title block ---
@@ -181,7 +118,7 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
   wsTitle.font = { name: "Segoe UI", size: 15, bold: true, color: { argb: THEME.primary } };
   ws.getRow(2).height = 26;
 
-  ws.getCell("A3").value = `Total Data: ${dataRows.length} baris`;
+  ws.getCell("A3").value = `${subtitle ? subtitle + "  ·  " : ""}Total Data: ${dataRows.length} baris`;
   ws.getCell("A3").font = {
     name: "Segoe UI",
     size: 9,
@@ -245,9 +182,9 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
           const valLower = cell.value.toString().toLowerCase();
           if (valLower.includes("offline") || valLower.includes("high")) {
             cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFB91C1C" } };
-          } else if (valLower.includes("bongkar")) {
+          } else if (valLower.includes("bongkar") || valLower.includes("unloading")) {
             cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF047857" } };
-          } else if (valLower.includes("muat (loading)")) {
+          } else if (valLower.includes("loading")) {
             cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFC2410C" } };
           } else if (
             valLower.includes("normal") ||
@@ -271,11 +208,14 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
   }
   ws.views = [{ state: "frozen", ySplit: startRowIdx, showGridLines: false }];
 
-  // ================= REKAP DI KOLOM A & B =================
+  // ================= REKAP =================
+  // PERBAIKAN: sebelumnya label di kolom A (lebar cuma 10, kolom "No") dan angka
+  // di kolom B, jadi label panjang terpotong. Sekarang label menggabungkan
+  // kolom A+B (lebar 10+24=34) dan angka di kolom C (lebar 24).
   if (summary && summary.rows && summary.rows.length) {
     let r = lastDataRow + 2;
 
-    ws.mergeCells(r, 1, r, 2);
+    ws.mergeCells(r, 1, r, 3);
     const summaryTitleCell = ws.getCell(r, 1);
     summaryTitleCell.value = summary.title || "Ringkasan";
     summaryTitleCell.font = {
@@ -287,6 +227,9 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
     ws.getRow(r).height = 24;
     r++;
 
+    ws.mergeCells(r, 1, r, 2);
+    ws.getCell(r, 2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: THEME.bgHeader } };
+    ws.getCell(r, 2).border = { bottom: { style: "medium", color: { argb: THEME.primary } } };
     const labelHeaderCell = ws.getCell(r, 1);
     labelHeaderCell.value = "Keterangan";
     labelHeaderCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
@@ -294,7 +237,7 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
     labelHeaderCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
     labelHeaderCell.border = { bottom: { style: "medium", color: { argb: THEME.primary } } };
 
-    const valueHeaderCell = ws.getCell(r, 2);
+    const valueHeaderCell = ws.getCell(r, 3);
     valueHeaderCell.value = "Jumlah";
     valueHeaderCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
     valueHeaderCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: THEME.bgHeader } };
@@ -310,6 +253,9 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
       const labelColor = isGrandTotal ? THEME.totalText : THEME.textDark;
       const valueColor = isGrandTotal ? THEME.totalText : THEME.primary;
 
+      ws.mergeCells(r, 1, r, 2);
+      ws.getCell(r, 2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillColor } };
+      ws.getCell(r, 2).border = { bottom: BORDERS.thin };
       const labelCell = ws.getCell(r, 1);
       labelCell.value = label;
       labelCell.font = {
@@ -322,7 +268,7 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
       labelCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
       labelCell.border = { bottom: BORDERS.thin };
 
-      const valueCell = ws.getCell(r, 2);
+      const valueCell = ws.getCell(r, 3);
       valueCell.value = value;
       valueCell.font = {
         name: "Segoe UI",
@@ -337,134 +283,6 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
       ws.getRow(r).height = isGrandTotal ? 24 : 20;
       r++;
     });
-  }
-}
-
-// ============================================================
-// EXCEL: buildDashboard
-// ============================================================
-function buildDashboard(
-  workbook,
-  ws,
-  titleText,
-  subtitleText,
-  totalKendaraan,
-  totalStaging,
-  vehicleChartBuf,
-) {
-  ws.views = [{ showGridLines: false }];
-  ws.mergeCells("B1:J1");
-  ws.getCell("B1").fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: THEME.primaryAccent },
-  };
-  ws.getRow(1).height = 6;
-
-  ws.mergeCells("B3:F3");
-  const titleCell = ws.getCell("B3");
-  titleCell.value = titleText;
-  titleCell.font = { name: "Segoe UI", size: 18, bold: true, color: { argb: THEME.textDark } };
-
-  ws.mergeCells("B4:G4");
-  const subtitleCell = ws.getCell("B4");
-  subtitleCell.value = subtitleText;
-  subtitleCell.font = { name: "Segoe UI", size: 10, color: { argb: THEME.textMuted } };
-  ws.getRow(3).height = 26;
-
-  const totalAktivitas = totalKendaraan + totalStaging;
-  const kpis = [
-    {
-      label: "TOTAL KENDARAAN",
-      val: totalKendaraan,
-      desc: "Aktivitas log armada",
-      colStart: 2,
-      colEnd: 3,
-    },
-    {
-      label: "STAGING TERDETEKSI",
-      val: totalStaging,
-      desc: "Total muatan Box",
-      colStart: 5,
-      colEnd: 6,
-    },
-    {
-      label: "TOTAL AKTIVITAS",
-      val: totalAktivitas,
-      desc: "Gabungan kendaraan + staging",
-      colStart: 8,
-      colEnd: 9,
-    },
-  ];
-
-  kpis.forEach((kpi) => {
-    const start = kpi.colStart;
-    const end = kpi.colEnd;
-    for (let r = 6; r <= 8; r++) {
-      for (let c = start; c <= end; c++) {
-        const cell = ws.getCell(r, c);
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: THEME.kpiBg } };
-        cell.border = {
-          top: r === 6 ? BORDERS.outer : null,
-          bottom: r === 8 ? BORDERS.outer : null,
-          left: c === start ? BORDERS.outer : null,
-          right: c === end ? BORDERS.outer : null,
-        };
-      }
-    }
-    ws.getCell(6, start).value = kpi.label;
-    ws.getCell(6, start).font = {
-      name: "Segoe UI",
-      size: 9,
-      bold: true,
-      color: { argb: THEME.textMuted },
-    };
-    ws.getCell(6, start).alignment = { horizontal: "center", vertical: "bottom" };
-
-    ws.getCell(7, start).value = kpi.val;
-    ws.getCell(7, start).font = {
-      name: "Segoe UI",
-      size: 18,
-      bold: true,
-      color: { argb: THEME.primary },
-    };
-    ws.getCell(7, start).alignment = { horizontal: "center", vertical: "middle" };
-
-    ws.getCell(8, start).value = kpi.desc;
-    ws.getCell(8, start).font = {
-      name: "Segoe UI",
-      size: 8,
-      italic: true,
-      color: { argb: "FF94A3B8" },
-    };
-    ws.getCell(8, start).alignment = { horizontal: "center", vertical: "top" };
-  });
-
-  ws.getRow(6).height = 18;
-  ws.getRow(7).height = 28;
-  ws.getRow(8).height = 16;
-  ws.getColumn("A").width = 4;
-  ws.getColumn("B").width = 20;
-  ws.getColumn("C").width = 20;
-  ws.getColumn("D").width = 4;
-  ws.getColumn("E").width = 20;
-  ws.getColumn("F").width = 20;
-  ws.getColumn("G").width = 4;
-  ws.getColumn("H").width = 20;
-  ws.getColumn("I").width = 20;
-
-  ws.getCell("B10").value = "Visualisasi Data";
-  ws.getCell("B10").font = {
-    name: "Segoe UI",
-    size: 12,
-    bold: true,
-    color: { argb: THEME.textDark },
-  };
-  ws.getRow(10).height = 20;
-
-  if (vehicleChartBuf) {
-    const imgId = workbook.addImage({ buffer: vehicleChartBuf, extension: "png" });
-    ws.addImage(imgId, { tl: { col: 1, row: 10.5 }, ext: { width: 460, height: 260 } });
   }
 }
 
@@ -617,13 +435,15 @@ async function generateReportEngine(
       ? `WHERE LOWER(class_name) = 'box' AND ${conditions.map((c) => c.replace(/col/g, "created_at")).join(" AND ")}`
       : "WHERE LOWER(class_name) = 'box'";
 
-    const vStats = await client.query(
-      `SELECT jenis_kendaraan, COUNT(*) as total FROM vehicle_log ${vWhere} GROUP BY jenis_kendaraan`,
-      params,
-    );
+    // PERBAIKAN: query vStats (COUNT(*) baris mentah) dihapus. Satu kendaraan
+    // yang masuk lalu keluar tersimpan sebagai 2 baris di vehicle_log, jadi
+    // menghitung baris membuat jumlah kendaraan membengkak. Jumlah kendaraan
+    // sekarang dihitung dari jumlah SIKLUS (hasil processCycles) per bagian.
     const sStats = await client.query(`SELECT COUNT(*) as total FROM alert_log ${sWhere}`, params);
+    // PERUBAHAN: ikut mengambil status_aktivitas supaya kolom Aktivitas di
+    // laporan sama persis dengan yang tampil di website.
     const vLogs = await client.query(
-      `SELECT timestamp, jenis_kendaraan, status_muatan, jenis_kejadian, vehicle_id, gambar_base64, kamera_nama, plat_nomor FROM vehicle_log ${vWhere} ORDER BY timestamp DESC`,
+      `SELECT timestamp, jenis_kendaraan, status_muatan, status_aktivitas, jenis_kejadian, vehicle_id, gambar_base64, kamera_nama, plat_nomor FROM vehicle_log ${vWhere} ORDER BY timestamp DESC`,
       params,
     );
     const sLogs = await client.query(
@@ -632,7 +452,6 @@ async function generateReportEngine(
     );
     sLogs.rows.forEach(convertFotoBase64);
 
-    const totalKendaraan = vStats.rows.reduce((s, r) => s + Number(r.total), 0);
     const totalStaging = Number(sStats.rows[0]?.total || 0);
 
     // Helper untuk memetakan log mentah & menggabungkan masuk-keluar yang berdekatan
@@ -683,6 +502,7 @@ async function generateReportEngine(
             foto_keluar: null,
             durasi_detik: 0,
             aktivitas: "-",
+            status_aktivitas: null,
             plat_nomor: v.plat_nomor || null,
           };
           cycles.push(targetCycle);
@@ -691,6 +511,15 @@ async function generateReportEngine(
         if (v.jenis_kendaraan) targetCycle.jenis_kendaraan = v.jenis_kendaraan;
         if (v.kamera_nama) targetCycle.kamera = v.kamera_nama;
         if (v.plat_nomor) targetCycle.plat_nomor = v.plat_nomor;
+
+        // PERUBAHAN: simpan status_aktivitas dari database. Nilai "Siklus
+        // Selesai" diabaikan karena itu status siklus, bukan jenis kegiatan.
+        if (
+          v.status_aktivitas &&
+          v.status_aktivitas.toUpperCase().replace(/[_\s]/g, "") !== "SIKLUSSELESAI"
+        ) {
+          targetCycle.status_aktivitas = v.status_aktivitas;
+        }
 
         if (isMasuk || (!isKeluar && !targetCycle.waktu_masuk)) {
           targetCycle.waktu_masuk = v.timestamp;
@@ -743,9 +572,7 @@ async function generateReportEngine(
         }
 
         // --- SIMPULKAN JENIS AKTIVITAS DARI PERUBAHAN STATUS MUATAN ---
-        // Membandingkan status muatan saat masuk vs keluar untuk truk, supaya
-        // langsung kelihatan itu proses muat (loading) atau bongkar (unloading),
-        // bukan cuma nampilin jenis_kejadian mentah dari database.
+        // Hanya dipakai sebagai cadangan kalau status_aktivitas di database kosong.
         let aktivitas = "-";
         const masuk = (g.muatan_masuk || "").toLowerCase();
         const keluar = (g.muatan_keluar || "").toLowerCase();
@@ -776,6 +603,10 @@ async function generateReportEngine(
             g.aktivitas.toUpperCase() === "SIKLUS_SELESAI" ? "Siklus Normal" : g.aktivitas;
         }
 
+        // PERUBAHAN: utamakan aktivitas dari database (sama dengan website,
+        // contoh: "Mengambil Muatan (Loading)").
+        if (g.status_aktivitas) aktivitas = g.status_aktivitas;
+
         return [
           i + 1,
           "",
@@ -796,6 +627,23 @@ async function generateReportEngine(
     const vRowsDepan = mapRowsToTable(groupedListDepan);
     const vRowsLoading = mapRowsToTable(groupedListLoading);
 
+    // Total per bagian = jumlah siklus (1 siklus = 1 kendaraan). Tidak ada
+    // total keseluruhan gabungan antar bagian.
+    const totalDepan = groupedListDepan.length;
+    const totalLoading = groupedListLoading.length;
+
+    // Rekap Loading vs Unloading di Loading Kiri, dihitung dari kolom Aktivitas
+    // (index 11 di vRowsLoading). "unloading"/"bongkar" dicek DULU karena kata
+    // "unloading" juga mengandung "loading".
+    const klasifikasiAktivitas = (teks) => {
+      const t = (teks || "").toLowerCase();
+      if (t.includes("unloading") || t.includes("bongkar")) return "Unloading";
+      if (t.includes("loading")) return "Loading";
+      return "Lainnya";
+    };
+    const aktivitasCount = { Loading: 0, Unloading: 0, Lainnya: 0 };
+    vRowsLoading.forEach((r) => aktivitasCount[klasifikasiAktivitas(r[11])]++);
+
     const countByJenis = (list) => {
       const counts = {};
       list.forEach((g) => {
@@ -806,11 +654,10 @@ async function generateReportEngine(
     };
 
     if (format === "pdf") {
-      const totalAktivitas = totalKendaraan + totalStaging;
       const kpiCards = `<div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-val">${totalKendaraan}</div><div class="kpi-lbl">Total Kendaraan</div></div>
+        <div class="kpi-card"><div class="kpi-val">${totalDepan}</div><div class="kpi-lbl">Kendaraan Halaman Depan</div></div>
+        <div class="kpi-card"><div class="kpi-val">${totalLoading}</div><div class="kpi-lbl">Kendaraan Loading Kiri</div></div>
         <div class="kpi-card"><div class="kpi-val">${totalStaging}</div><div class="kpi-lbl">Staging Terdeteksi</div></div>
-        <div class="kpi-card"><div class="kpi-val">${totalAktivitas}</div><div class="kpi-lbl">Total Aktivitas</div></div>
       </div>`;
 
       const pdfVehicleHeaders = [
@@ -876,25 +723,12 @@ async function generateReportEngine(
     // ============================================================
     // EXCEL GENERATOR (SEPARATE CAMERA CYCLES & MERGED DUAL PHOTOS)
     // ============================================================
-    const [vehicleChartBuf] = await Promise.all([
-      renderChartBuffer(vehicleChartCanvas, buildVehicleChartConfig(vStats.rows)),
-    ]);
-
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Warehouse Intelligence Suite";
     workbook.created = new Date();
 
-    const wsDash = workbook.addWorksheet("Dashboard", { views: [{ showGridLines: false }] });
-    buildDashboard(
-      workbook,
-      wsDash,
-      `${scopeTitle} Warehouse Report`,
-      subtitleInfo,
-      totalKendaraan,
-      totalStaging,
-      vehicleChartBuf,
-    );
-
+    // PERUBAHAN: kolom Status Muatan (Masuk/Keluar) dibuang dari Excel,
+    // hanya menyisakan kolom Aktivitas.
     const sharedHeaders = [
       "No",
       "Foto Masuk",
@@ -904,10 +738,8 @@ async function generateReportEngine(
       "Waktu Keluar",
       "Jenis Kendaraan",
       "Plat Nomor",
-      "Status Muatan (Masuk)",
-      "Status Muatan (Keluar)",
       "Durasi Aktivitas",
-      "Jenis Aktivitas",
+      "Aktivitas",
     ];
     const sharedSpecs = [
       { align: "center" },
@@ -918,11 +750,15 @@ async function generateReportEngine(
       { align: "center", numFormat: "dd/mm/yyyy hh:mm:ss" },
       { align: "left" },
       { align: "center" },
-      { align: "center", isStatus: true },
-      { align: "center", isStatus: true },
       { align: "center" },
       { align: "left", isStatus: true },
     ];
+
+    // Buang kolom muatan masuk (index 8) & muatan keluar (index 9) khusus Excel.
+    // PDF tetap memakai vRowsDepan/vRowsLoading yang asli.
+    const toExcelRow = (r) => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[10], r[11]];
+    const excelRowsDepan = vRowsDepan.map(toExcelRow);
+    const excelRowsLoading = vRowsLoading.map(toExcelRow);
 
     const wsVehicleDepan = workbook.addWorksheet("Log Kendaraan (Halaman Depan)");
     const wsVehicleLoading = workbook.addWorksheet("Log Kendaraan (Loading Kiri)");
@@ -931,7 +767,7 @@ async function generateReportEngine(
       wsVehicleDepan,
       `Log Kendaraan — Halaman Depan (${scopeTitle})`,
       sharedHeaders,
-      vRowsDepan,
+      excelRowsDepan,
       sharedSpecs,
       {
         title: "Rekap Kendaraan — Halaman Depan",
@@ -943,13 +779,14 @@ async function generateReportEngine(
           ["Total di Halaman Depan", groupedListDepan.length],
         ],
       },
+      subtitleInfo,
     );
 
     formatPremiumLogSheet(
       wsVehicleLoading,
       `Log Kendaraan — Loading Kiri (${scopeTitle})`,
       sharedHeaders,
-      vRowsLoading,
+      excelRowsLoading,
       sharedSpecs,
       {
         title: "Rekap Kendaraan — Loading Kiri",
@@ -958,10 +795,13 @@ async function generateReportEngine(
             `Jenis: ${jenis}`,
             total,
           ]),
+          ["Aktivitas: Loading", aktivitasCount.Loading],
+          ["Aktivitas: Unloading", aktivitasCount.Unloading],
+          ...(aktivitasCount.Lainnya > 0 ? [["Aktivitas: Lainnya", aktivitasCount.Lainnya]] : []),
           ["Total di Loading Kiri", groupedListLoading.length],
-          ["Total Keseluruhan Kendaraan", totalKendaraan],
         ],
       },
+      subtitleInfo,
     );
 
     // ============================================================
@@ -973,9 +813,24 @@ async function generateReportEngine(
     const PHOTO_HEIGHT = 120;
     const ROW_HEIGHT_FOR_PHOTO = 110;
 
+    // PERBAIKAN: batasi total ukuran foto yang disisipkan ke Excel. Tanpa batas,
+    // "Laporan Lengkap" bisa mencapai 60 MB lebih (ratusan foto ukuran asli)
+    // sehingga unduhan tertahan/gagal (apalagi lewat Cloudflare). Laporan harian
+    // yang fotonya sedikit tetap memuat semua foto; foto yang melewati batas
+    // dilewati (datanya tetap tampil, hanya fotonya kosong).
+    const MAX_EXPORT_IMAGE_BYTES = 12 * 1024 * 1024; // ~12 MB total foto
+    let embeddedImageBytes = 0;
+    let skippedPhotos = 0;
+
     const embedPhotoCell = (ws, base64, rowNumber, colNumber) => {
       if (!base64) return false;
+      const approxBytes = Math.floor(base64.length * 0.75);
+      if (embeddedImageBytes + approxBytes > MAX_EXPORT_IMAGE_BYTES) {
+        skippedPhotos++;
+        return false;
+      }
       try {
+        embeddedImageBytes += approxBytes;
         const imageId = workbook.addImage({
           base64: `data:image/jpeg;base64,${base64}`,
           extension: "jpeg",
@@ -1005,6 +860,11 @@ async function generateReportEngine(
         embedPhotoCell(ws, g.foto_keluar, rowNumber, 3);
       });
     });
+    if (skippedPhotos > 0) {
+      logger.info(
+        `Export ${scopeTitle}: ${skippedPhotos} foto dilewati (batas ${MAX_EXPORT_IMAGE_BYTES / 1024 / 1024} MB). Gunakan laporan harian/mingguan untuk foto lengkap.`,
+      );
+    }
 
     // SHEET 3: Staging
     const wsStaging = workbook.addWorksheet("Log Staging");
@@ -1045,9 +905,9 @@ async function generateReportEngine(
         title: "Rekap Alert",
         rows: [
           ["Total Staging (Box) Terdeteksi", totalStaging],
-          ["Total Keseluruhan Alert", totalStaging],
         ],
       },
+      subtitleInfo,
     );
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -1103,8 +963,13 @@ router.get("/weekly", async (req, res) => {
 });
 
 router.get("/monthly", async (req, res) => {
-  const { year, month } = req.query;
+  let { year, month } = req.query;
   const format = req.query.format || "xlsx";
+  // PERBAIKAN: frontend mengirim ?month=2026-10 (satu parameter), jadi
+  // dipecah di sini menjadi year=2026 dan month=10.
+  if (!year && month && String(month).includes("-")) {
+    [year, month] = String(month).split("-");
+  }
   if (!year || !month)
     return res.status(400).json({ error: "Parameter 'year' dan 'month' wajib diisi." });
   const conditions = ["EXTRACT(YEAR FROM col) = $1", "EXTRACT(MONTH FROM col) = $2"];
@@ -1113,7 +978,7 @@ router.get("/monthly", async (req, res) => {
     "Monthly",
     `Periode Bulan: ${month}-${year}`,
     conditions,
-    [parseInt(year), parseInt(month)],
+    [parseInt(year, 10), parseInt(month, 10)],
     `Laporan_Bulanan_${year}_${month}.${format}`,
     format,
   );

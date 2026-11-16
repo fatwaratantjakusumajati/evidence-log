@@ -14,7 +14,9 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LogsCamerasRouteImport } from './routes/logs.cameras'
+import { Route as LogsDocumentsRouteImport } from './routes/logs.documents'
 import { Route as LogsStagingRouteImport } from './routes/logs.staging'
+import { Route as LogsTrackingRouteImport } from './routes/logs.tracking'
 import { Route as LogsVehiclesRouteImport } from './routes/logs.vehicles'
 
 const IndexRoute = IndexRouteImport.update({
@@ -42,9 +44,19 @@ const LogsCamerasRoute = LogsCamerasRouteImport.update({
   path: '/logs/cameras',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LogsDocumentsRoute = LogsDocumentsRouteImport.update({
+  id: '/logs/documents',
+  path: '/logs/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LogsStagingRoute = LogsStagingRouteImport.update({
   id: '/logs/staging',
   path: '/logs/staging',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsTrackingRoute = LogsTrackingRouteImport.update({
+  id: '/logs/tracking',
+  path: '/logs/tracking',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogsVehiclesRoute = LogsVehiclesRouteImport.update({
@@ -59,7 +71,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/documents': typeof LogsDocumentsRoute
   '/logs/staging': typeof LogsStagingRoute
+  '/logs/tracking': typeof LogsTrackingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRoutesByTo {
@@ -68,7 +82,9 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/documents': typeof LogsDocumentsRoute
   '/logs/staging': typeof LogsStagingRoute
+  '/logs/tracking': typeof LogsTrackingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRoutesById {
@@ -78,7 +94,9 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/logs/cameras': typeof LogsCamerasRoute
+  '/logs/documents': typeof LogsDocumentsRoute
   '/logs/staging': typeof LogsStagingRoute
+  '/logs/tracking': typeof LogsTrackingRoute
   '/logs/vehicles': typeof LogsVehiclesRoute
 }
 export interface FileRouteTypes {
@@ -89,7 +107,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/logs/cameras'
+    | '/logs/documents'
     | '/logs/staging'
+    | '/logs/tracking'
     | '/logs/vehicles'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -98,7 +118,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/logs/cameras'
+    | '/logs/documents'
     | '/logs/staging'
+    | '/logs/tracking'
     | '/logs/vehicles'
   id:
     | '__root__'
@@ -107,7 +129,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/settings'
     | '/logs/cameras'
+    | '/logs/documents'
     | '/logs/staging'
+    | '/logs/tracking'
     | '/logs/vehicles'
   fileRoutesById: FileRoutesById
 }
@@ -117,7 +141,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   LogsCamerasRoute: typeof LogsCamerasRoute
+  LogsDocumentsRoute: typeof LogsDocumentsRoute
   LogsStagingRoute: typeof LogsStagingRoute
+  LogsTrackingRoute: typeof LogsTrackingRoute
   LogsVehiclesRoute: typeof LogsVehiclesRoute
 }
 
@@ -158,11 +184,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogsCamerasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/logs/documents': {
+      id: '/logs/documents'
+      path: '/logs/documents'
+      fullPath: '/logs/documents'
+      preLoaderRoute: typeof LogsDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/logs/staging': {
       id: '/logs/staging'
       path: '/logs/staging'
       fullPath: '/logs/staging'
       preLoaderRoute: typeof LogsStagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs/tracking': {
+      id: '/logs/tracking'
+      path: '/logs/tracking'
+      fullPath: '/logs/tracking'
+      preLoaderRoute: typeof LogsTrackingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/logs/vehicles': {
@@ -181,7 +221,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   LogsCamerasRoute: LogsCamerasRoute,
+  LogsDocumentsRoute: LogsDocumentsRoute,
   LogsStagingRoute: LogsStagingRoute,
+  LogsTrackingRoute: LogsTrackingRoute,
   LogsVehiclesRoute: LogsVehiclesRoute,
 }
 export const routeTree = rootRouteImport

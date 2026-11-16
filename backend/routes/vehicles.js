@@ -81,7 +81,8 @@ router.get("/log", async (req, res) => {
       SELECT vl.id, vl.timestamp, vl.jenis_kendaraan, vl.warna, vl.rgb_r, vl.rgb_g, vl.rgb_b,
              vl.confidence, vl.bbox_x1, vl.bbox_y1, vl.bbox_x2, vl.bbox_y2, vl.gambar_base64,
              vl.created_at, vl.is_false_positive, vl.kamera_nama, vl.status_muatan, vl.track_id,
-             vl.vehicle_id, vl.plat_nomor, vl.plat_confidence, vl.jenis_kejadian
+             vl.vehicle_id, vl.plat_nomor, vl.plat_confidence, vl.jenis_kejadian,
+             vl.status_aktivitas -- [AKTIVITAS] kolom baru
       FROM vehicle_log vl
       JOIN top_groups g ON COALESCE(vl.vehicle_id, 'single-' || vl.id::text) = g.group_key
       ORDER BY g.latest_ts DESC, vl.timestamp ASC
@@ -119,7 +120,8 @@ router.get("/history/:vehicle_id", async (req, res) => {
     const query = `
       SELECT id, timestamp, jenis_kendaraan, warna, confidence,
              gambar_base64, kamera_nama, status_muatan, track_id,
-             vehicle_id, plat_nomor, plat_confidence, jenis_kejadian
+             vehicle_id, plat_nomor, plat_confidence, jenis_kejadian,
+             status_aktivitas -- [AKTIVITAS] kolom baru
       FROM vehicle_log
       WHERE vehicle_id = $1
       ORDER BY timestamp ASC
