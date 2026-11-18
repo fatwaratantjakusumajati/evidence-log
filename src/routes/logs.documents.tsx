@@ -31,9 +31,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-// ------------------ Tipe data (cocok dengan backend/routes/documents.js) ------------------
-type KV = { label: string; nilai: any };
-type Tabel = { nama: string | null; kolom: string[]; baris: any[][] };
+type KV = { label: string; nilai: unknown };
+type Tabel = { nama: string | null; kolom: string[]; baris: unknown[][] };
 
 type DocumentRow = {
   id: number;
@@ -42,10 +41,8 @@ type DocumentRow = {
   ringkasan: KV[];
   file_name: string | null;
   po_number: string | null;
-  aruco_id: number | null;
-  jumlah_pallet: number | null;
   pallet_ids: number[];
-  pallet_bersama?: number[]; // ID marker yang dipakai bersama PO lain
+  pallet_bersama?: number[];
   created_at: string;
 };
 
@@ -55,8 +52,8 @@ type PalletRow = {
   aruco_id: number;
   status: "ACTIVE" | "RELEASED";
   sticker_removed: boolean;
-  milik_sendiri?: boolean; // false = pallet milik PO lain yang PO ini ikut menumpang
-  po_lain?: string[]; // PO lain yang ada di pallet yang sama
+  milik_sendiri?: boolean;
+  po_lain?: string[];
 };
 
 type PalletAktif = { id: number; aruco_id: number; po_list: string[] };
@@ -81,18 +78,16 @@ function formatDateTime(iso: string) {
   });
 }
 
-function formatValue(v: any) {
+function formatValue(v: unknown) {
   if (v === null || v === undefined || v === "") return "-";
   if (typeof v === "number") return v.toLocaleString("id-ID");
   return String(v);
 }
 
-// ------------------ ArUco: tampilan marker + cetak ------------------
 function ArucoMarker({ id, size = 96 }: { id: number; size?: number }) {
   const m = arucoMatrix(id);
   if (!m) return null;
   return (
-    // latar selalu putih (quiet zone), walau dark mode, supaya tetap terbaca kamera
     <svg
       width={size}
       height={size}
@@ -114,7 +109,6 @@ function ArucoMarker({ id, size = 96 }: { id: number; size?: number }) {
 
 type PrintItem = { id: number; label: string };
 
-// 1 marker = 1 halaman A4. Label: nomor PO, lalu "Pallet k/N · ID n".
 function printAruco(opts: { items: PrintItem[]; po?: string | null; sizeCm: number }) {
   const { items, po, sizeCm } = opts;
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -149,7 +143,7 @@ function printAruco(opts: { items: PrintItem[]; po?: string | null; sizeCm: numb
   .single { width: 210mm; height: 296mm; display: flex; align-items: center; justify-content: center }
   .single:not(:last-child) { break-after: page }
 </style></head><body>${body}
-<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script>
+<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script>
 </body></html>`);
   w.document.close();
 }
@@ -168,7 +162,10 @@ function ArucoBadge({ ids, bersama }: { ids: number[] | null; bersama?: number[]
       {ids.length} pallet · ID {tampil}
       {ids.length > 4 ? ` +${ids.length - 4}` : ""}
       {nBersama > 0 && (
-        <span className="ml-1 text-slate-500 dark:text-slate-400" title={`ID ${bersama!.join(", ")} dipakai bersama PO lain`}>
+        <span
+          className="ml-1 text-slate-500 dark:text-slate-400"
+          title={`ID ${bersama!.join(", ")} dipakai bersama PO lain`}
+        >
           · {nBersama} gabungan
         </span>
       )}
@@ -176,7 +173,6 @@ function ArucoBadge({ ids, bersama }: { ids: number[] | null; bersama?: number[]
   );
 }
 
-// Gabungkan PO ini ke pallet aktif yang sudah ada (tanpa membuat marker baru)
 function GabungPicker({
   docId,
   pallets,
@@ -198,9 +194,12 @@ function GabungPicker({
       return res.json() as Promise<PalletAktif[]>;
     },
   });
-  // pallet yang sudah terhubung ke PO ini tidak perlu ditawarkan lagi
-  const sudah = new Set(pallets.map((p) => p.id));
-  const tersedia = palletAktif.filter((p) => !sudah.has(p.id));
+
+  const sudah = useMemo(() => new Set(pallets.map((p) => p.id)), [pallets]);
+  const tersedia = useMemo(
+    () => palletAktif.filter((p) => !sudah.has(p.id)),
+    [palletAktif, sudah],
+  );
 
   const simpan = async () => {
     if (!pilih.length) return;
@@ -255,7 +254,9 @@ function GabungPicker({
                     type="checkbox"
                     checked={pilih.includes(p.id)}
                     onChange={(e) =>
-                      setPilih((g) => (e.target.checked ? [...g, p.id] : g.filter((x) => x !== p.id)))
+                      setPilih((g) =>
+                        e.target.checked ? [...g, p.id] : g.filter((x) => x !== p.id),
+                      )
                     }
                     className="mt-0.5"
                   />
@@ -286,7 +287,6 @@ function GabungPicker({
   );
 }
 
-// Kartu di modal detail: nomor PO, ID, preview marker, tombol cetak
 function ArucoCard({
   po,
   docId,
@@ -313,8 +313,15 @@ function ArucoCard({
   }));
 
   const lepasGabungan = async (p: PalletRow) => {
-    if (!confirm(`Keluarkan PO ini dari pallet ID ${p.aruco_id}? Pallet tetap ada untuk ${p.po_lain?.join(", ") || "PO lain"}.`)) return;
-    const res = await authFetch(`${API_BASE_URL}/api/documents/${docId}/gabung/${p.id}`, { method: "DELETE" });
+    if (
+      !confirm(
+        `Keluarkan PO ini dari pallet ID ${p.aruco_id}? Pallet tetap ada untuk ${p.po_lain?.join(", ") || "PO lain"}.`,
+      )
+    )
+      return;
+    const res = await authFetch(`${API_BASE_URL}/api/documents/${docId}/gabung/${p.id}`, {
+      method: "DELETE",
+    });
     if (!res.ok) {
       const err = await res.json().catch(() => null);
       toast.error(err?.error || "Gagal melepas gabungan.");
@@ -325,9 +332,12 @@ function ArucoCard({
   };
 
   const stikerDicopot = async (palletId: number) => {
-    const res = await authFetch(`${API_BASE_URL}/api/documents/pallets/${palletId}/sticker-removed`, {
-      method: "POST",
-    });
+    const res = await authFetch(
+      `${API_BASE_URL}/api/documents/pallets/${palletId}/sticker-removed`,
+      {
+        method: "POST",
+      },
+    );
     if (!res.ok) {
       toast.error("Gagal memperbarui status stiker.");
       return;
@@ -493,13 +503,10 @@ function DocumentsPage() {
     queryClient.invalidateQueries({ queryKey: ["document_detail", selectedId] });
     queryClient.invalidateQueries({ queryKey: ["documents_pool"] });
     queryClient.invalidateQueries({ queryKey: ["documents_pallets_aktif"] });
-    // tampilan Tracking PO ikut berubah karena PO yang berbagi pallet jadi satu kartu
     queryClient.invalidateQueries({ queryKey: ["tracking_pos"] });
     queryClient.invalidateQueries({ queryKey: ["tracking_summary"] });
   };
 
-  // Setelah upload, n8n butuh ~10-30 detik untuk OCR + LLM. Daftar di-refresh
-  // beberapa kali otomatis sampai dokumennya masuk.
   const handleUploaded = () => {
     [8000, 16000, 28000, 45000].forEach((ms) =>
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["documents"] }), ms),
@@ -521,7 +528,7 @@ function DocumentsPage() {
     },
   });
 
-  const documents = data?.data ?? [];
+  const documents = useMemo(() => data?.data ?? [], [data?.data]);
   const totalPages = data?.totalPages ?? 1;
   const total = data?.total ?? 0;
 
@@ -535,8 +542,6 @@ function DocumentsPage() {
     },
   });
 
-  // Daftar "Jenis" untuk dropdown filter -- dikumpulkan dari halaman yang
-  // sedang terlihat. Sederhana, tidak perlu endpoint baru khusus untuk ini.
   const jenisOptions = useMemo(() => {
     const set = new Set(documents.map((d) => d.jenis_dokumen).filter(Boolean));
     return Array.from(set);
@@ -618,7 +623,6 @@ function DocumentsPage() {
         </div>
       </div>
 
-      {/* Filter bar */}
       <div className="rounded-xl border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] p-4">
         <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -672,7 +676,6 @@ function DocumentsPage() {
         </form>
       </div>
 
-      {/* Tabel */}
       <div className="rounded-xl border border-slate-200 dark:border-[#2e2e25] bg-white dark:bg-[#1a1a14] overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -759,7 +762,9 @@ function DocumentsPage() {
                                 po: doc.po_number,
                                 sizeCm: 20.8,
                                 items: doc.pallet_ids.map((id) => {
-                                  const tunggal = doc.pallet_ids.filter((x) => !doc.pallet_bersama?.includes(x));
+                                  const tunggal = doc.pallet_ids.filter(
+                                    (x) => !doc.pallet_bersama?.includes(x),
+                                  );
                                   return {
                                     id,
                                     label: doc.pallet_bersama?.includes(id)
@@ -830,7 +835,6 @@ function DocumentsPage() {
 
       {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} onDone={handleUploaded} />}
 
-      {/* Modal detail */}
       {selectedId !== null && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
@@ -867,8 +871,8 @@ function DocumentsPage() {
 
                 {detail.duplicate_of && (
                   <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-3 text-sm text-red-700 dark:text-red-400">
-                    Nomor PO ini sudah ada (dokumen #{detail.duplicate_of}). Marker tidak dibuat untuk
-                    dokumen ini.
+                    Nomor PO ini sudah ada (dokumen #{detail.duplicate_of}). Marker tidak dibuat
+                    untuk dokumen ini.
                   </div>
                 )}
 
@@ -991,7 +995,6 @@ function DocumentsPage() {
   );
 }
 
-// ------------------ Modal upload (form buatan sendiri) ------------------
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
@@ -1019,7 +1022,7 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
       return res.json() as Promise<{ total: number; terpakai: number; sisa: number }>;
     },
   });
-  // Jumlah pallet BARU boleh kosong/0 kalau PO ini hanya digabung ke pallet yang sudah ada.
+
   const nPallet = jumlahPallet.trim() === "" ? 0 : Number(jumlahPallet);
   const validPallet =
     Number.isInteger(nPallet) &&
@@ -1096,8 +1099,9 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             Upload Dokumen
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Invoice, PO, kwitansi, surat jalan, dll. Format JPG/PNG, maksimal 8 MB. Isi jumlah pallet baru
-            untuk menentukan berapa marker yang dibuat, atau gabungkan PO ini ke pallet yang sudah ada.
+            Invoice, PO, kwitansi, surat jalan, dll. Format JPG/PNG, maksimal 8 MB. Isi jumlah
+            pallet baru untuk menentukan berapa marker yang dibuat, atau gabungkan PO ini ke pallet
+            yang sudah ada.
           </p>
         </div>
 
@@ -1160,13 +1164,13 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           {poolInfo && (
             <p
               className={`mt-1 text-xs ${
-                jumlahPallet && nPallet > poolInfo.sisa
+                jumlahPallet && poolInfo && nPallet > poolInfo.sisa
                   ? "text-red-600 dark:text-red-400"
                   : "text-slate-500 dark:text-slate-400"
               }`}
             >
               Sisa slot marker: {poolInfo.sisa} dari {poolInfo.total}
-              {jumlahPallet && nPallet > poolInfo.sisa ? " · jumlah melebihi sisa" : ""}
+              {jumlahPallet && poolInfo && nPallet > poolInfo.sisa ? " · jumlah melebihi sisa" : ""}
             </p>
           )}
         </div>
@@ -1190,7 +1194,9 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           {bukaGabung && (
             <div className="max-h-44 space-y-1 overflow-y-auto border-t border-slate-200 dark:border-[#2e2e25] p-2">
               {palletAktif.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-slate-500 dark:text-slate-400">Belum ada pallet aktif.</p>
+                <p className="px-1 py-2 text-xs text-slate-500 dark:text-slate-400">
+                  Belum ada pallet aktif.
+                </p>
               ) : (
                 palletAktif.map((p) => (
                   <label
@@ -1201,7 +1207,9 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
                       type="checkbox"
                       checked={gabung.includes(p.id)}
                       onChange={(e) =>
-                        setGabung((g) => (e.target.checked ? [...g, p.id] : g.filter((x) => x !== p.id)))
+                        setGabung((g) =>
+                          e.target.checked ? [...g, p.id] : g.filter((x) => x !== p.id),
+                        )
                       }
                       className="mt-0.5"
                     />
@@ -1245,7 +1253,6 @@ function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   );
 }
 
-// ------------------ Modal edit PO ------------------
 function EditPoModal({
   detail,
   onClose,
@@ -1255,15 +1262,18 @@ function EditPoModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  // Hanya pallet buatan PO ini yang bisa ditambah/dikurangi di sini; pallet gabungan tidak ikut dihitung.
-  const aktif = (detail.pallets ?? []).filter((p) => p.status === "ACTIVE" && p.milik_sendiri !== false);
+  const aktif = (detail.pallets ?? []).filter(
+    (p) => p.status === "ACTIVE" && p.milik_sendiri !== false,
+  );
   const [po, setPo] = useState(detail.po_number ?? "");
   const [jumlah, setJumlah] = useState(String(aktif.length));
   const [saving, setSaving] = useState(false);
 
   const n = Number(jumlah);
   const valid =
-    po.trim() !== "" && Number.isInteger(n) && (n === aktif.length || (n >= 1 && n <= ARUCO_POOL_MAX));
+    po.trim() !== "" &&
+    Number.isInteger(n) &&
+    (n === aktif.length || (n >= 1 && n <= ARUCO_POOL_MAX));
   const selisih = n - aktif.length;
 
   const save = async () => {
@@ -1272,7 +1282,9 @@ function EditPoModal({
         .slice(n)
         .map((p) => `Pallet ${p.pallet_no} (ID ${p.aruco_id})`)
         .join(", ");
-      if (!confirm(`Marker ini akan dilepas: ${lepas}.\nCopot stikernya dari pallet fisik. Lanjut?`))
+      if (
+        !confirm(`Marker ini akan dilepas: ${lepas}.\nCopot stikernya dari pallet fisik. Lanjut?`)
+      )
         return;
     }
     setSaving(true);
@@ -1281,7 +1293,9 @@ function EditPoModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          n === aktif.length ? { po_number: po.trim() } : { po_number: po.trim(), jumlah_pallet: n },
+          n === aktif.length
+            ? { po_number: po.trim() }
+            : { po_number: po.trim(), jumlah_pallet: n },
         ),
       });
       if (!res.ok) {
@@ -1312,9 +1326,9 @@ function EditPoModal({
         </h2>
         {!detail.po_number && (
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Nomor PO tidak terbaca otomatis. Isi nomornya sesuai dokumen. Jumlah pallet boleh 0 jika tidak
-            perlu marker baru (misalnya hanya ingin digabung ke pallet yang sudah ada, lewat kartu marker
-            setelah nomor tersimpan).
+            Nomor PO tidak terbaca otomatis. Isi nomornya sesuai dokumen. Jumlah pallet boleh 0 jika
+            tidak perlu marker baru (misalnya hanya ingin digabung ke pallet yang sudah ada, lewat
+            kartu marker setelah nomor tersimpan).
           </p>
         )}
 

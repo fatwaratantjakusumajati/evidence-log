@@ -1017,10 +1017,10 @@ function SidebarNav({
           />
         </div>
         <div className="leading-tight min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             PT Aristides Logistik Indonesia
           </p>
-          <p className="text-base font-bold tracking-tight text-[#4338ca] dark:text-[#818cf8] font-space transition-colors duration-300 truncate">
+          <p className="text-base font-bold tracking-tight text-[#4338ca] dark:text-[#818cf8] font-space transition-colors duration-300">
             Warehouse Intelligence
           </p>
         </div>

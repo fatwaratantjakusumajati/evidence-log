@@ -47,17 +47,7 @@ const apiLimiter = rateLimit({
 });
 app.use("/api", apiLimiter);
 
-const path = require("path");
-
-if (!process.env.SNAPSHOT_DIR) {
-  logger.warn("⚠️  SNAPSHOT_DIR belum di-set di .env — endpoint /snapshots tidak akan berfungsi.");
-}
-app.use(
-  "/snapshots",
-  express.static(process.env.SNAPSHOT_DIR || path.join(__dirname, "snapshots")),
-);
-
-//Login (publik, tidak butuh token)
+// Login (publik, tidak butuh token)
 app.use("/api/auth", require("./routes/auth"));
 
 const healthPool = require("./db");
@@ -227,7 +217,3 @@ server.keepAliveTimeout = 65000; // 65 detik
 server.headersTimeout = 66000; // WAJIB > keepAliveTimeout
 server.requestTimeout = 0; // 0 = jangan putus request (penting untuk SSE)
 server.timeout = 0; // 0 = jangan timeout socket (penting untuk SSE)
-
-// Laporan mingguan otomatis via email dinonaktifkan atas permintaan (lihat utils/scheduledReports.js)
-// const { startScheduledReports } = require("./utils/scheduledReports");
-// startScheduledReports();

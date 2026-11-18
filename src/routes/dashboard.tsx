@@ -605,7 +605,7 @@ function Dashboard() {
           />
         </div>
         {/* KPI Cards */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 items-start mb-8">
           {/* PO Aktif: ringkasan posisi saat ini dari /api/tracking/summary
               (bukan hitungan per rentang tanggal). */}
           <KpiCard
