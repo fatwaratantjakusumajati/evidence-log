@@ -13,7 +13,7 @@ import {
   Calendar,
   Eye,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { API_BASE_URL } from "@/lib/api-config";
 import { formatDateTime } from "@/lib/evidence";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { toast } from "sonner";
 import { getLogsPageColors } from "@/lib/theme-tokens";
+import { useTheme } from "@/lib/theme-provider";
 import { authFetch } from "@/lib/auth";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 
@@ -95,17 +96,8 @@ function StagingPage() {
   const [selectedStaging, setSelectedStaging] = useState<StagingDetection | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  useEffect(() => {
-    const checkDarkMode = () => {
-      const isDark = document.documentElement.classList.contains("dark");
-      setIsDarkMode(isDark);
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
   const t = getLogsPageColors(isDarkMode);
 

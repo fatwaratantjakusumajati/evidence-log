@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CameraOff, ChevronLeft, ChevronRight, Clock, AlertCircle, RotateCcw } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-config";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { formatDateTime } from "@/lib/evidence";
 import { toast } from "sonner";
 import { getLogsPageColors } from "@/lib/theme-tokens";
+import { useTheme } from "@/lib/theme-provider";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   Breadcrumb,
@@ -69,18 +70,8 @@ function CamerasPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // === DETEKSI DARK MODE ===
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  useEffect(() => {
-    const checkDarkMode = () => {
-      const isDark = document.documentElement.classList.contains("dark");
-      setIsDarkMode(isDark);
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
   // === THEME PALETTE (Deep Navy + Border #1e293b + Aksen Indigo #6366f1) ===
   const t = getLogsPageColors(isDarkMode);
