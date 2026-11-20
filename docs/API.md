@@ -1,4 +1,11 @@
-﻿# API Reference - Evidence Log
+﻿âš ï¸ PERINGATAN KEAMANAN
+
+Semua URL, port, dan base URL di bawah ini ditulis dengan **placeholder generik** (`{{API_BASE_URL}}`, `:<PORT>`, dll.) untuk dokumentasi. Nilai asli harus diisi melalui environment file (`.env`) dan **tidak boleh di-hardcode** ke dalam kode atau dokumentasi publik.
+
+Jangan menambahkan API key, password, JWT secret, atau URL produksi asli ke dalam file ini.
+
+---
+ï»¿# API Reference - Evidence Log
 
 > Dokumen ini adalah kontrak antara frontend dan backend.
 > Diverifikasi terhadap `backend/server.js` dan seluruh file di `backend/routes/` pada 20 November 2026.
@@ -10,14 +17,14 @@
 
 | Item | Nilai |
 | :--- | :--- |
-| Base URL dev | `http://localhost:5000` |
+| Base URL dev | `{{API_BASE_URL}}` |
 | Prefix API | `/api` |
 | Format body | `application/json`, kecuali upload memakai `multipart/form-data` |
 | Format respons | JSON, kecuali unduhan file dan SSE |
 | Encoding waktu | ISO 8601 dari database; ingest tracking memakai `YYYY-MM-DD HH:mm:ss` lokal |
 
 Frontend mengambil alamat dari `VITE_API_BASE_URL` (`src/lib/api-config.ts`), dengan fallback
-`http://localhost:5000`.
+`{{API_BASE_URL}}`.
 
 ---
 
@@ -833,7 +840,7 @@ Kanal: `vehicle_log_event`, `alert_log_event`, `pallet_event`. Heartbeat dikirim
 ### Monitor ArUco mengirim event
 
 ```bash
-curl -X POST http://localhost:5000/api/tracking/ingest \
+curl -X POST {{API_BASE_URL}}/api/tracking/ingest \
   -H "Content-Type: application/json" \
   -H "x-ingest-key: $TRACKING_INGEST_KEY" \
   -d '{
@@ -849,7 +856,7 @@ curl -X POST http://localhost:5000/api/tracking/ingest \
 ### n8n mengirim hasil OCR
 
 ```bash
-curl -X POST http://localhost:5000/api/documents/ingest \
+curl -X POST {{API_BASE_URL}}/api/documents/ingest \
   -H "x-ingest-key: $DOCUMENTS_INGEST_KEY" \
   -F "file=@surat_jalan.xlsx" \
   -F "jenis_dokumen=surat_jalan" \
@@ -861,7 +868,7 @@ curl -X POST http://localhost:5000/api/documents/ingest \
 ### n8n meminta alokasi marker
 
 ```bash
-curl -X POST http://localhost:5000/api/documents/ingest/aruco \
+curl -X POST {{API_BASE_URL}}/api/documents/ingest/aruco \
   -H "Content-Type: application/json" \
   -H "x-ingest-key: $DOCUMENTS_INGEST_KEY" \
   -d '{"document_id": 41, "po_number": "PO-2026-001"}'
@@ -870,14 +877,14 @@ curl -X POST http://localhost:5000/api/documents/ingest/aruco \
 ### Frontend mengambil log kendaraan
 
 ```bash
-curl http://localhost:5000/api/vehicles/log?page=1\&limit=20\&jenis=truk \
+curl {{API_BASE_URL}}/api/vehicles/log?page=1\&limit=20\&jenis=truk \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Konfirmasi pallet disimpan
 
 ```bash
-curl -X POST http://localhost:5000/api/tracking/pallets/88/store \
+curl -X POST {{API_BASE_URL}}/api/tracking/pallets/88/store \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"note": "disimpan di rak B"}'
@@ -906,3 +913,5 @@ curl -X POST http://localhost:5000/api/tracking/pallets/88/store \
 9. **Semua respons `/api` memakai `no-store`**; jangan mengandalkan cache HTTP di browser.
 10. **Rate limit berlaku per IP**. Saat menguji dengan banyak request paralel, `429` bisa
     muncul sebelum 400 request jika `trust proxy` salah dikonfigurasi di depan reverse proxy.
+
+

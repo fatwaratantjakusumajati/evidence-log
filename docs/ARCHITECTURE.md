@@ -1,4 +1,11 @@
-﻿# Arsitektur Evidence Log - Warehouse Intelligence
+﻿âš ï¸ PERINGATAN KEAMANAN
+
+Semua URL, port, dan base URL di bawah ini ditulis dengan **placeholder generik** (`{{API_BASE_URL}}`, `:<PORT>`, dll.) untuk dokumentasi. Nilai asli harus diisi melalui environment file (`.env`) dan **tidak boleh di-hardcode** ke dalam kode atau dokumentasi publik.
+
+Jangan menambahkan API key, password, JWT secret, atau URL produksi asli ke dalam file ini.
+
+---
+ï»¿# Arsitektur Evidence Log - Warehouse Intelligence
 
 > Dokumen ini menjelaskan **cara kerja** sistem, bukan cara menjalankan.
 > Untuk instalasi dan konfigurasi awal lihat [README.md](../README.md).
@@ -31,11 +38,11 @@ flowchart LR
     CAM[Monitor ArUco]
     N8N[Workflow n8n OCR]
   end
-  subgraph BE[Backend Express :5000]
+  subgraph BE[Backend Express :<PORT_BACKEND>]
     API[REST /api]
     HUB[SSE hub /api/events]
   end
-  subgraph FE[Frontend TanStack Start :3000]
+  subgraph FE[Frontend TanStack Start :<PORT_FRONTEND>]
     UI[React 19 + Tailwind v4]
   end
   DB[(PostgreSQL)]
@@ -90,38 +97,38 @@ Tailwind v4 (`@import "tailwindcss"`, `@theme inline`, `@custom-variant dark`). 
 
 ```text
 evidence-log/
-├── src/                        Frontend (TanStack Start)
-│   ├── routes/                 Halaman + root layout
-│   │   ├── __root.tsx          Shell, guard auth, sidebar, SSE, modal export
-│   │   ├── index.tsx           Landing page
-│   │   ├── login.tsx           Halaman login
-│   │   ├── dashboard.tsx       Dashboard KPI + grafik + feed
-│   │   ├── logs.vehicles.tsx   Log kendaraan
-│   │   ├── logs.tracking.tsx   Tracking PO / pallet
-│   │   ├── logs.documents.tsx  Arsip dokumen + cetak ArUco
-│   │   ├── logs.staging.tsx    Deteksi staging legacy
-│   │   ├── logs.cameras.tsx    Kejadian kamera + uptime
-│   │   └── settings.tsx        User, password, penerima WA, audit log
-│   ├── components/             Komponen bersama + 45 komponen ui/
-│   ├── lib/                    auth, api-config, evidence, aruco, tema
-│   ├── assets/                 Logo + video background
-│   ├── router.tsx              QueryClient + createRouter
-│   ├── routeTree.gen.ts        GENERATED - jangan diedit
-│   ├── server.ts               Wrapper SSR (menangkap error h3)
-│   ├── start.ts                Middleware error request-level
-│   └── styles.css              Tailwind v4 + token warna
-├── backend/
-│   ├── server.js               Entry point, guard, SSE hub
-│   ├── db.js                   Pool PostgreSQL
-│   ├── middleware/auth.js      requireAuth / requireAdmin
-│   ├── routes/                 9 router REST
-│   ├── utils/                  logger, errors, pagination, mailer, cron
-│   ├── migrations/             SQL users + index
-│   ├── scripts/create-admin.js Seeder admin pertama
-│   └── test/                   4 test node:test
-├── public/                     favicon
-├── Dockerfile                  Frontend (Nitro)
-└── backend/Dockerfile          Backend (Chromium untuk Puppeteer)
+â”œâ”€â”€ src/                        Frontend (TanStack Start)
+â”‚   â”œâ”€â”€ routes/                 Halaman + root layout
+â”‚   â”‚   â”œâ”€â”€ __root.tsx          Shell, guard auth, sidebar, SSE, modal export
+â”‚   â”‚   â”œâ”€â”€ index.tsx           Landing page
+â”‚   â”‚   â”œâ”€â”€ login.tsx           Halaman login
+â”‚   â”‚   â”œâ”€â”€ dashboard.tsx       Dashboard KPI + grafik + feed
+â”‚   â”‚   â”œâ”€â”€ logs.vehicles.tsx   Log kendaraan
+â”‚   â”‚   â”œâ”€â”€ logs.tracking.tsx   Tracking PO / pallet
+â”‚   â”‚   â”œâ”€â”€ logs.documents.tsx  Arsip dokumen + cetak ArUco
+â”‚   â”‚   â”œâ”€â”€ logs.staging.tsx    Deteksi staging legacy
+â”‚   â”‚   â”œâ”€â”€ logs.cameras.tsx    Kejadian kamera + uptime
+â”‚   â”‚   â””â”€â”€ settings.tsx        User, password, penerima WA, audit log
+â”‚   â”œâ”€â”€ components/             Komponen bersama + 45 komponen ui/
+â”‚   â”œâ”€â”€ lib/                    auth, api-config, evidence, aruco, tema
+â”‚   â”œâ”€â”€ assets/                 Logo + video background
+â”‚   â”œâ”€â”€ router.tsx              QueryClient + createRouter
+â”‚   â”œâ”€â”€ routeTree.gen.ts        GENERATED - jangan diedit
+â”‚   â”œâ”€â”€ server.ts               Wrapper SSR (menangkap error h3)
+â”‚   â”œâ”€â”€ start.ts                Middleware error request-level
+â”‚   â””â”€â”€ styles.css              Tailwind v4 + token warna
+â”œâ”€â”€ backend/
+â”‚   â”œâ”€â”€ server.js               Entry point, guard, SSE hub
+â”‚   â”œâ”€â”€ db.js                   Pool PostgreSQL
+â”‚   â”œâ”€â”€ middleware/auth.js      requireAuth / requireAdmin
+â”‚   â”œâ”€â”€ routes/                 9 router REST
+â”‚   â”œâ”€â”€ utils/                  logger, errors, pagination, mailer, cron
+â”‚   â”œâ”€â”€ migrations/             SQL users + index
+â”‚   â”œâ”€â”€ scripts/create-admin.js Seeder admin pertama
+â”‚   â””â”€â”€ test/                   4 test node:test
+â”œâ”€â”€ public/                     favicon
+â”œâ”€â”€ Dockerfile                  Frontend (Nitro)
+â””â”€â”€ backend/Dockerfile          Backend (Chromium untuk Puppeteer)
 ```
 
 ---
@@ -133,7 +140,7 @@ evidence-log/
    Nitro (target default Cloudflare), alias `@`, dan dedupe React. **Jangan menambah plugin
    yang sama secara manual** - komentar di baris 1-6 file tersebut memperingatkan hal ini.
    Yang dikustom hanya dua hal: `tanstackStart.server.entry = "server"` dan
-   `vite.server.allowedHosts = [".trycloudflare.com"]`.
+   `vite.server.allowedHosts = ["<TUNNEL_HOST>"]`.
 2. `src/server.ts` menjadi entry SSR. Ia membungkus `@tanstack/react-start/server-entry`
    dan menormalkan respons 500 yang sudah ditelan h3 menjadi halaman error HTML.
 3. `src/start.ts` mendaftarkan middleware error pada level request.
@@ -173,7 +180,7 @@ endpoint tanpa autentikasi. Baca dengan urutan ini:
 1. **Validasi env wajib** (`JWT_SECRET`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`,
    `DB_PASSWORD`). Bila kurang, server `process.exit(1)` dengan pesan jelas (baris 7-16).
 2. `trust proxy = 1` agar `req.ip` benar di belakang reverse proxy / tunnel.
-3. CORS dari `CORS_ORIGIN` (dipisah koma). Default bila kosong: `http://localhost:8081`.
+3. CORS dari `CORS_ORIGIN` (dipisah koma). Default bila kosong: `[disesuaikan lewat CORS_ORIGIN]`.
 4. Body parser `express.json()` **dilewati** untuk `/api/tracking/ingest`, karena route itu
    punya parser sendiri dengan limit 10 MB untuk foto base64.
 5. ETag dimatikan dan seluruh `/api` diberi header `no-store`.
@@ -230,7 +237,7 @@ Library bersama di `src/lib/`:
 
 | File | Fungsi |
 | :--- | :--- |
-| `api-config.ts` | `API_BASE_URL` dari `VITE_API_BASE_URL`, fallback `http://localhost:5000` |
+| `api-config.ts` | `API_BASE_URL` dari `VITE_API_BASE_URL`, fallback `{{API_BASE_URL}}` |
 | `auth.ts` | Token localStorage, decode JWT, `authFetch`, `refreshToken`, `downloadFile`, `isAdmin` |
 | `evidence.ts` | Formatter tanggal, generator deskripsi otomatis, klasifikasi muatan/aktivitas |
 | `aruco.ts` | Tabel bit DICT_4X4 -> matriks 6x6 -> SVG marker (pool pallet 1-100) |
@@ -636,7 +643,7 @@ keputusan, sering merujuk bug yang pernah terjadi (contoh jelas di `routes/auth.
 
 | Variabel | Wajib | Default | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | ya (produksi) | `http://localhost:5000` | Alamat backend, dibaca `src/lib/api-config.ts` |
+| `VITE_API_BASE_URL` | ya (produksi) | `{{API_BASE_URL}}` | Alamat backend, dibaca `src/lib/api-config.ts` |
 
 ### Backend - `backend/.env`
 
@@ -646,7 +653,7 @@ keputusan, sering merujuk bug yang pernah terjadi (contoh jelas di `routes/auth.
 | `JWT_SECRET` | ya | - | Kunci tanda tangan JWT |
 | `PORT` | tidak | `5000` | Port HTTP |
 | `NODE_ENV` | tidak | - | Mengatur detail pesan error |
-| `CORS_ORIGIN` | tidak | `http://localhost:8081` | Daftar origin dipisah koma |
+| `CORS_ORIGIN` | tidak | `[disesuaikan lewat CORS_ORIGIN]` | Daftar origin dipisah koma |
 | `DOCUMENTS_DIR` | tidak | `backend/documents-files` | Penyimpanan file dokumen |
 | `TRACKING_DIR` | tidak | `backend/tracking-images` | Penyimpanan foto event pallet |
 | `DOCUMENTS_INGEST_KEY` | ya untuk ingest | - | Kunci `x-ingest-key` dokumen |
@@ -675,8 +682,8 @@ Tabel di atas adalah daftar yang benar-benar dibaca.
 ### Frontend
 
 ```bash
-docker build --build-arg VITE_API_BASE_URL=http://host-backend:5000 -t evidence-log-frontend .
-docker run -d -p 3000:3000 --name evidence-frontend evidence-log-frontend
+docker build --build-arg VITE_API_BASE_URL={{BACKEND_URL}} -t evidence-log-frontend .
+docker run -d -p <PORT_FRONTEND>:<PORT_FRONTEND> --name evidence-frontend evidence-log-frontend
 ```
 
 Dockerfile dua tahap: builder `node:22-bookworm-slim` menjalankan `npm ci --legacy-peer-deps`
@@ -688,7 +695,7 @@ build**, bukan saat runtime. Mengganti alamat backend memerlukan build ulang.
 
 ```bash
 docker build -t evidence-log-backend ./backend
-docker run -d -p 5000:5000 --env-file backend/.env --name evidence-backend evidence-log-backend
+docker run -d -p <PORT_BACKEND>:<PORT_BACKEND> --env-file backend/.env --name evidence-backend evidence-log-backend
 ```
 
 Image backend memasang Chromium + font + `libcairo`/`libpango` agar Puppeteer bisa
@@ -697,9 +704,9 @@ membuat PDF. `PUPPETEER_SKIP_DOWNLOAD=true` dan `PUPPETEER_EXECUTABLE_PATH=/usr/
 
 ### Akses dari jaringan luar (tunnel)
 
-`vite.config.ts` mengizinkan host `.trycloudflare.com`. Alur yang dipakai tim:
-1. Jalankan backend di port 5000.
-2. `cloudflared tunnel --url localhost:5000`, catat URL yang muncul.
+`vite.config.ts` mengizinkan host `<TUNNEL_HOST>`. Alur yang dipakai tim:
+1. Jalankan backend di port <PORT_BACKEND>.
+2. `cloudflared tunnel --url <LOCAL_HOST_PORT>`, catat URL yang muncul.
 3. Isi URL itu di `.env` frontend sebagai `VITE_API_BASE_URL`, lalu `npm run dev:tunnel`.
 4. Daftarkan juga origin tunnel di `CORS_ORIGIN` backend.
 
@@ -713,7 +720,7 @@ agar keputusan tetap di tangan pemilik sistem.
 | # | Temuan | Lokasi | Dampak |
 | :--- | :--- | :--- | :--- |
 | 1 | `backend/.env` ikut ter-commit (1,3 KB) | repo | Kredensial DB/JWT berisiko bocor; sebaiknya di-rotate lalu dihapus dari git |
-| 2 | Default `CORS_ORIGIN` adalah `http://localhost:8081`, bukan 3000 | `server.js` baris 24 | CORS gagal bila env tidak diisi saat dev |
+| 2 | Default `CORS_ORIGIN` adalah `[disesuaikan lewat CORS_ORIGIN]`, bukan 3000 | `server.js` baris 24 | CORS gagal bila env tidak diisi saat dev |
 | 3 | Foto kendaraan disimpan sebagai base64 di DB | `vehicle_log.gambar_base64` | Tabel membengkak, query melambat |
 | 4 | Jumlah kamera hardcoded 22 | `dashboard.tsx` baris 56 | Perlu ubah kode saat kamera bertambah |
 | 5 | Breadcrumb dirender di `__root` dan diulang per halaman | `__root.tsx` + `dashboard.tsx` baris 566 | Duplikasi markup dan risiko tampilan ganda |
@@ -745,3 +752,6 @@ langkah sebelumnya:
 
 Selama membaca, biasakan membuka dokumen [docs/API.md](./API.md) berdampingan agar tahu
 kontrak data yang mengalir di antara kedua aplikasi.
+
+
+
