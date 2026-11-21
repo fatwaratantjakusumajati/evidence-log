@@ -1,4 +1,3 @@
-const { error } = require("node:console");
 const logger = require("./logger");
 
 function sendServerError(res, err, context = "") {

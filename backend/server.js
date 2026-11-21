@@ -21,7 +21,7 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:8081")
+const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
   .split(",")
   .map((o) => o.trim());
 app.use(cors({ origin: corsOrigins }));
