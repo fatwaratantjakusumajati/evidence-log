@@ -240,7 +240,7 @@ export function VehicleHistoryModal({
                                   📋 {ev.plat_nomor}
                                   {Number(ev.plat_confidence) > 0 && (
                                     <span className="opacity-70">
-                                      ({Math.round(ev.plat_confidence * 100)}%)
+                                      ({Math.round((ev.plat_confidence ?? 0) * 100)}%)
                                     </span>
                                   )}
                                 </span>

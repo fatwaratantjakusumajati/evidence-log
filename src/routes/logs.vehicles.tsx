@@ -913,7 +913,7 @@ function VehicleLogsPage() {
                         </p>
                         {Number(selectedVehicle.plat_confidence) > 0 && (
                           <p className="text-[10px] text-[#64748b] dark:text-[#94a3b8] font-mono mt-0.5">
-                            Akurasi: {Math.round(selectedVehicle.plat_confidence * 100)}%
+                            Akurasi: {Math.round((selectedVehicle.plat_confidence ?? 0) * 100)}%
                           </p>
                         )}
                       </>
