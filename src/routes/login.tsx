@@ -55,8 +55,7 @@ function LoginPage() {
           preload="auto"
           disableRemotePlayback
           disablePictureInPicture
-          className="h-full w-full object-cover"
-          style={{ filter: "brightness(0.55) contrast(1.1) saturate(0.85)" }}
+          className="h-full w-full object-cover filter-[brightness(0.55)_contrast(1.1)_saturate(0.85)]"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
         <div className="absolute inset-0 backdrop-blur-[2px]" />
@@ -64,11 +63,7 @@ function LoginPage() {
 
       {/* Login Card */}
       <div
-        className="viewfinder relative w-full max-w-sm rounded-3xl p-8"
-        style={{
-          background: "linear-gradient(145deg, #eef1f6, #d8dde6)",
-          boxShadow: "20px 20px 60px rgba(0,0,0,0.35), -12px -12px 30px rgba(255,255,255,0.5)",
-        }}
+        className="viewfinder relative w-full max-w-sm rounded-3xl p-8 bg-[linear-gradient(145deg,#eef1f6,#d8dde6)] shadow-[20px_20px_60px_rgba(0,0,0,0.35)_-12px_-12px_30px_rgba(255,255,255,0.5)]"
       >
         <span className="vf-tr" />
         <span className="vf-bl" />
@@ -80,12 +75,7 @@ function LoginPage() {
         </div>
         <div className="flex flex-col items-center">
           <div
-            className="mb-5 flex h-16 w-16 items-center justify-center rounded-full"
-            style={{
-              background: "linear-gradient(145deg, #e2e6ed, #f4f6f9)",
-              boxShadow:
-                "inset 4px 4px 8px rgba(0, 0, 0, 0.08), inset -4px -4px 8px rgba(255, 255, 255, 0.7)",
-            }}
+            className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(145deg,#e2e6ed,#f4f6f9)] shadow-[inset_4px_4px_8px_rgba(0,0,0,0.08)_-4px_-4px_8px_rgba(255,255,255,0.7)]"
           >
             <User className="h-7 w-7 text-slate-800" />
           </div>
@@ -96,12 +86,7 @@ function LoginPage() {
         <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
           {/* Username Field */}
           <div
-            className="flex items-center gap-3 rounded-xl px-4 py-3"
-            style={{
-              background: "linear-gradient(145deg, #d8dde6, #eef1f6)",
-              boxShadow:
-                "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.6)",
-            }}
+            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]"
           >
             <User className="h-5 w-5 text-slate-500" />
             <input
@@ -109,8 +94,7 @@ function LoginPage() {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-transparent focus:outline-none"
-              style={{ color: "#0f172a" }} // ✅ MEMAKSA WARNA TEKS HITAM SLATE-900
+              className="w-full bg-transparent focus:outline-none text-[#0f172a]"
               disabled={isLoading}
               autoComplete="username"
             />
@@ -118,12 +102,7 @@ function LoginPage() {
 
           {/* Password Field */}
           <div
-            className="flex items-center gap-3 rounded-xl px-4 py-3"
-            style={{
-              background: "linear-gradient(145deg, #d8dde6, #eef1f6)",
-              boxShadow:
-                "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.6)",
-            }}
+            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]"
           >
             <Lock className="h-5 w-5 text-slate-500" />
             <input
@@ -131,8 +110,7 @@ function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-transparent focus:outline-none"
-              style={{ color: "#0f172a" }} // ✅ MEMAKSA WARNA TEKS HITAM SLATE-900
+              className="w-full bg-transparent focus:outline-none text-[#0f172a]"
               disabled={isLoading}
               autoComplete="current-password"
             />
@@ -150,11 +128,7 @@ function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold font-space text-indigo-900 transition-all active:scale-[0.98] hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              background: "linear-gradient(145deg, #dfe1f7, #c2c6ee)",
-              boxShadow: "5px 5px 12px rgba(0,0,0,0.15), -5px -5px 12px rgba(255,255,255,0.6)",
-            }}
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold font-space text-indigo-900 transition-all active:scale-[0.98] hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed bg-[linear-gradient(145deg,#dfe1f7,#c2c6ee)] shadow-[5px_5px_12px_rgba(0,0,0,0.15)_-5px_-5px_12px_rgba(255,255,255,0.6)]"
           >
             {isLoading ? (
               <>

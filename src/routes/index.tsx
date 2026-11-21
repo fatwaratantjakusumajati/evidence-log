@@ -90,8 +90,7 @@ function Welcome() {
       )}
 
       <main
-        className="welcome-root relative min-h-screen overflow-hidden text-slate-100"
-        style={{ backgroundColor: "#05070d" }}
+        className="welcome-root relative min-h-screen overflow-hidden text-slate-100 bg-[#05070d]"
       >
         <style>{`
           @keyframes welcome-zoom {
@@ -153,18 +152,13 @@ function Welcome() {
               disableRemotePlayback
               disablePictureInPicture
               aria-hidden
-              className="h-full w-full object-cover"
-              style={{ filter: "brightness(0.55) contrast(1.1) saturate(0.85)" }}
+              className="h-full w-full object-cover filter-[brightness(0.55)_contrast(1.1)_saturate(0.85)]"
             />
           </div>
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90" />
           <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_40%,transparent_30%,rgba(5,7,13,0.85)_100%)]" />
           <div
-            className="absolute inset-0 mix-blend-overlay opacity-60"
-            style={{
-              background:
-                "radial-gradient(70% 50% at 20% 20%, rgba(0,0,0,0.15), transparent 60%), radial-gradient(60% 50% at 85% 80%, rgba(0,0,0,0.20), transparent 60%)",
-            }}
+            className="absolute inset-0 mix-blend-overlay opacity-60 bg-[radial-gradient(70%_50%_at_20%_20%_,rgba(0,0,0,0.15)_,transparent_60%)_radial-gradient(60%_50%_at_85%_80%_,rgba(0,0,0,0.20)_,transparent_60%)]"
           />
           <div
             aria-hidden
