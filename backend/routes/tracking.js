@@ -543,11 +543,12 @@ router.get("/pos/:documentId/pallets", async (req, res) => {
 
 // ------------------ KONFIRMASI MANUAL (hanya zona selain outbound) ------------------
 // Pallet hilang dari zona selain outbound -> approval_status = PENDING. Pilihan konfirmasi:
-//   /store : barang disimpan di inventaris. Pallet TETAP aktif & tetap dilacak, alert berhenti.
-//            Kalau marker terbaca lagi (RETURNED) status inventaris otomatis dibersihkan.
-//   /exit  : barang sudah keluar (tanpa lewat outbound). Pallet selesai (RELEASED).
-//            Boleh juga dipanggil untuk pallet yang sedang di inventaris.
-// "Masih ada" sengaja dihapus: cukup tunggu kamera membaca marker lagi.
+//   /store   : barang disimpan di inventaris. Pallet TETAP aktif & tetap dilacak, alert berhenti.
+//              Kalau marker terbaca lagi (RETURNED) status inventaris otomatis dibersihkan.
+//   /exit    : barang sudah keluar (tanpa lewat outbound). Pallet selesai (RELEASED).
+//              Boleh juga dipanggil untuk pallet yang sedang di inventaris.
+//   /present : barang ternyata MASIH ADA (alarm palsu). Alert dibatalkan, pallet kembali normal
+//              & tetap dipantau. Berguna saat kamera belum sempat membaca marker lagi.
 async function confirmPalletAction(req, res, kind) {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: "id pallet tidak valid" });
@@ -570,11 +571,21 @@ async function confirmPalletAction(req, res, kind) {
     const pal = p.rows[0];
     const pending = pal.status === "ACTIVE" && pal.approval_status === "PENDING";
     const stored = pal.status === "ACTIVE" && pal.stored_at != null;
-    if (kind === "store" ? !pending : !(pending || stored)) {
+    // Aksi yang diizinkan:
+    //  store   -> hanya pallet yang sedang menunggu konfirmasi (pending)
+    //  exit    -> pallet pending atau sedang di inventaris
+    //  present -> hanya pallet pending (hilang, ternyata masih ada)
+    const allowed =
+      kind === "store" ? pending : kind === "exit" ? pending || stored : kind === "present" ? pending : false;
+    if (!allowed) {
       await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: kind === "store" ? "Pallet ini tidak sedang menunggu konfirmasi" : "Pallet ini tidak sedang hilang / di inventaris",
-      });
+      const errMsg =
+        kind === "store"
+          ? "Pallet ini tidak sedang menunggu konfirmasi"
+          : kind === "present"
+            ? "Pallet ini tidak sedang hilang / menunggu konfirmasi"
+            : "Pallet ini tidak sedang hilang / di inventaris";
+      return res.status(409).json({ error: errMsg });
     }
 
     const lastZone = `COALESCE((SELECT COALESCE(to_zone, from_zone, NULLIF(zone, '')) FROM pallet_events
@@ -591,7 +602,7 @@ async function confirmPalletAction(req, res, kind) {
       );
       eventType = "STORED";
       detail = `Dikonfirmasi masuk inventaris oleh ${who || "pengguna"}${note ? `: ${note}` : ""}`;
-    } else {
+    } else if (kind === "exit") {
       // Dari inventaris: jam keluar tidak diketahui kamera -> pakai waktu konfirmasi.
       // Dari hilang: jam keluar = jam marker terakhir hilang.
       await client.query(
@@ -605,6 +616,18 @@ async function confirmPalletAction(req, res, kind) {
       );
       eventType = "APPROVED";
       detail = `Dikonfirmasi sudah keluar oleh ${who || "pengguna"}${note ? `: ${note}` : ""}`;
+    } else {
+      // present: barang ternyata masih ada (alarm palsu) -> batalkan alert, kembali normal.
+      // Pallet tetap ACTIVE & tetap dipantau; kalau marker terbaca lagi tidak ada perubahan status.
+      await client.query(
+        `UPDATE document_pallets
+            SET approval_status = NULL, missing_since = NULL, alert_level = 0,
+                stored_at = NULL, stored_by = NULL, stored_note = NULL
+          WHERE id = $1`,
+        [id],
+      );
+      eventType = "CHECKED_PRESENT";
+      detail = `Dikonfirmasi masih ada oleh ${who || "pengguna"}${note ? `: ${note}` : ""}`;
     }
     const ev = await client.query(
       `INSERT INTO pallet_events
@@ -634,6 +657,7 @@ async function confirmPalletAction(req, res, kind) {
 }
 router.post("/pallets/:id/store", express.json(), (req, res) => confirmPalletAction(req, res, "store"));
 router.post("/pallets/:id/exit", express.json(), (req, res) => confirmPalletAction(req, res, "exit"));
+router.post("/pallets/:id/present", express.json(), (req, res) => confirmPalletAction(req, res, "present"));
 
 // Pallet hilang dari zona non-outbound (approval_status = PENDING) dicek berkala.
 // Tiap ambang terlewati -> 1x alert (event MISSING_ALERT + notifikasi lonceng).

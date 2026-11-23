@@ -781,7 +781,7 @@ function eventColor(type: string, t: any) {
 // Jendela detail satu PO: ringkasan, tahapan, daftar pallet + tindakan + riwayat tiap pallet
 function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void }) {
   const [openHistory, setOpenHistory] = useState<number | null>(null);
-  const [action, setAction] = useState<{ id: number; type: "store" | "exit" } | null>(null);
+  const [action, setAction] = useState<{ id: number; type: "store" | "exit" | "present" } | null>(null);
   const [note, setNote] = useState("");
   const qc = useQueryClient();
 
@@ -805,7 +805,7 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
   };
 
   const act = useMutation({
-    mutationFn: async ({ ids, kind, note }: { ids: number[]; kind: "store" | "exit"; note: string }) => {
+    mutationFn: async ({ ids, kind, note }: { ids: number[]; kind: "store" | "exit" | "present"; note: string }) => {
       for (const id of ids) {
         const res = await authFetch(`${API_BASE_URL}/api/tracking/pallets/${id}/${kind}`, {
           method: "POST",
@@ -822,7 +822,13 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
       refresh();
       setAction(null);
       setNote("");
-      toast.success(v.kind === "store" ? "Pallet dicatat masuk inventaris" : "Pallet dicatat sudah keluar");
+      toast.success(
+        v.kind === "store"
+          ? "Pallet dicatat masuk inventaris"
+          : v.kind === "present"
+            ? "Pallet dikonfirmasi masih ada"
+            : "Pallet dicatat sudah keluar",
+      );
     },
     onError: (e: Error) => {
       refresh();
@@ -1083,6 +1089,18 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                                 {isPending && (
                                   <button
                                     onClick={() => {
+                                      setAction({ id: p.pallet_id, type: "present" });
+                                      setNote("");
+                                    }}
+                                    className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-semibold hover:opacity-80"
+                                    style={{ borderColor: "#059669", color: "#059669" }}
+                                  >
+                                    Masih ada
+                                  </button>
+                                )}
+                                {isPending && (
+                                  <button
+                                    onClick={() => {
                                       setAction({ id: p.pallet_id, type: "store" });
                                       setNote("");
                                     }}
@@ -1118,19 +1136,31 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                         {acting && (
                           <div className="mt-3 rounded-lg border p-3" style={{ borderColor: t.border, backgroundColor: t.bg }}>
                             <p className="text-xs font-semibold">
-                              {acting === "store" ? "Konfirmasi: barang disimpan di inventaris" : "Konfirmasi: barang sudah keluar"}
+                              {acting === "store"
+                                ? "Konfirmasi: barang disimpan di inventaris"
+                                : acting === "present"
+                                  ? "Konfirmasi: barang ternyata masih ada"
+                                  : "Konfirmasi: barang sudah keluar"}
                             </p>
                             <p className="mt-1 text-[12px]" style={{ color: t.textMuted }}>
                               {acting === "store"
                                 ? "Pallet tetap aktif dan tetap dipantau. Alert berhenti. Kalau marker terbaca lagi, status inventaris otomatis hilang."
-                                : isStored
-                                  ? "Pallet dianggap selesai dan tidak dipantau lagi. Jam keluar dicatat sesuai waktu konfirmasi ini."
-                                  : "Pallet dianggap selesai dan tidak dipantau lagi. Jam keluar dicatat sesuai jam marker terakhir hilang."}
+                                : acting === "present"
+                                  ? "Alert dibatalkan dan pallet kembali normal (tetap dipantau). Gunakan ini kalau alarm ternyata palsu, misalnya barang tertutup atau salah deteksi."
+                                  : isStored
+                                    ? "Pallet dianggap selesai dan tidak dipantau lagi. Jam keluar dicatat sesuai waktu konfirmasi ini."
+                                    : "Pallet dianggap selesai dan tidak dipantau lagi. Jam keluar dicatat sesuai jam marker terakhir hilang."}
                             </p>
                             <input
                               value={note}
                               onChange={(e) => setNote(e.target.value)}
-                              placeholder={acting === "store" ? "Catatan (opsional), misalnya lokasi rak" : "Catatan (opsional), misalnya dibawa ke mana"}
+                              placeholder={
+                                acting === "store"
+                                  ? "Catatan (opsional), misalnya lokasi rak"
+                                  : acting === "present"
+                                    ? "Catatan (opsional), misalnya alasan alarm palsu"
+                                    : "Catatan (opsional), misalnya dibawa ke mana"
+                              }
                               className="mt-2 h-9 w-full rounded-md border px-3 text-sm"
                               style={field}
                             />
