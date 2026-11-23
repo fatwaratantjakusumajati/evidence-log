@@ -96,32 +96,40 @@ type LiveNotification = {
 
 // Payload dari backend bentuknya longgar (tergantung channel), jadi kita
 // baca secara defensif supaya tidak crash kalau ada field yang tidak ada.
-function buildNotificationFromPayload(channel: string, payload: any): LiveNotification | null {
+function buildNotificationFromPayload(
+  channel: string,
+  payloadValue: unknown,
+): LiveNotification | null {
+  const payload: Record<string, unknown> =
+    payloadValue && typeof payloadValue === "object" && !Array.isArray(payloadValue)
+      ? (payloadValue as Record<string, unknown>)
+      : {};
+  const asText = (value: unknown) => (value == null ? "" : String(value));
   const now = new Date().toISOString();
   const id = `${channel}-${payload?.id ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   if (channel === "vehicle_log_event") {
-    const jenis = payload?.jenis_kendaraan || "Kendaraan";
-    const kamera = payload?.kamera_nama ? ` di ${payload.kamera_nama}` : "";
-    const plat = payload?.plat_nomor ? ` (${payload.plat_nomor})` : "";
+    const jenis = asText(payload.jenis_kendaraan) || "Kendaraan";
+    const kamera = payload.kamera_nama ? ` di ${asText(payload.kamera_nama)}` : "";
+    const plat = payload.plat_nomor ? ` (${asText(payload.plat_nomor)})` : "";
     return {
       id,
       title: `${jenis} terdeteksi`,
       description: `${jenis}${plat} terdeteksi${kamera}.`,
-      time: payload?.timestamp || now,
+      time: asText(payload.timestamp) || now,
       kind: "vehicle",
     };
   }
 
   if (channel === "alert_log_event") {
-    const className = payload?.class_name || "";
+    const className = asText(payload.class_name);
     const kamera = payload?.camera ? ` — ${payload.camera}` : "";
     if (className.toUpperCase().includes("OFFLINE")) {
       return {
         id,
         title: "Kamera offline",
         description: `Kamera${kamera} terpantau offline.`,
-        time: payload?.timestamp || now,
+        time: asText(payload.timestamp) || now,
         kind: "camera",
       };
     }
@@ -130,7 +138,7 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
         id,
         title: "Kamera kembali online",
         description: `Kamera${kamera} sudah normal kembali.`,
-        time: payload?.timestamp || now,
+        time: asText(payload.timestamp) || now,
         kind: "camera",
       };
     }
@@ -139,21 +147,41 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
   }
 
   if (channel === "pallet_event") {
-    const type = String(payload?.event_type || "");
-    const outcome = String(payload?.outcome || "");
-    const po = payload?.po_number ? `PO ${payload.po_number}` : `Marker ID ${payload?.aruco_id ?? "?"}`;
-    const zone = payload?.zone || payload?.to_zone || payload?.from_zone || "-";
-    const time = payload?.timestamp || now;
+    const type = asText(payload.event_type);
+    const outcome = asText(payload.outcome);
+    const po = payload.po_number
+      ? `PO ${asText(payload.po_number)}`
+      : `Marker ID ${payload.aruco_id ?? "?"}`;
+    const zone = asText(payload.zone || payload.to_zone || payload.from_zone) || "-";
+    const time = asText(payload.timestamp) || now;
 
     if (type === "CAMERA_OFFLINE") {
-      return { id, title: "Kamera offline", description: `Kamera — ${zone} terpantau offline.`, time, kind: "camera" };
+      return {
+        id,
+        title: "Kamera offline",
+        description: `Kamera — ${zone} terpantau offline.`,
+        time,
+        kind: "camera",
+      };
     }
     if (type === "CAMERA_ONLINE") {
-      return { id, title: "Kamera kembali online", description: `Kamera — ${zone} sudah normal kembali.`, time, kind: "camera" };
+      return {
+        id,
+        title: "Kamera kembali online",
+        description: `Kamera — ${zone} sudah normal kembali.`,
+        time,
+        kind: "camera",
+      };
     }
     if (type === "MISSING") {
       if (outcome === "COMPLETED_OUTBOUND") {
-        return { id, title: "Pallet selesai (outbound)", description: `${po} keluar lewat zona ${zone}.`, time, kind: "tracking" };
+        return {
+          id,
+          title: "Pallet selesai (outbound)",
+          description: `${po} keluar lewat zona ${zone}.`,
+          time,
+          kind: "tracking",
+        };
       }
       if (outcome === "NEEDS_APPROVAL") {
         return {
@@ -164,11 +192,23 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
           kind: "alert",
         };
       }
-      return { id, title: "Marker hilang", description: `${po} hilang dari zona ${zone}.`, time, kind: "alert" };
+      return {
+        id,
+        title: "Marker hilang",
+        description: `${po} hilang dari zona ${zone}.`,
+        time,
+        kind: "alert",
+      };
     }
     if (type === "RETURNED") {
       const batal = outcome === "APPROVAL_CANCELLED" ? " Permintaan ACC dibatalkan." : "";
-      return { id, title: "Pallet terlihat kembali", description: `${po} muncul lagi di zona ${zone}.${batal}`, time, kind: "tracking" };
+      return {
+        id,
+        title: "Pallet terlihat kembali",
+        description: `${po} muncul lagi di zona ${zone}.${batal}`,
+        time,
+        kind: "tracking",
+      };
     }
     if (type === "MOVED_ZONE") {
       return {
@@ -180,11 +220,23 @@ function buildNotificationFromPayload(channel: string, payload: any): LiveNotifi
       };
     }
     if (type === "NEW") {
-      return { id, title: "Pallet baru terbaca", description: `${po} terbaca di zona ${zone}.`, time, kind: "tracking" };
+      return {
+        id,
+        title: "Pallet baru terbaca",
+        description: `${po} terbaca di zona ${zone}.`,
+        time,
+        kind: "tracking",
+      };
     }
     if (type === "APPROVED") {
-      const oleh = payload?.approved_by ? ` oleh ${payload.approved_by}` : "";
-      return { id, title: "Pallet disetujui selesai", description: `${po} di-ACC${oleh}.`, time, kind: "tracking" };
+      const oleh = payload.approved_by ? ` oleh ${asText(payload.approved_by)}` : "";
+      return {
+        id,
+        title: "Pallet disetujui selesai",
+        description: `${po} di-ACC${oleh}.`,
+        time,
+        kind: "tracking",
+      };
     }
   }
 
@@ -859,17 +911,17 @@ function SidebarNav({
   unreadCount,
   onOpenNotifications,
 }: {
-  location: any;
-  theme: any;
-  setTheme: any;
+  location: ReturnType<typeof useLocation>;
+  theme: ReturnType<typeof useTheme>["theme"];
+  setTheme: ReturnType<typeof useTheme>["setTheme"];
   resolvedTheme: "dark" | "light";
-  sseStatus: any;
-  reportDropdownOpen: any;
-  setReportDropdownOpen: any;
-  reportDropdownRef: any;
-  openDateModal: any;
-  isDownloading: any;
-  handleFullReportDownload: any; // NEW
+  sseStatus: "online" | "offline" | "connecting";
+  reportDropdownOpen: boolean;
+  setReportDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  reportDropdownRef: React.RefObject<HTMLDivElement | null>;
+  openDateModal: (type: "daily" | "weekly" | "monthly") => void;
+  isDownloading: boolean;
+  handleFullReportDownload: (format: "xlsx" | "pdf") => Promise<void>;
   notifications: LiveNotification[];
   unreadCount: number;
   onOpenNotifications: () => void;

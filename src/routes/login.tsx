@@ -23,7 +23,7 @@ function LoginPage() {
     if (isAuthenticated()) {
       navigate({ to: "/dashboard" });
     }
-  }, []);
+  }, [navigate]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
@@ -62,9 +62,7 @@ function LoginPage() {
       </div>
 
       {/* Login Card */}
-      <div
-        className="viewfinder relative w-full max-w-sm rounded-3xl p-8 bg-[linear-gradient(145deg,#eef1f6,#d8dde6)] shadow-[20px_20px_60px_rgba(0,0,0,0.35)_-12px_-12px_30px_rgba(255,255,255,0.5)]"
-      >
+      <div className="viewfinder relative w-full max-w-sm rounded-3xl p-8 bg-[linear-gradient(145deg,#eef1f6,#d8dde6)] shadow-[20px_20px_60px_rgba(0,0,0,0.35)_-12px_-12px_30px_rgba(255,255,255,0.5)]">
         <span className="vf-tr" />
         <span className="vf-bl" />
         <div className="mb-3 flex items-center justify-center gap-1.5">
@@ -74,9 +72,7 @@ function LoginPage() {
           </span>
         </div>
         <div className="flex flex-col items-center">
-          <div
-            className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(145deg,#e2e6ed,#f4f6f9)] shadow-[inset_4px_4px_8px_rgba(0,0,0,0.08)_-4px_-4px_8px_rgba(255,255,255,0.7)]"
-          >
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(145deg,#e2e6ed,#f4f6f9)] shadow-[inset_4px_4px_8px_rgba(0,0,0,0.08)_-4px_-4px_8px_rgba(255,255,255,0.7)]">
             <User className="h-7 w-7 text-slate-800" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 font-space">Welcome Back!</h1>
@@ -85,9 +81,7 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
           {/* Username Field */}
-          <div
-            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]"
-          >
+          <div className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]">
             <User className="h-5 w-5 text-slate-500" />
             <input
               type="text"
@@ -101,9 +95,7 @@ function LoginPage() {
           </div>
 
           {/* Password Field */}
-          <div
-            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]"
-          >
+          <div className="flex items-center gap-3 rounded-xl px-4 py-3 bg-[linear-gradient(145deg,#d8dde6,#eef1f6)] shadow-[inset_3px_3px_6px_rgba(0,0,0,0.1)_-3px_-3px_6px_rgba(255,255,255,0.6)]">
             <Lock className="h-5 w-5 text-slate-500" />
             <input
               type={showPassword ? "text" : "password"}

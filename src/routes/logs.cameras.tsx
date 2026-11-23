@@ -5,7 +5,7 @@ import { API_BASE_URL } from "@/lib/api-config";
 import { useState } from "react";
 import { formatDateTime } from "@/lib/evidence";
 import { toast } from "sonner";
-import { getLogsPageColors } from "@/lib/theme-tokens";
+import { getLogsPageColors, type LogsPageColors } from "@/lib/theme-tokens";
 import { useTheme } from "@/lib/theme-provider";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
@@ -48,10 +48,15 @@ function uptimeTone(percent: number) {
   return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)" };
 }
 
-function parseAlertResponse(json: any) {
-  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) return json;
-  else if (Array.isArray(json))
-    return { data: json, total: json.length, totalPages: Math.ceil(json.length / PAGE_SIZE) };
+function parseAlertResponse(json: unknown) {
+  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) {
+    return json as { data: CameraOfflineEvent[]; total: number; totalPages: number };
+  } else if (Array.isArray(json))
+    return {
+      data: json as CameraOfflineEvent[],
+      total: json.length,
+      totalPages: Math.ceil(json.length / PAGE_SIZE),
+    };
   return { data: [], total: 0, totalPages: 1 };
 }
 
@@ -531,7 +536,7 @@ function Pagination({
   total: number;
   pageSize: number;
   onChange: (p: number) => void;
-  theme: any;
+  theme: LogsPageColors;
 }) {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);

@@ -62,10 +62,11 @@ app.get("/api/health", async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
+    logger.error("Health check database error:", err);
     res.status(503).json({
       status: "degraded",
       uptime_seconds: Math.floor(process.uptime()),
-      database: { status: "error", error: err.message },
+      database: { status: "error" },
       timestamp: new Date().toISOString(),
     });
   }
@@ -74,7 +75,12 @@ app.get("/api/health", async (_req, res) => {
 // Semua /api/* lainnya wajib login, KKECUALI /api/events (SSE)
 app.use("/api", (req, res, next) => {
   // Route yang dipanggil n8n memakai x-ingest-key (bukan login user)
-  const PUBLIC_API_PATHS = ["/events", "/documents/ingest", "/documents/ingest/aruco", "/tracking/ingest"];
+  const PUBLIC_API_PATHS = [
+    "/events",
+    "/documents/ingest",
+    "/documents/ingest/aruco",
+    "/tracking/ingest",
+  ];
   if (PUBLIC_API_PATHS.includes(req.path)) return next();
   return requireAuth(req, res, next);
 });
@@ -142,47 +148,82 @@ app.get("/api/events", async (req, res) => {
 });
 
 // --- LISTENER POSTGRESQL ---
-listenerPool.connect((err, client, done) => {
-  if (err) {
-    logger.error("❌ Gagal connect listener DB:", err);
-    return;
-  }
+let listenerRetryTimer;
+function scheduleListenerReconnect() {
+  if (listenerRetryTimer) return;
+  listenerRetryTimer = setTimeout(() => {
+    listenerRetryTimer = undefined;
+    connectNotificationListener();
+  }, 5000);
+  listenerRetryTimer.unref?.();
+}
 
-  // PERBAIKAN: 2 query LISTEN ini sebelumnya ditembak bersamaan tanpa
-  // menunggu yang pertama selesai -- pg tidak izinkan itu di satu koneksi
-  // yang sama (makanya muncul DeprecationWarning "client already executing
-  // a query"). Sekarang dijalankan berurutan.
-  client
-    .query("LISTEN vehicle_log_event")
-    .then(() => client.query("LISTEN alert_log_event"))
-    .then(() => client.query("LISTEN pallet_event"))
-    .catch((listenErr) => logger.error("❌ Gagal setup LISTEN:", listenErr));
-
-  // Saat ada notifikasi dari PostgreSQL
-  client.on("notification", (msg) => {
-    if (
-      msg.channel === "vehicle_log_event" ||
-      msg.channel === "alert_log_event" ||
-      msg.channel === "pallet_event"
-    ) {
-      const payload = JSON.parse(msg.payload);
-      logger.info(
-        `📡 Real-time update dari ${msg.channel}:`,
-        payload.jenis_kendaraan || payload.class_name || payload.event_type,
-      );
-
-      // Kirim ke semua client frontend yang terhubung
-      sendEventToAll({
-        channel: msg.channel,
-        data: payload,
-      });
+function connectNotificationListener() {
+  listenerPool.connect((err, client, done) => {
+    if (err) {
+      scheduleListenerReconnect();
+      logger.error("❌ Gagal connect listener DB:", err);
+      return;
     }
-  });
 
-  client.on("error", (err) => {
-    logger.error("❌ Listener DB Error:", err);
+    let released = false;
+    const releaseAndReconnect = (clientError) => {
+      if (released) return;
+      released = true;
+      done(clientError);
+      scheduleListenerReconnect();
+    };
+    client.on("error", releaseAndReconnect);
+    client.on("end", () => releaseAndReconnect());
+
+    // PERBAIKAN: 2 query LISTEN ini sebelumnya ditembak bersamaan tanpa
+    // menunggu yang pertama selesai -- pg tidak izinkan itu di satu koneksi
+    // yang sama (makanya muncul DeprecationWarning "client already executing
+    // a query"). Sekarang dijalankan berurutan.
+    client
+      .query("LISTEN vehicle_log_event")
+      .then(() => client.query("LISTEN alert_log_event"))
+      .then(() => client.query("LISTEN pallet_event"))
+      .catch((listenErr) => logger.error("❌ Gagal setup LISTEN:", listenErr));
+
+    // Saat ada notifikasi dari PostgreSQL
+    client.on("notification", (msg) => {
+      if (
+        msg.channel === "vehicle_log_event" ||
+        msg.channel === "alert_log_event" ||
+        msg.channel === "pallet_event"
+      ) {
+        let payload;
+        try {
+          payload = JSON.parse(msg.payload);
+        } catch (parseErr) {
+          logger.error(`Invalid JSON notification from ${msg.channel}:`, parseErr);
+          return;
+        }
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          logger.error(`Invalid notification payload from ${msg.channel}`);
+          return;
+        }
+        logger.info(
+          `📡 Real-time update dari ${msg.channel}:`,
+          payload.jenis_kendaraan || payload.class_name || payload.event_type,
+        );
+
+        // Kirim ke semua client frontend yang terhubung
+        sendEventToAll({
+          channel: msg.channel,
+          data: payload,
+        });
+      }
+    });
+
+    client.on("error", (err) => {
+      logger.error("❌ Listener DB Error:", err);
+    });
   });
-});
+}
+
+connectNotificationListener();
 
 // Route awal
 app.get("/", (req, res) => res.json({ message: "API berjalan!!!" }));
@@ -199,7 +240,7 @@ app.use((err, req, res, next) => {
   }
   if (err) {
     logger.error("Unhandled error:", err);
-    return res.status(500).json({ error: err.message || "Terjadi kesalahan pada server." });
+    return res.status(500).json({ error: "Terjadi kesalahan pada server." });
   }
   next();
 });

@@ -7,14 +7,7 @@ type KpiCardProps = {
   onClick?: () => void;
 };
 
-export function KpiCard({
-  icon,
-  label,
-  value,
-  hint,
-  isLoading,
-  onClick,
-}: KpiCardProps) {
+export function KpiCard({ icon, label, value, hint, isLoading, onClick }: KpiCardProps) {
   return (
     <div
       onClick={onClick}

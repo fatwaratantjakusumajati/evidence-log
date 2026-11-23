@@ -118,7 +118,8 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
   wsTitle.font = { name: "Segoe UI", size: 15, bold: true, color: { argb: THEME.primary } };
   ws.getRow(2).height = 26;
 
-  ws.getCell("A3").value = `${subtitle ? subtitle + "  ·  " : ""}Total Data: ${dataRows.length} baris`;
+  ws.getCell("A3").value =
+    `${subtitle ? subtitle + "  ·  " : ""}Total Data: ${dataRows.length} baris`;
   ws.getCell("A3").font = {
     name: "Segoe UI",
     size: 9,
@@ -228,7 +229,11 @@ function formatPremiumLogSheet(ws, title, headers, dataRows, columnSpecs, summar
     r++;
 
     ws.mergeCells(r, 1, r, 2);
-    ws.getCell(r, 2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: THEME.bgHeader } };
+    ws.getCell(r, 2).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: THEME.bgHeader },
+    };
     ws.getCell(r, 2).border = { bottom: { style: "medium", color: { argb: THEME.primary } } };
     const labelHeaderCell = ws.getCell(r, 1);
     labelHeaderCell.value = "Keterangan";
@@ -903,9 +908,7 @@ async function generateReportEngine(
       sSpecs,
       {
         title: "Rekap Alert",
-        rows: [
-          ["Total Staging (Box) Terdeteksi", totalStaging],
-        ],
+        rows: [["Total Staging (Box) Terdeteksi", totalStaging]],
       },
       subtitleInfo,
     );

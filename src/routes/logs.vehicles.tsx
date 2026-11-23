@@ -69,10 +69,15 @@ type VehicleLog = {
   plat_confidence?: number | null;
 };
 
-function parseVehicleResponse(json: any, pageSize: number) {
-  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) return json;
-  else if (Array.isArray(json))
-    return { data: json, total: json.length, totalPages: Math.ceil(json.length / pageSize) };
+function parseVehicleResponse(json: unknown, pageSize: number) {
+  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) {
+    return json as { data: VehicleLog[]; total: number; totalPages: number };
+  } else if (Array.isArray(json))
+    return {
+      data: json as VehicleLog[],
+      total: json.length,
+      totalPages: Math.ceil(json.length / pageSize),
+    };
   return { data: [], total: 0, totalPages: 1 };
 }
 
@@ -174,7 +179,7 @@ function VehicleLogsPage() {
     refetchInterval: 3000,
   });
 
-  const paginatedVehicles = response?.data || [];
+  const paginatedVehicles = useMemo(() => response?.data ?? [], [response?.data]);
 
   const groupedVehicles = useMemo(() => {
     const groups = new Map<string, VehicleLog[]>();
@@ -727,7 +732,9 @@ function VehicleLogsPage() {
                           <div className="flex flex-col items-start gap-1">
                             {statusKejadianBadge ||
                               (!muatanBadge && (
-                                <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">–</span>
+                                <span className="text-sm text-[#94a3b8] dark:text-[#64748b]">
+                                  –
+                                </span>
                               ))}
                             {muatanBadge}
                           </div>
@@ -860,7 +867,9 @@ function VehicleLogsPage() {
                           ? "text-[#15803d] dark:text-[#34d399]"
                           : "text-[#64748b] dark:text-[#94a3b8]";
                     return (
-                      <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}>
+                      <div
+                        className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}
+                      >
                         <Box className={`h-5 w-5 ${teks}`} />
                         <div>
                           <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">

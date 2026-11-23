@@ -18,12 +18,12 @@
 
 ## Tech Stack
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | React 19, TanStack Start, TanStack Router, TanStack Query, Vite, Tailwind CSS v4, Recharts, Lucide Icons, Sonner |
-| **Backend** | Node.js, Express, PostgreSQL (`pg`), JWT, bcrypt, Puppeteer, ExcelJS, Multer |
-| **Realtime** | PostgreSQL `LISTEN` / `NOTIFY` + Server-Sent Events (SSE) |
-| **Deployment** | Docker (multi-stage production builds for both Frontend and Backend) |
+| Layer          | Technologies                                                                                                     |
+| :------------- | :--------------------------------------------------------------------------------------------------------------- |
+| **Frontend**   | React 19, TanStack Start, TanStack Router, TanStack Query, Vite, Tailwind CSS v4, Recharts, Lucide Icons, Sonner |
+| **Backend**    | Node.js, Express, PostgreSQL (`pg`), JWT, bcrypt, Puppeteer, ExcelJS, Multer                                     |
+| **Realtime**   | PostgreSQL `LISTEN` / `NOTIFY` + Server-Sent Events (SSE)                                                        |
+| **Deployment** | Docker (multi-stage production builds for both Frontend and Backend)                                             |
 
 ---
 
@@ -100,35 +100,35 @@ Open the local URL displayed in your terminal (typically `http://localhost:3000`
 
 ### Frontend (`.env` in root directory)
 
-| Variable | Description | Example |
-| :--- | :--- | :--- |
+| Variable            | Description        | Example                 |
+| :------------------ | :----------------- | :---------------------- |
 | `VITE_API_BASE_URL` | Backend server URL | `http://localhost:5000` |
 
 ### Backend (`backend/.env`)
 
 #### Required Configuration:
 
-| Variable | Description |
-| :--- | :--- |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection details |
-| `JWT_SECRET` | Strong secret key for signing JWT auth tokens |
+| Variable                                                  | Description                                   |
+| :-------------------------------------------------------- | :-------------------------------------------- |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection details                 |
+| `JWT_SECRET`                                              | Strong secret key for signing JWT auth tokens |
 
 #### Optional / Feature-Specific Configuration:
 
-| Variable | Description | Default / Example |
-| :--- | :--- | :--- |
-| `PORT` | Backend server port | `5000` |
-| `NODE_ENV` | Environment mode (`development` / `production`) | `production` |
-| `CORS_ORIGIN` | Allowed CORS origins (comma-separated) | `http://localhost:3000` |
-| `DOCUMENTS_DIR` | Storage path for uploaded document files (.xlsx, images) | `./documents` |
-| `TRACKING_DIR` | Storage path for tracking event snapshot images | `./tracking` |
-| `DOCUMENTS_INGEST_KEY` | Ingest API authentication key for n8n/OCR webhooks | - |
-| `TRACKING_INGEST_KEY` | Ingest API authentication key for camera monitors | - |
-| `OUTBOUND_ZONES` | Names of zones designated as outbound (comma-separated) | `outbound,loading dock` |
-| `OUTBOUND_GRACE_MIN` | Grace period in minutes before missing outbound pallet completes | `1440` (24h) |
-| `MARKER_POOL_MAX` | Upper limit for allocated ArUco marker IDs | `300` |
-| `MAX_PALLET_PER_PO` | Maximum pallets allowed per Purchase Order | `100` |
-| `MISSING_ALERT_HOURS` | Inactivity threshold hours triggering missing alerts | `3,6` |
+| Variable               | Description                                                      | Default / Example       |
+| :--------------------- | :--------------------------------------------------------------- | :---------------------- |
+| `PORT`                 | Backend server port                                              | `5000`                  |
+| `NODE_ENV`             | Environment mode (`development` / `production`)                  | `production`            |
+| `CORS_ORIGIN`          | Allowed CORS origins (comma-separated)                           | `http://localhost:3000` |
+| `DOCUMENTS_DIR`        | Storage path for uploaded document files (.xlsx, images)         | `./documents`           |
+| `TRACKING_DIR`         | Storage path for tracking event snapshot images                  | `./tracking`            |
+| `DOCUMENTS_INGEST_KEY` | Ingest API authentication key for n8n/OCR webhooks               | -                       |
+| `TRACKING_INGEST_KEY`  | Ingest API authentication key for camera monitors                | -                       |
+| `OUTBOUND_ZONES`       | Names of zones designated as outbound (comma-separated)          | `outbound,loading dock` |
+| `OUTBOUND_GRACE_MIN`   | Grace period in minutes before missing outbound pallet completes | `1440` (24h)            |
+| `MARKER_POOL_MAX`      | Upper limit for allocated ArUco marker IDs                       | `300`                   |
+| `MAX_PALLET_PER_PO`    | Maximum pallets allowed per Purchase Order                       | `100`                   |
+| `MISSING_ALERT_HOURS`  | Inactivity threshold hours triggering missing alerts             | `3,6`                   |
 
 ---
 

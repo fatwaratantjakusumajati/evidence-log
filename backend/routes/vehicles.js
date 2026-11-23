@@ -224,9 +224,62 @@ router.get("/stats/hourly", async (req, res) => {
   }
 });
 
-// ✅ MENGEMBALIKAN ENDPOINT STATS WEEKLY YANG HILANG
+// ✅ STATISTIK PER MINGGU (per grup kendaraan)
 router.get("/stats/weekly", async (req, res) => {
-  res.json([]);
+  try {
+    const { start_date, end_date } = req.query;
+    const dateCheck = validateDateRange(start_date, end_date);
+    if (!dateCheck.ok) return res.status(400).json({ error: dateCheck.message });
+
+    const conds = [];
+    const params = [];
+    if (start_date) {
+      params.push(start_date);
+      conds.push(`timestamp >= $${params.length}`);
+    }
+    if (end_date) {
+      params.push(endOfDayBoundary(end_date));
+      conds.push(`timestamp <= $${params.length}`);
+    }
+
+    // Kelompokkan per grup kendaraan (sama seperti /log dan /stats/hourly)
+    const query = `
+      WITH filtered AS (
+        SELECT *, COALESCE(vehicle_id, 'single-' || id::text) AS group_key
+        FROM vehicle_log
+        WHERE ${conds.length > 0 ? conds.join(" AND ") : "TRUE"}
+        AND is_false_positive IS NOT TRUE
+      ),
+      weekly AS (
+        SELECT
+          date_trunc('week', timestamp) AS week_start,
+          group_key,
+          COUNT(*) AS trips,
+          COUNT(DISTINCT CASE WHEN jenis_kejadian = 'MASUK' THEN group_key END) AS arrivals,
+          COUNT(DISTINCT CASE WHEN jenis_kejadian = 'SIKLUS_SELAI' OR jenis_kejadian = 'KELUAR' THEN group_key END) AS departures
+        FROM filtered
+        GROUP BY date_trunc('week', timestamp), group_key
+        ORDER BY week_start DESC, group_key
+      )
+      SELECT
+        week_start,
+        COUNT(*) AS total_groups,
+        SUM(trips) AS total_trips,
+        SUM(arrivals) AS total_arrivals,
+        SUM(departures) AS total_departures
+      FROM weekly
+      GROUP BY week_start
+      ORDER BY week_start DESC
+    `;
+
+    const result = await pool.query(query, params);
+    res.json({
+      data: result.rows,
+      total: result.rowCount,
+    });
+  } catch (err) {
+    sendServerError(res, err);
+  }
 });
 
 // ------------------ EKSPOR PDF (DENGAN STATUS MUATAN) ------------------

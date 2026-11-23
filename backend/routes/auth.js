@@ -17,37 +17,23 @@ async function isRateLimited(ip) {
   const windowStart = new Date(now - WINDOW_MS).toISOString();
 
   // Bersihkan entri yang sudah lewat window waktu (idempotent, aman dipanggil berkala)
+  await pool.query(`DELETE FROM login_attempts WHERE updated_at < $1`, [windowStart]);
+
+  const result = await pool.query(`SELECT count FROM login_attempts WHERE ip = $1`, [ip]);
+  return Number(result.rows[0]?.count ?? 0) >= MAX_ATTEMPTS;
+}
+
+async function recordFailedLogin(ip) {
+  const windowStart = new Date(Date.now() - WINDOW_MS).toISOString();
   await pool.query(
-    `DELETE FROM login_attempts WHERE updated_at < $1`,
-    [windowStart],
+    `INSERT INTO login_attempts (ip, count, first_attempt, updated_at)
+     VALUES ($1, 1, NOW(), NOW())
+     ON CONFLICT (ip) DO UPDATE SET
+       count = CASE WHEN login_attempts.updated_at < $2 THEN 1 ELSE login_attempts.count + 1 END,
+       first_attempt = CASE WHEN login_attempts.updated_at < $2 THEN NOW() ELSE login_attempts.first_attempt END,
+       updated_at = NOW()`,
+    [ip, windowStart],
   );
-
-  // Ambil entri untuk IP ini
-  const result = await pool.query(
-    `SELECT count, first_attempt FROM login_attempts WHERE ip = $1`,
-    [ip],
-  );
-  const row = result.rows[0];
-
-  if (!row) {
-    // Belum ada entri -> buat baru dengan count = 1
-    await pool.query(
-      `INSERT INTO login_attempts (ip, count, first_attempt, updated_at)
-       VALUES ($1, 1, NOW(), NOW())`,
-      [ip],
-    );
-    return false;
-  }
-
-  const count = Number(row.count) + 1;
-
-  // Update entri yang ada
-  await pool.query(
-    `UPDATE login_attempts SET count = $1, updated_at = NOW() WHERE ip = $2`,
-    [count, ip],
-  );
-
-  return count > MAX_ATTEMPTS;
 }
 
 router.post("/login", async (req, res) => {
@@ -78,8 +64,11 @@ router.post("/login", async (req, res) => {
     const passwordMatches = await bcrypt.compare(password, hashToCompare);
 
     if (!user || !passwordMatches) {
+      await recordFailedLogin(ip);
       return res.status(401).json({ error: "Username atau password anda salah" });
     }
+
+    await pool.query("DELETE FROM login_attempts WHERE ip = $1", [ip]);
 
     // Token berlaku 30 menit, tapi diperpanjang otomatis di background selama
     // user masih aktif berinteraksi (lihat idle-timer di __root.tsx + endpoint

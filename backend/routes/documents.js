@@ -70,7 +70,9 @@ function parseJumlahPallet(v) {
 // Isi kolom jumlah_pallet dari dashboard/n8n: "N" (N pallet baru) atau "N+12,15" (N pallet baru
 // + gabung ke pallet aktif dengan id 12 dan 15). Format ini dipakai supaya workflow n8n tidak perlu diubah.
 function parsePalletInput(v) {
-  const m = String(v ?? "").trim().match(/^(\d+)(?:\+(\d+(?:,\d+)*))?$/);
+  const m = String(v ?? "")
+    .trim()
+    .match(/^(\d+)(?:\+(\d+(?:,\d+)*))?$/);
   if (!m) return null;
   const baru = Number(m[1]);
   const gabung = m[2] ? [...new Set(m[2].split(",").map(Number))] : [];
@@ -216,7 +218,9 @@ const POOL_MIN = 1; // 0 dipakai marker kamera
 // jadi nomor di atas pemakaian sekarang tetap "kosong" dan membantu menyaring salah baca kamera.
 const _poolMax = Number(process.env.MARKER_POOL_MAX);
 const POOL_MAX =
-  Number.isInteger(_poolMax) && _poolMax >= POOL_MIN && _poolMax <= ARUCO_MAX_ID ? _poolMax : ARUCO_MAX_ID;
+  Number.isInteger(_poolMax) && _poolMax >= POOL_MIN && _poolMax <= ARUCO_MAX_ID
+    ? _poolMax
+    : ARUCO_MAX_ID;
 // Batas jumlah pallet dalam SATU PO. Default 999 (mengikuti pool). Bisa dibatasi lewat .env: MAX_PALLET_PER_PO=100
 const _maxPerPo = Number(process.env.MAX_PALLET_PER_PO);
 const MAX_PALLET_PER_PO = Number.isInteger(_maxPerPo) && _maxPerPo >= 1 ? _maxPerPo : ARUCO_MAX_ID;
@@ -248,7 +252,9 @@ router.post("/ingest/aruco", express.json(), async (req, res) => {
     }
 
     // 2) jumlah pallet baru + pallet yang digabung dibaca dari baris dokumen
-    const doc = await pool.query(`SELECT jumlah_pallet, gabung_ke FROM documents WHERE id = $1`, [documentId]);
+    const doc = await pool.query(`SELECT jumlah_pallet, gabung_ke FROM documents WHERE id = $1`, [
+      documentId,
+    ]);
     if (!doc.rows.length) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
     const jumlah = doc.rows[0].jumlah_pallet || 0;
     const gabung = doc.rows[0].gabung_ke || [];
@@ -265,7 +271,10 @@ router.post("/ingest/aruco", express.json(), async (req, res) => {
       );
       let baru = ada.rows;
       if (!baru.length && jumlah > 0) baru = await alokasiPallet(client, documentId, jumlah);
-      await client.query(`UPDATE documents SET po_number = $1 WHERE id = $2`, [poNumber, documentId]);
+      await client.query(`UPDATE documents SET po_number = $1 WHERE id = $2`, [
+        poNumber,
+        documentId,
+      ]);
 
       let sharedRows = [];
       if (gabung.length) {
@@ -337,10 +346,15 @@ router.post("/upload", upload.single("file"), async (req, res) => {
           .filter((n) => Number.isInteger(n) && n > 0),
       ),
     ];
-    if (!Number.isInteger(jumlahBaru) || jumlahBaru < 0 || jumlahBaru > maxPalletPerPo() || jumlahBaru + gabung.length < 1) {
-      return res
-        .status(400)
-        .json({ error: `Isi jumlah pallet baru (1-${maxPalletPerPo()}) atau pilih pallet yang digabung.` });
+    if (
+      !Number.isInteger(jumlahBaru) ||
+      jumlahBaru < 0 ||
+      jumlahBaru > maxPalletPerPo() ||
+      jumlahBaru + gabung.length < 1
+    ) {
+      return res.status(400).json({
+        error: `Isi jumlah pallet baru (1-${maxPalletPerPo()}) atau pilih pallet yang digabung.`,
+      });
     }
     if (gabung.length) {
       const ok = await pool.query(
@@ -348,7 +362,9 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         [gabung],
       );
       if (ok.rows[0].n !== gabung.length) {
-        return res.status(409).json({ error: "Ada pallet yang dipilih untuk digabung sudah tidak aktif." });
+        return res
+          .status(409)
+          .json({ error: "Ada pallet yang dipilih untuk digabung sudah tidak aktif." });
       }
     }
     const sisa = await sisaSlot();
@@ -363,7 +379,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       req.file.originalname || "dokumen.jpg",
     );
     // "N" atau "N+id,id": satu kolom supaya workflow n8n tidak perlu diubah
-    form.append("jumlah_pallet", gabung.length ? `${jumlahBaru}+${gabung.join(",")}` : String(jumlahBaru));
+    form.append(
+      "jumlah_pallet",
+      gabung.length ? `${jumlahBaru}+${gabung.join(",")}` : String(jumlahBaru),
+    );
 
     const headers = {};
     if (process.env.N8N_UPLOAD_KEY) headers["x-upload-key"] = process.env.N8N_UPLOAD_KEY;
@@ -539,7 +558,9 @@ router.patch("/:id", express.json(), async (req, res) => {
     }
 
     const hasil = await withTx(async (client) => {
-      const doc = await client.query(`SELECT po_number FROM documents WHERE id = $1 FOR UPDATE`, [id]);
+      const doc = await client.query(`SELECT po_number FROM documents WHERE id = $1 FOR UPDATE`, [
+        id,
+      ]);
       if (!doc.rows.length) {
         const e = new Error("Dokumen tidak ditemukan");
         e.status = 404;
@@ -556,10 +577,10 @@ router.patch("/:id", express.json(), async (req, res) => {
           e.status = 409;
           throw e;
         }
-        await client.query(`UPDATE documents SET po_number = $1, duplicate_of = NULL WHERE id = $2`, [
-          poBaru,
-          id,
-        ]);
+        await client.query(
+          `UPDATE documents SET po_number = $1, duplicate_of = NULL WHERE id = $2`,
+          [poBaru, id],
+        );
       }
 
       let dilepas = [];
@@ -593,7 +614,10 @@ router.patch("/:id", express.json(), async (req, res) => {
             [dilepas.map((p) => p.id)],
           );
         }
-        await client.query(`UPDATE documents SET jumlah_pallet = $1 WHERE id = $2`, [jumlahBaru, id]);
+        await client.query(`UPDATE documents SET jumlah_pallet = $1 WHERE id = $2`, [
+          jumlahBaru,
+          id,
+        ]);
       }
       return { dilepas };
     });
@@ -657,7 +681,8 @@ router.get("/:id/file", async (req, res) => {
 router.post("/:id/gabung", express.json(), async (req, res) => {
   try {
     const docId = Number(req.params.id);
-    if (!Number.isInteger(docId) || docId <= 0) return res.status(400).json({ error: "id tidak valid" });
+    if (!Number.isInteger(docId) || docId <= 0)
+      return res.status(400).json({ error: "id tidak valid" });
     const palletIds = [
       ...new Set((Array.isArray(req.body?.pallet_ids) ? req.body.pallet_ids : []).map(Number)),
     ].filter((n) => Number.isInteger(n) && n > 0);
@@ -674,7 +699,9 @@ router.post("/:id/gabung", express.json(), async (req, res) => {
         throw e;
       }
       if (!doc.rows[0].po_number || doc.rows[0].duplicate_of) {
-        const e = new Error("Dokumen ini belum punya nomor PO yang valid, jadi belum bisa digabung.");
+        const e = new Error(
+          "Dokumen ini belum punya nomor PO yang valid, jadi belum bisa digabung.",
+        );
         e.status = 409;
         throw e;
       }
@@ -694,7 +721,10 @@ router.post("/:id/gabung", express.json(), async (req, res) => {
          RETURNING pallet_id`,
         [palletIds, docId],
       );
-      return { ditambah: ins.rows.length, aruco_ids: ok.rows.map((r) => r.aruco_id).sort((a, b) => a - b) };
+      return {
+        ditambah: ins.rows.length,
+        aruco_ids: ok.rows.map((r) => r.aruco_id).sort((a, b) => a - b),
+      };
     });
 
     logger.info(`🔗 Dokumen #${docId} digabung ke pallet ID ${hasil.aruco_ids.join(",")}`);
@@ -729,16 +759,20 @@ router.delete("/:id/gabung/:palletId", async (req, res) => {
         [palletId, docId],
       );
       if (!lain.rows.length) {
-        const e = new Error("Pallet ini hanya milik PO ini. Kurangi jumlah pallet atau hapus dokumennya.");
+        const e = new Error(
+          "Pallet ini hanya milik PO ini. Kurangi jumlah pallet atau hapus dokumennya.",
+        );
         e.status = 409;
         throw e;
       }
-      await client.query(`DELETE FROM pallet_documents WHERE pallet_id = $1 AND document_id = $2`, [palletId, docId]);
-      await client.query(`UPDATE document_pallets SET document_id = $3 WHERE id = $1 AND document_id = $2`, [
+      await client.query(`DELETE FROM pallet_documents WHERE pallet_id = $1 AND document_id = $2`, [
         palletId,
         docId,
-        lain.rows[0].document_id,
       ]);
+      await client.query(
+        `UPDATE document_pallets SET document_id = $3 WHERE id = $1 AND document_id = $2`,
+        [palletId, docId, lain.rows[0].document_id],
+      );
     });
     res.json({ success: true });
   } catch (err) {
@@ -772,18 +806,21 @@ router.delete("/:id", requireAdmin, async (req, res) => {
               lain.rows[0].document_id,
             ]);
           }
-          await client.query(`DELETE FROM pallet_documents WHERE pallet_id = $1 AND document_id = $2`, [
-            row.pallet_id,
-            docId,
-          ]);
+          await client.query(
+            `DELETE FROM pallet_documents WHERE pallet_id = $1 AND document_id = $2`,
+            [row.pallet_id, docId],
+          );
         } else if (row.status === "ACTIVE") {
-          await client.query(`UPDATE document_pallets SET status = 'RELEASED', released_at = now() WHERE id = $1`, [
-            row.pallet_id,
-          ]);
+          await client.query(
+            `UPDATE document_pallets SET status = 'RELEASED', released_at = now() WHERE id = $1`,
+            [row.pallet_id],
+          );
         }
       }
     });
-    const result = await pool.query(`DELETE FROM documents WHERE id = $1 RETURNING file_path`, [docId]);
+    const result = await pool.query(`DELETE FROM documents WHERE id = $1 RETURNING file_path`, [
+      docId,
+    ]);
     if (!result.rows.length) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
     const { file_path } = result.rows[0];
     if (file_path && fs.existsSync(file_path)) fs.unlinkSync(file_path);

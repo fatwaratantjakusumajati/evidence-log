@@ -57,14 +57,12 @@ export function getCurrentUser(): {
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    // PENTING: token lama (diterbitkan sebelum fitur role ditambahkan) tidak
-    // punya field role sama sekali -- dianggap 'admin' supaya user yang sudah
-    // ada tidak mendadak kehilangan akses. Setelah logout+login ulang, token
-    // baru akan punya role yang benar dari database.
+    // Token tanpa role tidak boleh menampilkan akses admin. Backend tetap
+    // memeriksa role untuk setiap endpoint administratif.
     return {
       userId: payload.userId,
       username: payload.username,
-      role: payload.role === "staff" ? "staff" : "admin",
+      role: payload.role === "admin" ? "admin" : "staff",
     };
   } catch {
     return null;

@@ -19,10 +19,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Welcome,
 });
-(Route as any).handle = {
-  breadcrumb: () => ({ title: "Home" }),
-};
-
 function Welcome() {
   const [scrollY, setScrollY] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -89,9 +85,7 @@ function Welcome() {
         </div>
       )}
 
-      <main
-        className="welcome-root relative min-h-screen overflow-hidden text-slate-100 bg-[#05070d]"
-      >
+      <main className="welcome-root relative min-h-screen overflow-hidden text-slate-100 bg-[#05070d]">
         <style>{`
           @keyframes welcome-zoom {
             0% { transform: scale(1.05); }
@@ -157,9 +151,7 @@ function Welcome() {
           </div>
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/90" />
           <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_40%,transparent_30%,rgba(5,7,13,0.85)_100%)]" />
-          <div
-            className="absolute inset-0 mix-blend-overlay opacity-60 bg-[radial-gradient(70%_50%_at_20%_20%_,rgba(0,0,0,0.15)_,transparent_60%)_radial-gradient(60%_50%_at_85%_80%_,rgba(0,0,0,0.20)_,transparent_60%)]"
-          />
+          <div className="absolute inset-0 mix-blend-overlay opacity-60 bg-[radial-gradient(70%_50%_at_20%_20%_,rgba(0,0,0,0.15)_,transparent_60%)_radial-gradient(60%_50%_at_85%_80%_,rgba(0,0,0,0.20)_,transparent_60%)]" />
           <div
             aria-hidden
             className="absolute inset-0 opacity-[0.07] mix-blend-overlay"

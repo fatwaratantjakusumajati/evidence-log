@@ -25,7 +25,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { toast } from "sonner";
-import { getLogsPageColors } from "@/lib/theme-tokens";
+import { getLogsPageColors, type LogsPageColors } from "@/lib/theme-tokens";
 import { useTheme } from "@/lib/theme-provider";
 import { authFetch } from "@/lib/auth";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -51,7 +51,7 @@ type StagingDetection = {
   predicted_risk: number | null;
 };
 
-function riskBadgeStyle(risk: number | null, t: any) {
+function riskBadgeStyle(risk: number | null, t: LogsPageColors) {
   if (risk === null) return { backgroundColor: t.card, color: t.textMuted, label: "—" };
   const pct = Math.round(risk * 100);
   if (risk >= 0.6) return { backgroundColor: t.dangerBg, color: t.dangerText, label: `${pct}%` };
@@ -60,10 +60,15 @@ function riskBadgeStyle(risk: number | null, t: any) {
   return { backgroundColor: "rgba(16,185,129,0.15)", color: "#059669", label: `${pct}%` };
 }
 
-function parseAlertResponse(json: any) {
-  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) return json;
-  else if (Array.isArray(json))
-    return { data: json, total: json.length, totalPages: Math.ceil(json.length / PAGE_SIZE) };
+function parseAlertResponse(json: unknown) {
+  if (json && typeof json === "object" && "data" in json && Array.isArray(json.data)) {
+    return json as { data: StagingDetection[]; total: number; totalPages: number };
+  } else if (Array.isArray(json))
+    return {
+      data: json as StagingDetection[],
+      total: json.length,
+      totalPages: Math.ceil(json.length / PAGE_SIZE),
+    };
   return { data: [], total: 0, totalPages: 1 };
 }
 
@@ -558,7 +563,7 @@ function Pagination({
   total: number;
   pageSize: number;
   onChange: (p: number) => void;
-  theme: any;
+  theme: LogsPageColors;
 }) {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);

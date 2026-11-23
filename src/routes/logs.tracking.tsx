@@ -23,6 +23,7 @@ import {
   Package,
   Truck,
   Layers,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, Fragment } from "react";
 import { API_BASE_URL } from "@/lib/api-config";
@@ -35,10 +36,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { getLogsPageColors } from "@/lib/theme-tokens";
+import { getLogsPageColors, type LogsPageColors } from "@/lib/theme-tokens";
 import { authFetch } from "@/lib/auth";
 
 const PAGE_SIZE = 12;
+type TrackingColors = LogsPageColors & { stageOff: string };
 
 type PalletState = "PRESENT" | "MISSING" | "UNSEEN" | "STORED" | "COMPLETED";
 
@@ -160,7 +162,7 @@ const EVENT_LABEL: Record<string, string> = {
   CHECKED_PRESENT: "Dikonfirmasi masih ada",
 };
 
-function stateStyle(state: PalletState, t: any) {
+function stateStyle(state: PalletState, t: TrackingColors) {
   if (state === "PRESENT") return { backgroundColor: "rgba(16,185,129,0.15)", color: "#059669" };
   if (state === "MISSING") return { backgroundColor: t.dangerBg, color: t.dangerText };
   if (state === "STORED") return { backgroundColor: "rgba(99,102,241,0.12)", color: t.primary };
@@ -168,10 +170,13 @@ function stateStyle(state: PalletState, t: any) {
 }
 
 // Label + warna status satu baris pallet (memperhitungkan "perlu ACC" dan "selesai")
-function statusOf(r: PalletRow, t: any) {
+function statusOf(r: PalletRow, t: TrackingColors) {
   if (r.state === "COMPLETED") {
     return {
-      label: r.completion_type === "MANUAL_APPROVED" ? "Keluar (konfirmasi manual)" : "Keluar (outbound)",
+      label:
+        r.completion_type === "MANUAL_APPROVED"
+          ? "Keluar (konfirmasi manual)"
+          : "Keluar (outbound)",
       style: { backgroundColor: t.bg, color: "#059669", border: `1px solid ${t.border}` },
     };
   }
@@ -186,18 +191,26 @@ function statusOf(r: PalletRow, t: any) {
 const poDoneAt = (r: PoRow) => r.shipped_at ?? r.completed_at;
 const poIsManual = (r: PoRow) => (r.manual_pallet ?? 0) > 0;
 
-function poStatusChips(r: PoRow, t: any) {
-  const chips: { label: string; style: any }[] = [];
+function poStatusChips(r: PoRow, t: TrackingColors) {
+  const chips: {
+    label: string;
+    style: { backgroundColor: string; color: string; border?: string };
+  }[] = [];
   const good = { backgroundColor: "rgba(16,185,129,0.15)", color: "#059669" };
   const bad = { backgroundColor: t.dangerBg, color: t.dangerText };
   const muted = { backgroundColor: t.bg, color: t.textMuted };
   if (r.active_pallet === 0) chips.push({ label: "Selesai", style: good });
   if ((r.alert_level ?? 0) > 0) chips.push({ label: `Alert level ${r.alert_level}`, style: bad });
-  if (r.pending_approval > 0) chips.push({ label: `${r.pending_approval} perlu konfirmasi`, style: bad });
+  if (r.pending_approval > 0)
+    chips.push({ label: `${r.pending_approval} perlu konfirmasi`, style: bad });
   const hilangLain = r.missing - r.pending_approval;
   if (hilangLain > 0) chips.push({ label: `${hilangLain} hilang`, style: bad });
   if (r.present > 0) chips.push({ label: `${r.present} terlihat`, style: good });
-  if ((r.stored ?? 0) > 0) chips.push({ label: `${r.stored} di inventaris`, style: { backgroundColor: "rgba(99,102,241,0.12)", color: t.primary } });
+  if ((r.stored ?? 0) > 0)
+    chips.push({
+      label: `${r.stored} di inventaris`,
+      style: { backgroundColor: "rgba(99,102,241,0.12)", color: t.primary },
+    });
   if (r.unseen > 0) chips.push({ label: `${r.unseen} belum terbaca`, style: muted });
   return chips;
 }
@@ -276,9 +289,7 @@ const isOutboundZone = (z: string | null | undefined) => /outbound|outbund/i.tes
 
 // Nama zona dari kamera dirapikan: typo "outbund" dibetulkan, tiap kata diawali huruf besar.
 const prettyZone = (z: string | null | undefined) =>
-  (z ?? "")
-    .replace(/outbund/gi, "outbound")
-    .replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+  (z ?? "").replace(/outbund/gi, "outbound").replace(/\b\p{L}/gu, (c) => c.toUpperCase());
 
 // Tanggal + jam tanpa detik: "28 Okt 2026, 16.18"
 const fmtNoSec = (iso: string | null | undefined) => {
@@ -298,7 +309,9 @@ function dayLabel(iso: string) {
 
 function clockLabel(iso: string) {
   const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+    : "";
 }
 
 // Catatan penjelas di bawah kejadian "hilang", supaya jelas artinya tanpa membuka dokumentasi.
@@ -307,7 +320,9 @@ function eventNote(events: PalletEvent[], e: PalletEvent) {
   if (isOutboundZone(e.zone)) {
     return "Diperkirakan keluar dari gudang. Dinyatakan selesai otomatis bila tidak terbaca lagi setelah masa tunggu outbound.";
   }
-  return events[0] === e ? "Bukan zona outbound: perlu dikonfirmasi petugas (Inventaris atau Sudah keluar)." : null;
+  return events[0] === e
+    ? "Bukan zona outbound: perlu dikonfirmasi petugas (Inventaris atau Sudah keluar)."
+    : null;
 }
 
 async function getJson(path: string) {
@@ -333,7 +348,9 @@ function TrackingPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState<"" | "PENDING" | "MISSING" | "UNSEEN" | "COMPLETED">("");
+  const [stateFilter, setStateFilter] = useState<
+    "" | "PENDING" | "MISSING" | "UNSEEN" | "COMPLETED"
+  >("");
   const [selected, setSelected] = useState<PoRow | null>(null);
   const [zoneFilter, setZoneFilter] = useState("");
 
@@ -409,13 +426,26 @@ function TrackingPage() {
     value?: number;
     danger?: boolean;
     hint?: string;
-    icon: any;
+    icon: LucideIcon;
     tone: string;
     filter?: "PENDING" | "MISSING" | "UNSEEN";
   }[] = [
-    { label: "PO aktif", value: summary?.po_aktif, hint: summary ? `${summary.total_pallet} pallet` : undefined, icon: Boxes, tone: "#6366f1" },
+    {
+      label: "PO aktif",
+      value: summary?.po_aktif,
+      hint: summary ? `${summary.total_pallet} pallet` : undefined,
+      icon: Boxes,
+      tone: "#6366f1",
+    },
     { label: "Pallet terlihat", value: summary?.present, icon: Eye, tone: "#14b8a6" },
-    { label: "Pallet hilang", value: summary?.missing, danger: true, icon: AlertTriangle, tone: "#ef4444", filter: "MISSING" },
+    {
+      label: "Pallet hilang",
+      value: summary?.missing,
+      danger: true,
+      icon: AlertTriangle,
+      tone: "#ef4444",
+      filter: "MISSING",
+    },
     {
       label: "Perlu konfirmasi",
       value: summary?.pending_approval,
@@ -425,9 +455,25 @@ function TrackingPage() {
       tone: "#f59e0b",
       filter: "PENDING",
     },
-    { label: "Belum terbaca", value: summary?.unseen, icon: EyeOff, tone: "#0ea5e9", filter: "UNSEEN" },
-    { label: "Dipindah hari ini", value: summary?.moved_today, icon: ArrowRightLeft, tone: "#8b5cf6" },
-    { label: "Selesai hari ini", value: summary?.completed_today, icon: CheckCircle2, tone: "#10b981" },
+    {
+      label: "Belum terbaca",
+      value: summary?.unseen,
+      icon: EyeOff,
+      tone: "#0ea5e9",
+      filter: "UNSEEN",
+    },
+    {
+      label: "Dipindah hari ini",
+      value: summary?.moved_today,
+      icon: ArrowRightLeft,
+      tone: "#8b5cf6",
+    },
+    {
+      label: "Selesai hari ini",
+      value: summary?.completed_today,
+      icon: CheckCircle2,
+      tone: "#10b981",
+    },
   ];
 
   const fieldStyle = {
@@ -471,20 +517,27 @@ function TrackingPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Boxes className="h-5 w-5" style={{ color: t.primary }} />
-              <h1 className="text-lg font-semibold tracking-tight font-space" style={{ color: t.textMain }}>
+              <h1
+                className="text-lg font-semibold tracking-tight font-space"
+                style={{ color: t.textMain }}
+              >
                 Pantau posisi pallet per PO
               </h1>
             </div>
             <div className="flex items-center gap-3">
               <LastUpdated at={Math.max(dataUpdatedAt, summaryAt)} t={t} />
-            {totalItems > 0 && (
-              <span
-                className="rounded-full px-3 py-1 text-xs font-medium font-mono"
-                style={{ backgroundColor: t.card, color: t.primary, border: `1px solid ${t.border}` }}
-              >
-                {totalPo} PO
-              </span>
-            )}
+              {totalItems > 0 && (
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-medium font-mono"
+                  style={{
+                    backgroundColor: t.card,
+                    color: t.primary,
+                    border: `1px solid ${t.border}`,
+                  }}
+                >
+                  {totalPo} PO
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -540,7 +593,10 @@ function TrackingPage() {
                 }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
+                  <p
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: t.textMuted }}
+                  >
                     {c.label}
                   </p>
                   <span
@@ -556,7 +612,10 @@ function TrackingPage() {
                 >
                   {c.value ?? "–"}
                 </p>
-                <p className="mt-1.5 min-h-[16px] text-[11px] font-mono" style={{ color: t.textMuted }}>
+                <p
+                  className="mt-1.5 min-h-[16px] text-[11px] font-mono"
+                  style={{ color: t.textMuted }}
+                >
                   {c.hint ?? ""}
                 </p>
               </button>
@@ -568,13 +627,33 @@ function TrackingPage() {
           <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 font-medium">
             <Info className="h-3.5 w-3.5" /> Arti status dan cara membaca halaman ini
           </summary>
-          <ul className="mt-2 space-y-1 pl-5 font-mono leading-relaxed" style={{ listStyle: "disc" }}>
-            <li><b>Terlihat</b>: marker terbaca kamera.</li>
-            <li><b>Hilang</b>: marker tidak terbaca lagi di zona terakhirnya.</li>
-            <li><b>Perlu konfirmasi</b>: hilang bukan dari zona outbound. Pilih <b>Inventaris</b> (barang disimpan, tetap dipantau) atau <b>Sudah keluar</b>. Kalau marker terlihat lagi, otomatis batal.</li>
-            <li><b>Di inventaris</b>: dikonfirmasi disimpan di gudang. Tetap dipantau; begitu marker terlihat lagi, statusnya kembali normal.</li>
-            <li><b>Belum terbaca</b>: marker belum pernah ditangkap kamera (barang mungkin belum datang).</li>
-            <li>Kamera hanya mengirim kejadian saat ada perubahan, jadi waktu yang tampil adalah waktu <b>perubahan terakhir</b>, bukan waktu terakhir dilihat.</li>
+          <ul
+            className="mt-2 space-y-1 pl-5 font-mono leading-relaxed"
+            style={{ listStyle: "disc" }}
+          >
+            <li>
+              <b>Terlihat</b>: marker terbaca kamera.
+            </li>
+            <li>
+              <b>Hilang</b>: marker tidak terbaca lagi di zona terakhirnya.
+            </li>
+            <li>
+              <b>Perlu konfirmasi</b>: hilang bukan dari zona outbound. Pilih <b>Inventaris</b>{" "}
+              (barang disimpan, tetap dipantau) atau <b>Sudah keluar</b>. Kalau marker terlihat
+              lagi, otomatis batal.
+            </li>
+            <li>
+              <b>Di inventaris</b>: dikonfirmasi disimpan di gudang. Tetap dipantau; begitu marker
+              terlihat lagi, statusnya kembali normal.
+            </li>
+            <li>
+              <b>Belum terbaca</b>: marker belum pernah ditangkap kamera (barang mungkin belum
+              datang).
+            </li>
+            <li>
+              Kamera hanya mengirim kejadian saat ada perubahan, jadi waktu yang tampil adalah waktu{" "}
+              <b>perubahan terakhir</b>, bukan waktu terakhir dilihat.
+            </li>
           </ul>
         </details>
 
@@ -590,11 +669,16 @@ function TrackingPage() {
           <RecentActivity t={t} />
         </div>
 
-        <div className="mb-4 inline-flex rounded-lg border p-1" style={{ borderColor: t.border, backgroundColor: t.card }}>
-          {([
-            { key: "", label: "PO Aktif" },
-            { key: "COMPLETED", label: "Riwayat Selesai" },
-          ] as const).map((tab) => {
+        <div
+          className="mb-4 inline-flex rounded-lg border p-1"
+          style={{ borderColor: t.border, backgroundColor: t.card }}
+        >
+          {(
+            [
+              { key: "", label: "PO Aktif" },
+              { key: "COMPLETED", label: "Riwayat Selesai" },
+            ] as const
+          ).map((tab) => {
             const active = tab.key === "COMPLETED" ? showingCompleted : !showingCompleted;
             return (
               <button
@@ -658,27 +742,29 @@ function TrackingPage() {
               />
             </div>
             {!showingCompleted && (
-            <div className="relative">
-            <select
-              value={stateFilter}
-              onChange={(e) => {
-                setStateFilter(e.target.value as "" | "PENDING" | "MISSING" | "UNSEEN" | "COMPLETED");
-                setPage(1);
-              }}
-              aria-label="Filter PO"
-              className="h-9 appearance-none rounded-md border pl-3 pr-9 text-sm font-mono"
-              style={fieldStyle}
-            >
-              <option value="">Semua PO aktif</option>
-              <option value="PENDING">Perlu konfirmasi</option>
-              <option value="MISSING">Ada pallet hilang</option>
-              <option value="UNSEEN">Ada pallet belum terbaca</option>
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2"
-              style={{ color: t.textMuted }}
-            />
-            </div>
+              <div className="relative">
+                <select
+                  value={stateFilter}
+                  onChange={(e) => {
+                    setStateFilter(
+                      e.target.value as "" | "PENDING" | "MISSING" | "UNSEEN" | "COMPLETED",
+                    );
+                    setPage(1);
+                  }}
+                  aria-label="Filter PO"
+                  className="h-9 appearance-none rounded-md border pl-3 pr-9 text-sm font-mono"
+                  style={fieldStyle}
+                >
+                  <option value="">Semua PO aktif</option>
+                  <option value="PENDING">Perlu konfirmasi</option>
+                  <option value="MISSING">Ada pallet hilang</option>
+                  <option value="UNSEEN">Ada pallet belum terbaca</option>
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: t.textMuted }}
+                />
+              </div>
             )}
             {hasFilter && (
               <button
@@ -730,14 +816,18 @@ function TrackingPage() {
           >
             <Boxes className="h-14 w-14 mb-4" style={{ color: t.textMuted }} strokeWidth={1.5} />
             <h4 className="text-base font-semibold font-space" style={{ color: t.textMain }}>
-              {showingCompleted && !searchInput ? "Belum Ada PO Selesai" : hasFilter ? "Tidak Ada PO yang Cocok" : "Belum Ada PO Aktif"}
+              {showingCompleted && !searchInput
+                ? "Belum Ada PO Selesai"
+                : hasFilter
+                  ? "Tidak Ada PO yang Cocok"
+                  : "Belum Ada PO Aktif"}
             </h4>
             <p className="mt-1 text-sm font-mono" style={{ color: t.textMuted }}>
               {showingCompleted && !searchInput
                 ? "PO yang sudah selesai akan tercatat di sini."
                 : hasFilter
-                ? "Coba ubah kata kunci atau filter."
-                : "PO muncul setelah dokumen PO dipindai dan marker ArUco ditempel."}
+                  ? "Coba ubah kata kunci atau filter."
+                  : "PO muncul setelah dokumen PO dipindai dan marker ArUco ditempel."}
             </p>
           </div>
         ) : (
@@ -772,16 +862,19 @@ function TrackingPage() {
   );
 }
 
-function eventColor(type: string, t: any) {
+function eventColor(type: string, t: TrackingColors) {
   if (["MISSING", "MISSING_ALERT"].includes(type)) return t.dangerText;
-  if (["RETURNED", "COMPLETED_OUTBOUND", "APPROVED", "CHECKED_PRESENT"].includes(type)) return "#059669";
+  if (["RETURNED", "COMPLETED_OUTBOUND", "APPROVED", "CHECKED_PRESENT"].includes(type))
+    return "#059669";
   return t.primary;
 }
 
 // Jendela detail satu PO: ringkasan, tahapan, daftar pallet + tindakan + riwayat tiap pallet
-function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void }) {
+function PoModal({ po, t, onClose }: { po: PoRow; t: TrackingColors; onClose: () => void }) {
   const [openHistory, setOpenHistory] = useState<number | null>(null);
-  const [action, setAction] = useState<{ id: number; type: "store" | "exit" | "present" } | null>(null);
+  const [action, setAction] = useState<{ id: number; type: "store" | "exit" | "present" } | null>(
+    null,
+  );
   const [note, setNote] = useState("");
   const qc = useQueryClient();
 
@@ -799,13 +892,28 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
   const pending = pallets.filter((p) => p.approval_status === "PENDING");
   const field = { backgroundColor: t.card, borderColor: t.border, color: t.textMain };
   const refresh = () => {
-    for (const key of ["tracking_pos", "tracking_po_pallets", "tracking_summary", "tracking_events", "tracking_open_alerts", "tracking_zones"]) {
+    for (const key of [
+      "tracking_pos",
+      "tracking_po_pallets",
+      "tracking_summary",
+      "tracking_events",
+      "tracking_open_alerts",
+      "tracking_zones",
+    ]) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
 
   const act = useMutation({
-    mutationFn: async ({ ids, kind, note }: { ids: number[]; kind: "store" | "exit" | "present"; note: string }) => {
+    mutationFn: async ({
+      ids,
+      kind,
+      note,
+    }: {
+      ids: number[];
+      kind: "store" | "exit" | "present";
+      note: string;
+    }) => {
       for (const id of ids) {
         const res = await authFetch(`${API_BASE_URL}/api/tracking/pallets/${id}/${kind}`, {
           method: "POST",
@@ -850,33 +958,101 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
         ? `Manual${approvers.length ? ` · ${approvers.join(", ")}` : ""}`
         : "Otomatis (outbound)";
   const lastZones = Array.from(new Set(pallets.map((p) => p.current_zone).filter(Boolean)));
-  const exitTime = poDoneAt(po) ?? pallets.map((p) => p.missing_since).filter(Boolean).sort().pop() ?? null;
+  const exitTime =
+    poDoneAt(po) ??
+    pallets
+      .map((p) => p.missing_since)
+      .filter(Boolean)
+      .sort()
+      .pop() ??
+    null;
   const inWarehouse =
-    po.first_seen && exitTime ? durasiText(new Date(exitTime).getTime() - new Date(po.first_seen).getTime()) : "-";
+    po.first_seen && exitTime
+      ? durasiText(new Date(exitTime).getTime() - new Date(po.first_seen).getTime())
+      : "-";
 
   const stats: {
     label: string;
     value: string | number;
     color: string;
-    icon: any;
+    icon: LucideIcon;
     tone: string;
     small?: boolean;
     sub?: string;
   }[] = isDone
     ? [
-        { label: "Keluar pada", value: fmtNoSec(exitTime), color: t.textMain, icon: LogOut, tone: "#f59e0b", small: true },
-        { label: "Lama di gudang", value: inWarehouse, color: t.textMain, icon: Timer, tone: "#8b5cf6", small: true },
-        { label: "Terakhir terlihat di", value: lastZones.length ? lastZones.map(prettyZone).join(", ") : "-", color: t.textMain, icon: MapPin, tone: "#0ea5e9", small: true },
-        { label: "Keterangan", value: howDoneSub, color: "#059669", icon: Truck, tone: "#10b981", small: true },
-        { label: "Pallet", value: `${po.completed_pallet} selesai`, color: t.primary, icon: Package, tone: "#6366f1", small: true },
+        {
+          label: "Keluar pada",
+          value: fmtNoSec(exitTime),
+          color: t.textMain,
+          icon: LogOut,
+          tone: "#f59e0b",
+          small: true,
+        },
+        {
+          label: "Lama di gudang",
+          value: inWarehouse,
+          color: t.textMain,
+          icon: Timer,
+          tone: "#8b5cf6",
+          small: true,
+        },
+        {
+          label: "Terakhir terlihat di",
+          value: lastZones.length ? lastZones.map(prettyZone).join(", ") : "-",
+          color: t.textMain,
+          icon: MapPin,
+          tone: "#0ea5e9",
+          small: true,
+        },
+        {
+          label: "Keterangan",
+          value: howDoneSub,
+          color: "#059669",
+          icon: Truck,
+          tone: "#10b981",
+          small: true,
+        },
+        {
+          label: "Pallet",
+          value: `${po.completed_pallet} selesai`,
+          color: t.primary,
+          icon: Package,
+          tone: "#6366f1",
+          small: true,
+        },
       ]
     : [
         { label: "Total", value: po.total_pallet, color: t.textMain, icon: Boxes, tone: "#6366f1" },
         { label: "Terlihat", value: po.present, color: "#059669", icon: Eye, tone: "#14b8a6" },
-        { label: "Hilang", value: po.missing, color: po.missing > 0 ? t.dangerText : t.textMain, icon: AlertTriangle, tone: "#ef4444" },
-        { label: "Belum terbaca", value: po.unseen, color: t.textMain, icon: EyeOff, tone: "#0ea5e9" },
-        { label: "Di inventaris", value: po.stored ?? 0, color: t.primary, icon: Package, tone: "#8b5cf6" },
-        { label: "Selesai", value: po.completed_pallet, color: t.textMain, icon: CheckCircle2, tone: "#10b981" },
+        {
+          label: "Hilang",
+          value: po.missing,
+          color: po.missing > 0 ? t.dangerText : t.textMain,
+          icon: AlertTriangle,
+          tone: "#ef4444",
+        },
+        {
+          label: "Belum terbaca",
+          value: po.unseen,
+          color: t.textMain,
+          icon: EyeOff,
+          tone: "#0ea5e9",
+        },
+        {
+          label: "Di inventaris",
+          value: po.stored ?? 0,
+          color: t.primary,
+          icon: Package,
+          tone: "#8b5cf6",
+        },
+        {
+          label: "Selesai",
+          value: po.completed_pallet,
+          color: t.textMain,
+          icon: CheckCircle2,
+          tone: "#10b981",
+        },
       ];
 
   return (
@@ -905,7 +1081,11 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-bold font-space">{po.po_number ?? "PO tidak diketahui"}</h2>
             {poStatusChips(po, t).map((c) => (
-              <span key={c.label} className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono" style={c.style}>
+              <span
+                key={c.label}
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono"
+                style={c.style}
+              >
                 {c.label}
               </span>
             ))}
@@ -928,39 +1108,49 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
               <LastUpdated at={dataUpdatedAt} t={t} />
             </div>
           )}
-          <div className={`mt-4 grid grid-cols-2 gap-2 ${isDone ? "sm:grid-cols-5" : "sm:grid-cols-6"}`}>
+          <div
+            className={`mt-4 grid grid-cols-2 gap-2 ${isDone ? "sm:grid-cols-5" : "sm:grid-cols-6"}`}
+          >
             {stats.map((s) => {
               const Icon = s.icon;
               return (
-              <div key={s.label} className="flex min-w-0 flex-col">
-                <div className="mb-1.5 flex items-center gap-1.5 px-0.5">
-                  <span
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md"
-                    style={{ backgroundColor: `${s.tone}22` }}
-                  >
-                    <Icon className="h-3 w-3" style={{ color: s.tone }} />
-                  </span>
-                  <p className="truncate text-[10px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
-                    {s.label}
-                  </p>
-                </div>
-                <div
-                  className="flex-1 rounded-lg border px-3 py-2"
-                  style={{ borderColor: t.border, backgroundColor: t.bg, borderTopWidth: 2, borderTopColor: s.tone }}
-                >
-                  <p
-                    className={`${s.small ? "text-[13px] leading-snug" : "text-xl leading-none"} font-semibold font-space`}
-                    style={{ color: s.color }}
-                  >
-                    {s.value}
-                  </p>
-                  {s.sub && (
-                    <p className="mt-0.5 text-[11px] leading-snug" style={{ color: t.textMuted }}>
-                      {s.sub}
+                <div key={s.label} className="flex min-w-0 flex-col">
+                  <div className="mb-1.5 flex items-center gap-1.5 px-0.5">
+                    <span
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md"
+                      style={{ backgroundColor: `${s.tone}22` }}
+                    >
+                      <Icon className="h-3 w-3" style={{ color: s.tone }} />
+                    </span>
+                    <p
+                      className="truncate text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ color: t.textMuted }}
+                    >
+                      {s.label}
                     </p>
-                  )}
+                  </div>
+                  <div
+                    className="flex-1 rounded-lg border px-3 py-2"
+                    style={{
+                      borderColor: t.border,
+                      backgroundColor: t.bg,
+                      borderTopWidth: 2,
+                      borderTopColor: s.tone,
+                    }}
+                  >
+                    <p
+                      className={`${s.small ? "text-[13px] leading-snug" : "text-xl leading-none"} font-semibold font-space`}
+                      style={{ color: s.color }}
+                    >
+                      {s.value}
+                    </p>
+                    {s.sub && (
+                      <p className="mt-0.5 text-[11px] leading-snug" style={{ color: t.textMuted }}>
+                        {s.sub}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
               );
             })}
           </div>
@@ -970,18 +1160,25 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
         </div>
 
         {pending.length > 0 && (
-          <div className="shrink-0 border-b px-6 py-4" style={{ borderColor: t.border, backgroundColor: t.dangerBg }}>
+          <div
+            className="shrink-0 border-b px-6 py-4"
+            style={{ borderColor: t.border, backgroundColor: t.dangerBg }}
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: t.dangerText }} />
+                <AlertTriangle
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                  style={{ color: t.dangerText }}
+                />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold" style={{ color: t.dangerText }}>
                     {pending.length} pallet hilang dari zona selain outbound
                   </p>
                   <p className="mt-1 text-[12px] leading-relaxed" style={{ color: t.textMain }}>
-                    Pilih konfirmasi di tiap pallet: <b>Inventaris</b> jika barang disimpan di gudang (tetap dipantau), atau{" "}
-                    <b>Sudah keluar</b> jika barang keluar tanpa lewat outbound. Kalau belum yakin, biarkan saja: begitu marker
-                    terlihat kamera lagi, permintaan ini batal otomatis.
+                    Pilih konfirmasi di tiap pallet: <b>Inventaris</b> jika barang disimpan di
+                    gudang (tetap dipantau), atau <b>Sudah keluar</b> jika barang keluar tanpa lewat
+                    outbound. Kalau belum yakin, biarkan saja: begitu marker terlihat kamera lagi,
+                    permintaan ini batal otomatis.
                   </p>
                 </div>
               </div>
@@ -999,13 +1196,20 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
               showNumber={(po.document_ids?.length ?? 1) > 1}
             />
           ))}
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
+          <p
+            className="mb-3 text-[11px] font-semibold uppercase tracking-wide"
+            style={{ color: t.textMuted }}
+          >
             Daftar pallet · klik pallet untuk melihat riwayat
           </p>
           {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="h-20 animate-pulse rounded-xl" style={{ backgroundColor: t.bg }} />
+                <div
+                  key={i}
+                  className="h-20 animate-pulse rounded-xl"
+                  style={{ backgroundColor: t.bg }}
+                />
               ))}
             </div>
           ) : isError ? (
@@ -1020,11 +1224,21 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                 const isStored = p.state === "STORED";
                 const isOpen = openHistory === p.pallet_id;
                 const accent =
-                  p.state === "PRESENT" ? "#059669" : p.state === "MISSING" ? t.dangerText : p.state === "COMPLETED" || p.state === "STORED" ? t.primary : "#94a3b8";
+                  p.state === "PRESENT"
+                    ? "#059669"
+                    : p.state === "MISSING"
+                      ? t.dangerText
+                      : p.state === "COMPLETED" || p.state === "STORED"
+                        ? t.primary
+                        : "#94a3b8";
                 const toggle = () => setOpenHistory(isOpen ? null : p.pallet_id);
                 const acting = action?.id === p.pallet_id ? action.type : null;
                 return (
-                  <li key={p.pallet_id} className="overflow-hidden rounded-xl border" style={{ borderColor: t.border, backgroundColor: t.card }}>
+                  <li
+                    key={p.pallet_id}
+                    className="overflow-hidden rounded-xl border"
+                    style={{ borderColor: t.border, backgroundColor: t.card }}
+                  >
                     <div className="flex">
                       <span className="w-1 shrink-0" style={{ backgroundColor: accent }} />
                       <div className="min-w-0 flex-1 p-4">
@@ -1038,23 +1252,38 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                           >
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-base font-semibold font-space">
-                                {(po.jumlah_po ?? 1) > 1 ? `Pallet #${i + 1}` : `Pallet #${p.pallet_no ?? "?"}`}
+                                {(po.jumlah_po ?? 1) > 1
+                                  ? `Pallet #${i + 1}`
+                                  : `Pallet #${p.pallet_no ?? "?"}`}
                               </p>
-                              <span className="rounded-md px-1.5 py-0.5 text-[10px] font-mono" style={{ backgroundColor: t.bg, color: t.textMuted }}>
+                              <span
+                                className="rounded-md px-1.5 py-0.5 text-[10px] font-mono"
+                                style={{ backgroundColor: t.bg, color: t.textMuted }}
+                              >
                                 Marker {p.aruco_id}
                               </span>
-                              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono" style={st.style}>
+                              <span
+                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono"
+                                style={st.style}
+                              >
                                 {st.label}
                               </span>
                             </div>
                             {(p.po_semua?.length ?? 0) > 1 && (
-                              <p className="mt-1 text-[12px] font-semibold" style={{ color: t.primary }}>
+                              <p
+                                className="mt-1 text-[12px] font-semibold"
+                                style={{ color: t.primary }}
+                              >
                                 Berisi PO {p.po_semua!.join(", ")}
                               </p>
                             )}
-                            <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]" style={{ color: t.textMuted }}>
+                            <p
+                              className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]"
+                              style={{ color: t.textMuted }}
+                            >
                               <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" /> {p.current_zone ?? "Belum ada posisi"}
+                                <MapPin className="h-3 w-3" />{" "}
+                                {p.current_zone ?? "Belum ada posisi"}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
@@ -1076,7 +1305,9 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                               <p className="mt-1 text-[12px]" style={{ color: t.textMuted }}>
                                 {p.completion_type === "MANUAL_APPROVED"
                                   ? `Dikonfirmasi manual${p.approved_by ? ` oleh ${p.approved_by}` : ""}${p.exit_note ? ` · ${p.exit_note}` : ""}${
-                                      (p.approved_at ?? p.released_at) ? ` · ${formatDateTime((p.approved_at ?? p.released_at) as string)}` : ""
+                                      (p.approved_at ?? p.released_at)
+                                        ? ` · ${formatDateTime((p.approved_at ?? p.released_at) as string)}`
+                                        : ""
                                     }`
                                   : `Dinyatakan selesai otomatis${p.released_at ? ` · ${formatDateTime(p.released_at)}` : ""} (tidak terlihat lagi di outbound)`}
                               </p>
@@ -1128,13 +1359,18 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                               style={{ borderColor: t.border, color: t.textMain }}
                             >
                               Riwayat
-                              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              <ChevronDown
+                                className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                              />
                             </button>
                           </div>
                         </div>
 
                         {acting && (
-                          <div className="mt-3 rounded-lg border p-3" style={{ borderColor: t.border, backgroundColor: t.bg }}>
+                          <div
+                            className="mt-3 rounded-lg border p-3"
+                            style={{ borderColor: t.border, backgroundColor: t.bg }}
+                          >
                             <p className="text-xs font-semibold">
                               {acting === "store"
                                 ? "Konfirmasi: barang disimpan di inventaris"
@@ -1166,7 +1402,13 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
                             />
                             <div className="mt-2 flex gap-2">
                               <button
-                                onClick={() => act.mutate({ ids: [p.pallet_id], kind: acting, note: note.trim() })}
+                                onClick={() =>
+                                  act.mutate({
+                                    ids: [p.pallet_id],
+                                    kind: acting,
+                                    note: note.trim(),
+                                  })
+                                }
                                 disabled={act.isPending}
                                 className="inline-flex h-8 items-center rounded-md px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
                                 style={{ backgroundColor: t.primary }}
@@ -1200,7 +1442,15 @@ function PoModal({ po, t, onClose }: { po: PoRow; t: any; onClose: () => void })
 type ZoneStat = { zone: string; total: number; present: number; missing: number; po_count: number };
 
 // Kotak zona: berapa pallet ada di tiap zona sekarang. Klik untuk menyaring daftar PO.
-function ZonePanel({ t, activeZone, onPick }: { t: any; activeZone: string; onPick: (z: string) => void }) {
+function ZonePanel({
+  t,
+  activeZone,
+  onPick,
+}: {
+  t: TrackingColors;
+  activeZone: string;
+  onPick: (z: string) => void;
+}) {
   const { data: zones = [], isLoading } = useQuery<ZoneStat[]>({
     queryKey: ["tracking_zones"],
     refetchInterval: 15000,
@@ -1208,7 +1458,10 @@ function ZonePanel({ t, activeZone, onPick }: { t: any; activeZone: string; onPi
   });
   const totalPallet = zones.reduce((s, z) => s + z.total, 0);
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: t.border, backgroundColor: t.card }}>
+    <div
+      className="rounded-xl border p-4"
+      style={{ borderColor: t.border, backgroundColor: t.card }}
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold font-space" style={{ color: t.textMain }}>
           Posisi pallet per zona
@@ -1220,7 +1473,11 @@ function ZonePanel({ t, activeZone, onPick }: { t: any; activeZone: string; onPi
       {isLoading ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg" style={{ backgroundColor: t.bg }} />
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-lg"
+              style={{ backgroundColor: t.bg }}
+            />
           ))}
         </div>
       ) : zones.length === 0 ? (
@@ -1243,14 +1500,28 @@ function ZonePanel({ t, activeZone, onPick }: { t: any; activeZone: string; onPi
                 }}
                 title={`Tampilkan PO yang punya pallet di ${z.zone}`}
               >
-                <p className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
+                <p
+                  className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide"
+                  style={{ color: t.textMuted }}
+                >
                   <MapPin className="h-3 w-3 shrink-0" /> {z.zone}
                 </p>
-                <p className="mt-1 text-2xl font-semibold font-space leading-none" style={{ color: t.textMain }}>
+                <p
+                  className="mt-1 text-2xl font-semibold font-space leading-none"
+                  style={{ color: t.textMain }}
+                >
                   {z.total}
-                  <span className="ml-1 text-[11px] font-normal font-mono" style={{ color: t.textMuted }}>pallet</span>
+                  <span
+                    className="ml-1 text-[11px] font-normal font-mono"
+                    style={{ color: t.textMuted }}
+                  >
+                    pallet
+                  </span>
                 </p>
-                <p className="mt-1 text-[11px] font-mono" style={{ color: z.missing > 0 ? t.dangerText : t.textMuted }}>
+                <p
+                  className="mt-1 text-[11px] font-mono"
+                  style={{ color: z.missing > 0 ? t.dangerText : t.textMuted }}
+                >
                   {z.missing > 0 ? `${z.missing} hilang · ` : ""}
                   {z.po_count} PO
                 </p>
@@ -1272,17 +1543,29 @@ function finalStage(r: PoRow): LastStage {
   const manual = r.manual_pallet ?? 0;
   if (done) {
     const when = poDoneAt(r) ? ago(poDoneAt(r)) : "";
-    if (manual > 0 && manual >= r.completed_pallet) return { label: "Terkirim (manual)", sub: when, reached: true };
-    if (manual > 0) return { label: "Terkirim", sub: when ? `${when} · sebagian manual` : "sebagian manual", reached: true };
+    if (manual > 0 && manual >= r.completed_pallet)
+      return { label: "Terkirim (manual)", sub: when, reached: true };
+    if (manual > 0)
+      return {
+        label: "Terkirim",
+        sub: when ? `${when} · sebagian manual` : "sebagian manual",
+        reached: true,
+      };
     return { label: "Terkirim", sub: when, reached: true };
   }
   if (r.pending_approval > 0) {
-    return { label: "Perlu konfirmasi", sub: `${r.pending_approval} pallet hilang`, reached: false, tone: "danger" };
+    return {
+      label: "Perlu konfirmasi",
+      sub: `${r.pending_approval} pallet hilang`,
+      reached: false,
+      tone: "danger",
+    };
   }
   if (stored > 0 && stored === r.active_pallet) {
     return { label: "Di inventaris", sub: `${stored} pallet`, reached: true, tone: "info" };
   }
-  if (r.missing > 0) return { label: "Menunggu selesai", sub: "hilang dari outbound", reached: false };
+  if (r.missing > 0)
+    return { label: "Menunggu selesai", sub: "hilang dari outbound", reached: false };
   return { label: "Selesai", sub: stored > 0 ? `${stored} di inventaris` : "", reached: false };
 }
 
@@ -1301,62 +1584,83 @@ function poStages(r: PoRow) {
     r.zone_moves > 0 ? `${r.zone_moves}× pindah` : done ? "" : "belum pindah",
     last.sub,
   ];
-  return { flags, current, labels: ["PO masuk", "Barang terdeteksi", "Berpindah zona", last.label], subs, last };
+  return {
+    flags,
+    current,
+    labels: ["PO masuk", "Barang terdeteksi", "Berpindah zona", last.label],
+    subs,
+    last,
+  };
 }
 
-function StageBar({ r, t }: { r: PoRow; t: any }) {
+function StageBar({ r, t }: { r: PoRow; t: TrackingColors }) {
   const { flags, current, labels, subs, last } = poStages(r);
   const lastIdx = labels.length - 1;
   const danger = last.tone === "danger";
   return (
     <ol className="flex items-start">
-    {labels.map((label, i) => {
-      const isLast = i === lastIdx;
-      const alert = isLast && danger;
-      const accent = alert ? t.dangerText : t.primary;
-      return (
-      <li key={label} className="flex min-w-0 flex-1 flex-col items-center text-center">
-        <div className="flex w-full items-center">
-          <span className="h-0.5 flex-1" style={{ backgroundColor: i === 0 ? "transparent" : flags[i] ? t.primary : t.stageOff }} />
-          <span
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2"
-            style={{
-              borderColor: alert ? accent : flags[i] ? t.primary : t.stageOff,
-              backgroundColor: flags[i] ? t.primary : t.card,
-              boxShadow: i === current ? `0 0 0 3px ${t.primary}33` : alert ? `0 0 0 3px ${accent}33` : undefined,
-            }}
-          >
-            {alert ? (
-              <AlertTriangle className="h-3 w-3" style={{ color: accent }} />
-            ) : (
-              flags[i] && <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-            )}
-          </span>
-          <span
-            className="h-0.5 flex-1"
-            style={{ backgroundColor: isLast ? "transparent" : flags[i + 1] ? t.primary : t.stageOff }}
-          />
-        </div>
-        <p
-          className="mt-1.5 text-xs leading-tight"
-          style={{
-            color: alert ? t.dangerText : i === current ? t.textMain : t.textMuted,
-            fontWeight: alert || i === current ? 700 : 500,
-          }}
-        >
-          {label}
-        </p>
-        <p className="text-[11px] font-mono leading-tight" style={{ color: alert ? t.dangerText : t.textMuted }}>
-          {subs[i]}
-        </p>
-      </li>
-      );
-    })}
-  </ol>
+      {labels.map((label, i) => {
+        const isLast = i === lastIdx;
+        const alert = isLast && danger;
+        const accent = alert ? t.dangerText : t.primary;
+        return (
+          <li key={label} className="flex min-w-0 flex-1 flex-col items-center text-center">
+            <div className="flex w-full items-center">
+              <span
+                className="h-0.5 flex-1"
+                style={{
+                  backgroundColor: i === 0 ? "transparent" : flags[i] ? t.primary : t.stageOff,
+                }}
+              />
+              <span
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2"
+                style={{
+                  borderColor: alert ? accent : flags[i] ? t.primary : t.stageOff,
+                  backgroundColor: flags[i] ? t.primary : t.card,
+                  boxShadow:
+                    i === current
+                      ? `0 0 0 3px ${t.primary}33`
+                      : alert
+                        ? `0 0 0 3px ${accent}33`
+                        : undefined,
+                }}
+              >
+                {alert ? (
+                  <AlertTriangle className="h-3 w-3" style={{ color: accent }} />
+                ) : (
+                  flags[i] && <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                )}
+              </span>
+              <span
+                className="h-0.5 flex-1"
+                style={{
+                  backgroundColor: isLast ? "transparent" : flags[i + 1] ? t.primary : t.stageOff,
+                }}
+              />
+            </div>
+            <p
+              className="mt-1.5 text-xs leading-tight"
+              style={{
+                color: alert ? t.dangerText : i === current ? t.textMain : t.textMuted,
+                fontWeight: alert || i === current ? 700 : 500,
+              }}
+            >
+              {label}
+            </p>
+            <p
+              className="text-[11px] font-mono leading-tight"
+              style={{ color: alert ? t.dangerText : t.textMuted }}
+            >
+              {subs[i]}
+            </p>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
+function PoCard({ r, t, onOpen }: { r: PoRow; t: TrackingColors; onOpen: () => void }) {
   const urgent = r.pending_approval > 0;
   const total = Math.max(r.total_pallet, 1);
   const segments = [
@@ -1392,15 +1696,18 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
                 <Layers className="h-3 w-3" /> {r.jumlah_po} PO digabung
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(r.po_number ?? "").split(" + ").slice(0, 4).map((n) => (
-                  <span
-                    key={n}
-                    className="max-w-full truncate rounded-md border px-2 py-0.5 text-sm font-semibold font-space"
-                    style={{ borderColor: t.border, backgroundColor: t.bg, color: t.textMain }}
-                  >
-                    {n}
-                  </span>
-                ))}
+                {(r.po_number ?? "")
+                  .split(" + ")
+                  .slice(0, 4)
+                  .map((n) => (
+                    <span
+                      key={n}
+                      className="max-w-full truncate rounded-md border px-2 py-0.5 text-sm font-semibold font-space"
+                      style={{ borderColor: t.border, backgroundColor: t.bg, color: t.textMain }}
+                    >
+                      {n}
+                    </span>
+                  ))}
                 {(r.po_number ?? "").split(" + ").length > 4 && (
                   <span className="px-1 py-0.5 text-xs font-mono" style={{ color: t.textMuted }}>
                     +{(r.po_number ?? "").split(" + ").length - 4}
@@ -1409,7 +1716,10 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
               </div>
             </>
           ) : (
-            <p className="truncate text-base font-semibold font-space" style={{ color: t.textMain }}>
+            <p
+              className="truncate text-base font-semibold font-space"
+              style={{ color: t.textMain }}
+            >
               {r.po_number ?? "-"}
             </p>
           )}
@@ -1424,7 +1734,11 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
           {urgentChips.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {urgentChips.map((c) => (
-                <span key={c.label} className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono" style={c.style}>
+                <span
+                  key={c.label}
+                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold font-mono"
+                  style={c.style}
+                >
                   {c.label}
                 </span>
               ))}
@@ -1435,12 +1749,23 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
         <StageBar r={r} t={t} />
 
         <div className="min-w-0">
-          <div className="flex h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: t.bg }}>
+          <div
+            className="flex h-2 w-full overflow-hidden rounded-full"
+            style={{ backgroundColor: t.bg }}
+          >
             {segments.map((s) =>
-              s.n > 0 ? <span key={s.label} style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.color }} /> : null,
+              s.n > 0 ? (
+                <span
+                  key={s.label}
+                  style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.color }}
+                />
+              ) : null,
             )}
           </div>
-          <p className="mt-1.5 flex flex-wrap gap-x-3 text-xs font-mono" style={{ color: t.textMuted }}>
+          <p
+            className="mt-1.5 flex flex-wrap gap-x-3 text-xs font-mono"
+            style={{ color: t.textMuted }}
+          >
             {segments
               .filter((s) => s.n > 0)
               .map((s) => (
@@ -1450,12 +1775,17 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
                 </span>
               ))}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]" style={{ color: t.textMain }}>
+          <div
+            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]"
+            style={{ color: t.textMain }}
+          >
             {r.zones && r.zones.length > 0 ? (
               zoneCounts(r.zones).map(([z, n]) => (
                 <span key={z} className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3 shrink-0" /> {z}
-                  <span className="font-mono text-[11px]" style={{ color: t.textMuted }}>×{n}</span>
+                  <span className="font-mono text-[11px]" style={{ color: t.textMuted }}>
+                    ×{n}
+                  </span>
                 </span>
               ))
             ) : (
@@ -1506,7 +1836,7 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: any; onOpen: () => void }) {
 }
 
 // Ringkasan informatif satu pallet: posisi sejak kapan, hilang sejak kapan, jumlah pindah zona
-function PalletInfo({ p, t }: { p: PalletRow; t: any }) {
+function PalletInfo({ p, t }: { p: PalletRow; t: TrackingColors }) {
   const lines: string[] = [];
   if (p.state === "UNSEEN") {
     lines.push(
@@ -1521,7 +1851,9 @@ function PalletInfo({ p, t }: { p: PalletRow; t: any }) {
       }`,
     );
     if ((p.alert_level ?? 0) > 0) {
-      lines.push(`Alert level ${p.alert_level} aktif sejak ${ago(p.alert_at)}: belum ada konfirmasi tindakan.`);
+      lines.push(
+        `Alert level ${p.alert_level} aktif sejak ${ago(p.alert_at)}: belum ada konfirmasi tindakan.`,
+      );
     }
   } else if (p.state === "PRESENT" && p.zone_since) {
     lines.push(`Berada di ${p.current_zone ?? "-"} sejak ${ago(p.zone_since)}.`);
@@ -1541,14 +1873,17 @@ function PalletInfo({ p, t }: { p: PalletRow; t: any }) {
 }
 
 // Aktivitas terbaru lintas PO (tanpa "bergeser posisi" supaya tidak ramai)
-function RecentActivity({ t }: { t: any }) {
+function RecentActivity({ t }: { t: TrackingColors }) {
   const { data: events = [], dataUpdatedAt } = useQuery<RecentEvent[]>({
     queryKey: ["tracking_events", "recent"],
     refetchInterval: 15000,
     queryFn: () => getJson("/api/tracking/events?limit=6&hide_moved_pos=1"),
   });
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: t.border, backgroundColor: t.card }}>
+    <div
+      className="rounded-xl border p-4"
+      style={{ borderColor: t.border, backgroundColor: t.card }}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <p className="text-sm font-semibold font-space" style={{ color: t.textMain }}>
           Aktivitas terbaru
@@ -1566,12 +1901,13 @@ function RecentActivity({ t }: { t: any }) {
             <span
               className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
               style={{
-                backgroundColor:
-                  ["MISSING", "MISSING_ALERT"].includes(e.event_type)
-                    ? t.dangerText
-                    : ["RETURNED", "COMPLETED_OUTBOUND", "APPROVED", "CHECKED_PRESENT"].includes(e.event_type)
-                      ? "#059669"
-                      : t.primary,
+                backgroundColor: ["MISSING", "MISSING_ALERT"].includes(e.event_type)
+                  ? t.dangerText
+                  : ["RETURNED", "COMPLETED_OUTBOUND", "APPROVED", "CHECKED_PRESENT"].includes(
+                        e.event_type,
+                      )
+                    ? "#059669"
+                    : t.primary,
               }}
             />
             <div className="min-w-0 text-[12px] font-mono">
@@ -1594,8 +1930,12 @@ function RecentActivity({ t }: { t: any }) {
   );
 }
 
-function PalletHistory({ palletId, t }: { palletId: number; t: any }) {
-  const { data: events, isLoading, isError } = useQuery<PalletEvent[]>({
+function PalletHistory({ palletId, t }: { palletId: number; t: TrackingColors }) {
+  const {
+    data: events,
+    isLoading,
+    isError,
+  } = useQuery<PalletEvent[]>({
     queryKey: ["tracking_events", palletId],
     queryFn: () => getJson(`/api/tracking/pallets/${palletId}/events`),
   });
@@ -1606,7 +1946,10 @@ function PalletHistory({ palletId, t }: { palletId: number; t: any }) {
 
   return (
     <div className="border-t p-4" style={{ borderColor: t.border, backgroundColor: t.bg }}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[12px]" style={{ color: t.textMuted }}>
+      <div
+        className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[12px]"
+        style={{ color: t.textMuted }}
+      >
         <span className="flex flex-wrap gap-2">
           <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={pill}>
             {jumlahPindah}× pindah zona
@@ -1649,11 +1992,19 @@ function PalletHistory({ palletId, t }: { palletId: number; t: any }) {
                 <li className="relative">
                   <span
                     className="absolute -left-[30px] top-1 h-3 w-3 rounded-full"
-                    style={{ backgroundColor: eventColor(e.event_type, t), boxShadow: `0 0 0 4px ${t.bg}` }}
+                    style={{
+                      backgroundColor: eventColor(e.event_type, t),
+                      boxShadow: `0 0 0 4px ${t.bg}`,
+                    }}
                   />
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                    <p className="text-sm font-semibold">{EVENT_LABEL[e.event_type] ?? e.event_type}</p>
-                    <p className="flex items-center gap-1 text-[11px] font-mono tabular-nums" style={{ color: t.textMuted }}>
+                    <p className="text-sm font-semibold">
+                      {EVENT_LABEL[e.event_type] ?? e.event_type}
+                    </p>
+                    <p
+                      className="flex items-center gap-1 text-[11px] font-mono tabular-nums"
+                      style={{ color: t.textMuted }}
+                    >
                       <Clock className="h-3 w-3" />
                       <span className="font-semibold" style={{ color: t.textMain }}>
                         {clockLabel(e.event_time)}
@@ -1682,9 +2033,13 @@ function PalletHistory({ palletId, t }: { palletId: number; t: any }) {
 
 // Foto dilindungi login, jadi diambil lewat authFetch lalu dijadikan blob URL
 // (tag <img> biasa tidak bisa mengirim header Authorization).
-function EventPhoto({ eventId, t }: { eventId: number; t: any }) {
+function EventPhoto({ eventId, t }: { eventId: number; t: TrackingColors }) {
   const [open, setOpen] = useState(false);
-  const { data: url, isLoading, isError } = useQuery({
+  const {
+    data: url,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["tracking_image", eventId],
     enabled: open,
     staleTime: Infinity,
@@ -1742,7 +2097,7 @@ function Pagination({
   total: number;
   pageSize: number;
   onChange: (p: number) => void;
-  theme: any;
+  theme: TrackingColors;
 }) {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
@@ -1856,7 +2211,7 @@ function PoContents({
   showNumber = false,
 }: {
   documentId: number;
-  t: any;
+  t: TrackingColors;
   defaultOpen: boolean;
   showNumber?: boolean;
 }) {
@@ -1879,7 +2234,10 @@ function PoContents({
   const itemCount = tables.reduce((n, x) => n + (x.baris?.length ?? 0), 0);
 
   return (
-    <div className="mb-6 overflow-hidden rounded-xl border" style={{ borderColor: t.border, backgroundColor: t.card }}>
+    <div
+      className="mb-6 overflow-hidden rounded-xl border"
+      style={{ borderColor: t.border, backgroundColor: t.card }}
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:opacity-80"
@@ -1916,7 +2274,10 @@ function PoContents({
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                   {info.map((e, i) => (
                     <div key={i} className="min-w-0">
-                      <dt className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
+                      <dt
+                        className="text-[10px] font-semibold uppercase tracking-wide"
+                        style={{ color: t.textMuted }}
+                      >
                         {e.label}
                       </dt>
                       <dd className="break-words text-sm" style={{ color: t.textMain }}>
@@ -1930,11 +2291,17 @@ function PoContents({
               {tables.map((tb, ti) => (
                 <div key={ti}>
                   {tb.nama && (
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.textMuted }}>
+                    <p
+                      className="mb-2 text-[11px] font-semibold uppercase tracking-wide"
+                      style={{ color: t.textMuted }}
+                    >
                       {tb.nama}
                     </p>
                   )}
-                  <div className="overflow-x-auto rounded-lg border" style={{ borderColor: t.border }}>
+                  <div
+                    className="overflow-x-auto rounded-lg border"
+                    style={{ borderColor: t.border }}
+                  >
                     <table className="w-full min-w-max text-left text-xs">
                       {Array.isArray(tb.kolom) && tb.kolom.length > 0 && (
                         <thead>
@@ -2019,7 +2386,7 @@ function PoContents({
 
 // Penanda "terakhir diperbarui": kapan browser terakhir berhasil mengambil data dari
 // server. Titik jadi kuning kalau sudah > 2 menit (mis. tab di background / koneksi putus).
-function LastUpdated({ at, t }: { at: number; t: any; compact?: boolean }) {
+function LastUpdated({ at, t }: { at: number; t: TrackingColors; compact?: boolean }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => tick((n) => n + 1), 30000);

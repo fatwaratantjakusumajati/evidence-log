@@ -42,12 +42,12 @@
   --primary: oklch(0.55 0.08 240);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.005 250);
-  --secondary-foreground: oklch(0.30 0.02 250);
+  --secondary-foreground: oklch(0.3 0.02 250);
   --muted: oklch(0.96 0.005 250);
   --muted-foreground: oklch(0.52 0.015 250);
   --accent: oklch(0.94 0.01 240);
-  --accent-foreground: oklch(0.30 0.02 250);
-  --destructive: oklch(0.58 0.20 27);
+  --accent-foreground: oklch(0.3 0.02 250);
+  --destructive: oklch(0.58 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
   --border: oklch(0.92 0.005 250);
   --input: oklch(0.92 0.005 250);
@@ -71,13 +71,13 @@
   border-bottom: 1px solid #f1f5f9 !important;
   padding-top: 16px !important;
 }
-/* Month */ 
+/* Month */
 .react-datepicker__current-month {
   font-size: 14px !important;
   font-weight: 600 !important;
   color: #1e293b;
 }
-/* Day */ 
+/* Day */
 .react-datepicker__day {
   border-radius: 8px !important;
   margin: 3px !important;
@@ -102,50 +102,66 @@
 .react-datepicker__navigation {
   top: 14px !important;
 }
-/* Input */ 
+/* Input */
 .react-datepicker--wrapper {
   width: 100%;
 }
-/* Triangle */ 
+/* Triangle */
 .react-datepicker__triangle {
   display: none;
 }
 
 /* --- SOFT DARK MODE (warm black, base #13130e) --- */
 .dark {
-  --background: oklch(0.185 0.0097 107);          /* #13130e */
-  --foreground: oklch(0.90 0.008 100);
-  --card: oklch(0.22 0.010 107);                  /* ~#1a1a14 */
-  --card-foreground: oklch(0.90 0.008 100);
-  --popover: oklch(0.22 0.010 107);
-  --popover-foreground: oklch(0.90 0.008 100);
-  --primary: oklch(0.55 0.10 250);
+  --background: oklch(0.185 0.0097 107); /* #13130e */
+  --foreground: oklch(0.9 0.008 100);
+  --card: oklch(0.22 0.01 107); /* ~#1a1a14 */
+  --card-foreground: oklch(0.9 0.008 100);
+  --popover: oklch(0.22 0.01 107);
+  --popover-foreground: oklch(0.9 0.008 100);
+  --primary: oklch(0.55 0.1 250);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.26 0.010 107);
-  --secondary-foreground: oklch(0.90 0.008 100);
-  --muted: oklch(0.24 0.010 107);
-  --muted-foreground: oklch(0.68 0.010 100);
-  --accent: oklch(0.27 0.010 107);
-  --accent-foreground: oklch(0.90 0.008 100);
+  --secondary: oklch(0.26 0.01 107);
+  --secondary-foreground: oklch(0.9 0.008 100);
+  --muted: oklch(0.24 0.01 107);
+  --muted-foreground: oklch(0.68 0.01 100);
+  --accent: oklch(0.27 0.01 107);
+  --accent-foreground: oklch(0.9 0.008 100);
   --destructive: oklch(0.55 0.15 20);
-  --destructive-foreground: oklch(0.90 0 0);
-  --border: oklch(0.30 0.010 107);
-  --input: oklch(0.30 0.010 107);
+  --destructive-foreground: oklch(0.9 0 0);
+  --border: oklch(0.3 0.01 107);
+  --input: oklch(0.3 0.01 107);
   --ring: oklch(0.45 0.08 250);
   --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 /* Date picker dark mode */
-.dark .react-datepicker { background: var(--card) !important; border-color: var(--border) !important; }
-.dark .react-datepicker__header { background: var(--card) !important; border-bottom-color: var(--border) !important; }
+.dark .react-datepicker {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+}
+.dark .react-datepicker__header {
+  background: var(--card) !important;
+  border-bottom-color: var(--border) !important;
+}
 .dark .react-datepicker__current-month,
 .dark .react-datepicker__day-name,
-.dark .react-datepicker__day { color: var(--foreground) !important; }
-.dark .react-datepicker__day:hover { background: var(--accent) !important; color: var(--foreground) !important; }
+.dark .react-datepicker__day {
+  color: var(--foreground) !important;
+}
+.dark .react-datepicker__day:hover {
+  background: var(--accent) !important;
+  color: var(--foreground) !important;
+}
 .dark .react-datepicker__day--disabled,
-.dark .react-datepicker__day--outside-month { color: var(--muted-foreground) !important; }
+.dark .react-datepicker__day--outside-month {
+  color: var(--muted-foreground) !important;
+}
 .dark .react-datepicker__day--selected,
-.dark .react-datepicker__day--keyboard-selected { background: #4f46e5 !important; color: white !important; }
+.dark .react-datepicker__day--keyboard-selected {
+  background: #4f46e5 !important;
+  color: white !important;
+}
 
 @layer base {
   * {
@@ -163,11 +179,17 @@
   /* --- OVERRIDE HALUS UNTUK KOMPONEN DI DARK MODE --- */
   :is(.dark) {
     /* Ubah semua background putih menjadi warna kartu yang gelap */
-    & .bg-white, & .bg-white\/95, & .bg-white\/90, & .bg-card {
+    & .bg-white,
+    & .bg-white\/95,
+    & .bg-white\/90,
+    & .bg-card {
       background-color: var(--card) !important;
       backdrop-filter: blur(0px) !important;
     }
-    & .bg-slate-50, & .bg-slate-100, & .bg-gray-50, & .bg-muted {
+    & .bg-slate-50,
+    & .bg-slate-100,
+    & .bg-gray-50,
+    & .bg-muted {
       background-color: var(--muted) !important;
     }
     & .border-border {
@@ -175,11 +197,16 @@
     }
 
     /* Perbaiki teks - Hapus kontras menyilaukan */
-    & .text-slate-900, & .text-slate-800, & .text-slate-700, 
-    & .text-slate-600, & .text-foreground {
+    & .text-slate-900,
+    & .text-slate-800,
+    & .text-slate-700,
+    & .text-slate-600,
+    & .text-foreground {
       color: var(--foreground) !important;
     }
-    & .text-slate-500, & .text-slate-400, & .text-muted-foreground {
+    & .text-slate-500,
+    & .text-slate-400,
+    & .text-muted-foreground {
       color: var(--muted-foreground) !important;
     }
 
@@ -187,20 +214,29 @@
     /* Ubah background badge menjadi gelap, dan teks menjadi terang */
     & .bg-green-100 {
       background-color: oklch(0.28 0.08 145) !important;
-      border-color: oklch(0.35 0.10 145) !important;
+      border-color: oklch(0.35 0.1 145) !important;
     }
     & .bg-yellow-100 {
-      background-color: oklch(0.30 0.08 90) !important;
-      border-color: oklch(0.38 0.10 90) !important;
+      background-color: oklch(0.3 0.08 90) !important;
+      border-color: oklch(0.38 0.1 90) !important;
     }
     & .bg-red-100 {
       background-color: oklch(0.28 0.08 20) !important;
-      border-color: oklch(0.35 0.10 20) !important;
+      border-color: oklch(0.35 0.1 20) !important;
     }
     /* Teks badge dibuat lebih terang dan kalem */
-    & .text-green-700, & .text-green-600 { color: oklch(0.70 0.10 145) !important; }
-    & .text-yellow-700, & .text-yellow-600 { color: oklch(0.75 0.10 90) !important; }
-    & .text-red-700, & .text-red-600 { color: oklch(0.70 0.10 20) !important; }
+    & .text-green-700,
+    & .text-green-600 {
+      color: oklch(0.7 0.1 145) !important;
+    }
+    & .text-yellow-700,
+    & .text-yellow-600 {
+      color: oklch(0.75 0.1 90) !important;
+    }
+    & .text-red-700,
+    & .text-red-600 {
+      color: oklch(0.7 0.1 20) !important;
+    }
 
     /* --- PERBAIKAN ELEMEN LAIN --- */
     /* Tombol "Lihat selengkapnya" jadi lebih halus */

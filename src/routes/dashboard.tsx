@@ -5,23 +5,14 @@ import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { authFetch } from "@/lib/auth";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
-import { RecentActivityCard } from "@/components/dashboard/RecentActivityCard";
-import { ACCENTS, type Accent } from "@/components/dashboard/accents";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   Car,
   Truck,
   Boxes,
   CameraOff,
   Package,
+  NotebookText,
   Calendar,
   Box,
   X,
@@ -192,6 +183,38 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     </span>
   );
 }
+
+// Format waktu buat feed "Log Terbaru": kalau tanggalnya hari ini, tampilkan
+// "Hari ini" saja di bawah jamnya -- daripada ngulang tanggal penuh yang
+// identik di 4 baris berturut-turut (bikin kolomnya keliatan monoton).
+function formatRecentTime(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  const time = d.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const dateLabel = isToday
+    ? "Hari ini"
+    : d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  return { time, dateLabel };
+}
+
+type ActivityItem = {
+  id: string;
+  time: string;
+  label: string;
+  category: string;
+  detail?: string;
+  accent: Accent;
+  icon: React.ReactNode;
+  onSelect: () => void;
+};
 
 function BreadcrumbNavInside() {
   return (
@@ -370,9 +393,7 @@ function Dashboard() {
     data: vehicleIntervalRaw = [],
     isLoading: isVehicleIntervalLoading,
     dataUpdatedAt: intervalAt,
-  } = useQuery<
-    VehicleIntervalRaw[]
-  >({
+  } = useQuery<VehicleIntervalRaw[]>({
     queryKey: ["vehicle_interval", startDate, endDate],
     meta: { showErrorToast: true, errorLabel: "Statistik Kendaraan" },
     queryFn: async () => {
@@ -463,17 +484,6 @@ function Dashboard() {
   // adanya; kalau tidak ada tracking/kamera yang cukup baru, tidak akan
   // dipaksakan muncul.
   const recentActivity = useMemo(() => {
-    type ActivityItem = {
-      id: string;
-      time: string;
-      label: string;
-      category: string;
-      detail?: string;
-      accent: Accent;
-      icon: React.ReactNode;
-      onSelect: () => void;
-    };
-
     // FIX: sebelumnya feed ini memakai EVENT mentah (tiap baris vehicle_log),
     // sedangkan kartu "Log Kendaraan" memakai SIKLUS (Masuk+Keluar digabung per
     // vehicle_id). Akibatnya data tidak sinkron: jenis kendaraan bisa beda
@@ -1309,7 +1319,9 @@ function Dashboard() {
                           ? "text-[#15803d] dark:text-[#34d399]"
                           : "text-[#64748b] dark:text-[#94a3b8]";
                     return (
-                      <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}>
+                      <div
+                        className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border ${warna}`}
+                      >
                         <Box className={`h-5 w-5 ${teks}`} />
                         <div>
                           <p className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono uppercase tracking-wider">
@@ -1460,7 +1472,163 @@ function Dashboard() {
   );
 }
 
+function RecentActivityCard({
+  items,
+}: {
+  items: {
+    id: string;
+    time: string;
+    label: string;
+    category: string;
+    detail?: string;
+    accent: Accent;
+    icon: React.ReactNode;
+    onSelect: () => void;
+  }[];
+}) {
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-xl border p-5 bg-white dark:bg-[#1a1a14] border-slate-200 dark:border-[#2e2e25] transition-all duration-300 hover:-translate-y-0.5 ${ACCENTS.violet.glow}`}
+    >
+      <span
+        className={`absolute inset-y-0 left-0 w-[3px] ${ACCENTS.violet.bar} opacity-60 group-hover:opacity-100 transition-opacity duration-300`}
+      />
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`h-1.5 w-1.5 rounded-full ${ACCENTS.violet.dot} animate-pulse`} />
+          <span className="text-[11px] font-medium uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400">
+            Log Terbaru
+          </span>
+        </div>
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 dark:border-[#2e2e25] ${ACCENTS.violet.text} transition-transform duration-300 group-hover:scale-110`}
+        >
+          <NotebookText className="h-4 w-4" />
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="mt-4 py-3 text-xs font-mono text-slate-400 dark:text-slate-500">
+          Belum ada aktivitas
+        </p>
+      ) : (
+        <table className="mt-3 w-full table-fixed border-collapse text-left">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-[#2e2e25]">
+              <th className="w-[34%] pb-1.5 pr-2 text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+                Waktu
+              </th>
+              <th className="pb-1.5 pr-2 text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+                Aktivitas
+              </th>
+              <th className="w-[26%] pb-1.5 text-right text-[10px] font-semibold uppercase tracking-wider font-mono text-slate-400 dark:text-slate-500">
+                Sumber
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr
+                key={item.id}
+                tabIndex={0}
+                onClick={item.onSelect}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter") item.onSelect();
+                }}
+                className="cursor-pointer border-b border-slate-100 dark:border-[#22221a] last:border-0 hover:bg-slate-50 dark:hover:bg-[#22221a]/60 transition-colors"
+              >
+                <td className="py-1.5 pr-2 align-top">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-current/10 ${ACCENTS[item.accent].text}`}
+                    >
+                      {item.icon}
+                    </span>
+                    <div className="leading-tight">
+                      <p className="text-[11px] font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        {formatRecentTime(item.time).time}
+                      </p>
+                      <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                        {formatRecentTime(item.time).dateLabel}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-1.5 pr-2 align-top">
+                  <p className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    {item.label}
+                  </p>
+                  <p className="truncate text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                    {item.detail || "—"}
+                  </p>
+                </td>
+                <td className="py-1.5 text-right align-top">
+                  <span
+                    className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-mono font-medium bg-current/10 ${ACCENTS[item.accent].text}`}
+                  >
+                    {item.category}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // --- KPI COMPONENTS ---
+
+// Satu warna semantik per kategori, dipakai konsisten untuk garis aksen,
+// badge ikon, glow saat hover, dan sparkline — bukan sekadar dekorasi.
+const ACCENTS = {
+  blue: {
+    text: "text-blue-600 dark:text-blue-400",
+    bar: "bg-blue-500",
+    dot: "bg-blue-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(59,130,246,0.45)]",
+    stroke: "#3b82f6",
+  },
+  amber: {
+    text: "text-amber-600 dark:text-amber-400",
+    bar: "bg-amber-500",
+    dot: "bg-amber-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(245,158,11,0.45)]",
+    stroke: "#f59e0b",
+  },
+  emerald: {
+    text: "text-emerald-600 dark:text-emerald-400",
+    bar: "bg-emerald-500",
+    dot: "bg-emerald-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(16,185,129,0.45)]",
+    stroke: "#10b981",
+  },
+  rose: {
+    text: "text-rose-600 dark:text-rose-400",
+    bar: "bg-rose-500",
+    dot: "bg-rose-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(244,63,94,0.45)]",
+    stroke: "#f43f5e",
+  },
+  violet: {
+    text: "text-violet-600 dark:text-violet-400",
+    bar: "bg-violet-500",
+    dot: "bg-violet-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(139,92,246,0.45)]",
+    stroke: "#8b5cf6",
+  },
+  orange: {
+    text: "text-orange-600 dark:text-orange-400",
+    bar: "bg-orange-500",
+    dot: "bg-orange-500",
+    glow: "hover:shadow-[0_16px_36px_-16px_rgba(249,115,22,0.45)]",
+    stroke: "#f97316",
+  },
+} as const;
+
+type Accent = keyof typeof ACCENTS;
 
 function KpiSparkline({ data, color }: { data: number[]; color: string }) {
   if (!data || data.length < 2) return null;
@@ -1720,8 +1888,10 @@ function zoneCountsQuick(zones: string[] | null) {
 function quickPoChips(r: QuickPoRow) {
   const chips: { label: string; cls: string }[] = [];
   if (r.active_pallet === 0) chips.push({ label: "Selesai", cls: CHIP_GOOD });
-  if ((r.alert_level ?? 0) > 0) chips.push({ label: `Alert level ${r.alert_level}`, cls: CHIP_BAD });
-  if (r.pending_approval > 0) chips.push({ label: `${r.pending_approval} perlu ACC`, cls: CHIP_BAD });
+  if ((r.alert_level ?? 0) > 0)
+    chips.push({ label: `Alert level ${r.alert_level}`, cls: CHIP_BAD });
+  if (r.pending_approval > 0)
+    chips.push({ label: `${r.pending_approval} perlu ACC`, cls: CHIP_BAD });
   const hilangLain = r.missing - r.pending_approval;
   if (hilangLain > 0) chips.push({ label: `${hilangLain} hilang`, cls: CHIP_BAD });
   if (r.present > 0) chips.push({ label: `${r.present} terlihat`, cls: CHIP_GOOD });
@@ -1852,7 +2022,9 @@ function TrackingPoQuickModal({
 
         <div className="shrink-0 border-b border-slate-200 p-5 pr-12 dark:border-[#2e2e25]">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold font-space">{po ?? (event ? `Marker ID ${event.aruco_id}` : "PO tidak diketahui")}</h2>
+            <h2 className="text-lg font-bold font-space">
+              {po ?? (event ? `Marker ID ${event.aruco_id}` : "PO tidak diketahui")}
+            </h2>
             {poRow &&
               quickPoChips(poRow).map((c) => (
                 <span
@@ -1875,20 +2047,20 @@ function TrackingPoQuickModal({
 
           {/* Kejadian yang barusan diklik (hanya bila dibuka dari feed kejadian) */}
           {event && (
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-[#2e2e25] dark:bg-[#13130e]">
-            <p className="font-semibold text-slate-700 dark:text-slate-200">
-              {TRACKING_EVENT_LABEL[event.event_type] ?? event.event_type}
-              <span className="font-mono font-normal text-slate-500 dark:text-slate-400">
-                {" · "}Marker {event.aruco_id}
-              </span>
-            </p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 font-mono text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {trackingZoneText(event)}
-              </span>
-              <span>{formatDateTime(event.event_time)}</span>
-            </p>
-          </div>
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-[#2e2e25] dark:bg-[#13130e]">
+              <p className="font-semibold text-slate-700 dark:text-slate-200">
+                {TRACKING_EVENT_LABEL[event.event_type] ?? event.event_type}
+                <span className="font-mono font-normal text-slate-500 dark:text-slate-400">
+                  {" · "}Marker {event.aruco_id}
+                </span>
+              </p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-3 font-mono text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> {trackingZoneText(event)}
+                </span>
+                <span>{formatDateTime(event.event_time)}</span>
+              </p>
+            </div>
           )}
         </div>
 
@@ -1965,7 +2137,9 @@ function TrackingPoQuickModal({
                             <MapPin className="h-3 w-3" /> {p.current_zone ?? "Belum ada posisi"}
                           </span>
                           <span>
-                            {p.last_event_time ? `Kejadian terakhir ${timeAgo(p.last_event_time)}` : "Belum terbaca"}
+                            {p.last_event_time
+                              ? `Kejadian terakhir ${timeAgo(p.last_event_time)}`
+                              : "Belum terbaca"}
                           </span>
                         </p>
                       </li>

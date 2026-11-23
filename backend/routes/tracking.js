@@ -51,7 +51,10 @@ const isOutboundZone = (z) => {
 // Ubah lewat .env, contoh: OUTBOUND_GRACE_MIN=720  (12 jam)
 const _grace = Number(process.env.OUTBOUND_GRACE_MIN);
 const OUTBOUND_GRACE_MIN =
-  process.env.OUTBOUND_GRACE_MIN != null && process.env.OUTBOUND_GRACE_MIN !== "" && Number.isFinite(_grace) && _grace >= 0
+  process.env.OUTBOUND_GRACE_MIN != null &&
+  process.env.OUTBOUND_GRACE_MIN !== "" &&
+  Number.isFinite(_grace) &&
+  _grace >= 0
     ? _grace
     : 1440;
 
@@ -59,7 +62,8 @@ const fmtGrace = (min) => (min >= 120 ? `${Math.round((min / 60) * 10) / 10} jam
 
 // Kejadian kamera hanya diumumkan dari sini kalau sumber kamera sudah dipindah
 // (supaya tidak dobel dengan notifikasi lama dari alert_log).
-const CAMERA_FROM_TRACKING = (process.env.CAMERA_SOURCE || "alert_log").toLowerCase() === "pallet_events";
+const CAMERA_FROM_TRACKING =
+  (process.env.CAMERA_SOURCE || "alert_log").toLowerCase() === "pallet_events";
 
 // Satu pallet bisa berisi beberapa PO (tabel pallet_documents). Gabungan nomor PO-nya,
 // dipakai untuk tampilan dan notifikasi supaya semua PO di pallet itu tersebut.
@@ -121,7 +125,13 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
     const zone = String(b.zone || b.to || b.from || "").trim();
 
     // Pallet/PO yang sedang aktif untuk marker ini (kejadian kamera tidak punya pallet)
-    let pallet = { id: null, document_id: null, po_number: null, po_label: null, approval_status: null };
+    let pallet = {
+      id: null,
+      document_id: null,
+      po_number: null,
+      po_label: null,
+      approval_status: null,
+    };
     if (!isCamera) {
       const p = await pool.query(
         `SELECT p.id, p.document_id, p.approval_status, d.po_number, ${poLabelSql("p.id")} AS po_label
@@ -155,9 +165,19 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
          ON CONFLICT (event_time, event_type, aruco_id, zone) DO NOTHING
          RETURNING id, event_time`,
         [
-          timeStr, TRACKING_TZ, eventType, arucoId, zone,
-          emptyToNull(b.from), emptyToNull(b.to), emptyToNull(b.detail), emptyToNull(b.message),
-          pallet.id, pallet.document_id, pallet.po_number, imageFile,
+          timeStr,
+          TRACKING_TZ,
+          eventType,
+          arucoId,
+          zone,
+          emptyToNull(b.from),
+          emptyToNull(b.to),
+          emptyToNull(b.detail),
+          emptyToNull(b.message),
+          pallet.id,
+          pallet.document_id,
+          pallet.po_number,
+          imageFile,
         ],
       );
 
@@ -233,7 +253,12 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
       });
     }
 
-    res.status(201).json({ success: true, id: eventId, po_number: pallet.po_label || pallet.po_number, outcome });
+    res.status(201).json({
+      success: true,
+      id: eventId,
+      po_number: pallet.po_label || pallet.po_number,
+      outcome,
+    });
   } catch (err) {
     sendServerError(res, err, "POST /api/tracking/ingest");
   }
@@ -304,10 +329,19 @@ router.get("/pallets", async (req, res) => {
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset],
     );
-    const count = await pool.query(`${base} SELECT COUNT(*) AS total FROM cur ${whereClause}`, params);
+    const count = await pool.query(
+      `${base} SELECT COUNT(*) AS total FROM cur ${whereClause}`,
+      params,
+    );
     const total = parseInt(count.rows[0].total, 10);
 
-    res.json({ data: data.rows, total, page: Number(page), limit, totalPages: Math.ceil(total / limit) });
+    res.json({
+      data: data.rows,
+      total,
+      page: Number(page),
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (err) {
     sendServerError(res, err, "GET /api/tracking/pallets");
   }
@@ -498,7 +532,14 @@ router.get("/pos", async (req, res) => {
     const total = parseInt(count.rows[0].total, 10);
     const total_po = parseInt(count.rows[0].total_po, 10);
 
-    res.json({ data: data.rows, total, total_po, page: Number(page), limit, totalPages: Math.ceil(total / limit) });
+    res.json({
+      data: data.rows,
+      total,
+      total_po,
+      page: Number(page),
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (err) {
     sendServerError(res, err, "GET /api/tracking/pos");
   }
@@ -576,7 +617,13 @@ async function confirmPalletAction(req, res, kind) {
     //  exit    -> pallet pending atau sedang di inventaris
     //  present -> hanya pallet pending (hilang, ternyata masih ada)
     const allowed =
-      kind === "store" ? pending : kind === "exit" ? pending || stored : kind === "present" ? pending : false;
+      kind === "store"
+        ? pending
+        : kind === "exit"
+          ? pending || stored
+          : kind === "present"
+            ? pending
+            : false;
     if (!allowed) {
       await client.query("ROLLBACK");
       const errMsg =
@@ -655,9 +702,15 @@ async function confirmPalletAction(req, res, kind) {
     client.release();
   }
 }
-router.post("/pallets/:id/store", express.json(), (req, res) => confirmPalletAction(req, res, "store"));
-router.post("/pallets/:id/exit", express.json(), (req, res) => confirmPalletAction(req, res, "exit"));
-router.post("/pallets/:id/present", express.json(), (req, res) => confirmPalletAction(req, res, "present"));
+router.post("/pallets/:id/store", express.json(), (req, res) =>
+  confirmPalletAction(req, res, "store"),
+);
+router.post("/pallets/:id/exit", express.json(), (req, res) =>
+  confirmPalletAction(req, res, "exit"),
+);
+router.post("/pallets/:id/present", express.json(), (req, res) =>
+  confirmPalletAction(req, res, "present"),
+);
 
 // Pallet hilang dari zona non-outbound (approval_status = PENDING) dicek berkala.
 // Tiap ambang terlewati -> 1x alert (event MISSING_ALERT + notifikasi lonceng).
@@ -692,9 +745,18 @@ async function checkMissingAlerts() {
         `INSERT INTO pallet_events
            (event_time, event_type, aruco_id, zone, detail, pallet_id, document_id, po_number)
          VALUES (now(), 'MISSING_ALERT', $1, $2, $3, $4, $5, $6) RETURNING id`,
-        [row.aruco_id, zone, `Hilang lebih dari ${jam} jam, belum ada konfirmasi (alert ${level}/${MISSING_ALERT_HOURS.length})`, row.id, row.document_id, row.po_number],
+        [
+          row.aruco_id,
+          zone,
+          `Hilang lebih dari ${jam} jam, belum ada konfirmasi (alert ${level}/${MISSING_ALERT_HOURS.length})`,
+          row.id,
+          row.document_id,
+          row.po_number,
+        ],
       );
-      logger.warn(`🚨 Alert ${level}/${MISSING_ALERT_HOURS.length}: PO ${row.po_label || row.po_number} ID ${row.aruco_id} hilang > ${jam} jam`);
+      logger.warn(
+        `🚨 Alert ${level}/${MISSING_ALERT_HOURS.length}: PO ${row.po_label || row.po_number} ID ${row.aruco_id} hilang > ${jam} jam`,
+      );
       await notifyPalletEvent({
         id: ev.rows[0].id,
         event_type: "MISSING_ALERT",
@@ -762,9 +824,12 @@ async function checkOutboundCompletions() {
              (event_time, event_type, aruco_id, zone, from_zone, detail, pallet_id, document_id, po_number)
            VALUES (now(), 'COMPLETED_OUTBOUND', $1, $2, $2, $3, $4, $5, $6) RETURNING id`,
           [
-            row.aruco_id, zone,
+            row.aruco_id,
+            zone,
             `Otomatis selesai: hilang dari zona outbound lebih dari ${fmtGrace(OUTBOUND_GRACE_MIN)}`,
-            row.id, row.document_id, row.po_number,
+            row.id,
+            row.document_id,
+            row.po_number,
           ],
         );
         evId = ev.rows[0].id;
@@ -776,7 +841,9 @@ async function checkOutboundCompletions() {
       } finally {
         client.release();
       }
-      logger.info(`✅ PO ${row.po_label || row.po_number} ID ${row.aruco_id} selesai otomatis (hilang dari outbound "${zone}")`);
+      logger.info(
+        `✅ PO ${row.po_label || row.po_number} ID ${row.aruco_id} selesai otomatis (hilang dari outbound "${zone}")`,
+      );
       await notifyPalletEvent({
         id: evId,
         event_type: "COMPLETED_OUTBOUND",
@@ -870,11 +937,14 @@ router.get("/events", async (req, res) => {
 // ------------------ FOTO KEJADIAN (wajib login) ------------------
 router.get("/events/:id/image", async (req, res) => {
   try {
-    const r = await pool.query(`SELECT image_file FROM pallet_events WHERE id = $1`, [req.params.id]);
+    const r = await pool.query(`SELECT image_file FROM pallet_events WHERE id = $1`, [
+      req.params.id,
+    ]);
     const file = r.rows[0]?.image_file;
     if (!file) return res.status(404).json({ error: "Foto tidak ada" });
     const full = path.join(TRACKING_DIR, path.basename(file));
-    if (!fs.existsSync(full)) return res.status(404).json({ error: "Foto sudah tidak ada di server" });
+    if (!fs.existsSync(full))
+      return res.status(404).json({ error: "Foto sudah tidak ada di server" });
     res.sendFile(full);
   } catch (err) {
     sendServerError(res, err, "GET /api/tracking/events/:id/image");

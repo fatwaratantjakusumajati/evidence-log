@@ -196,10 +196,7 @@ function GabungPicker({
   });
 
   const sudah = useMemo(() => new Set(pallets.map((p) => p.id)), [pallets]);
-  const tersedia = useMemo(
-    () => palletAktif.filter((p) => !sudah.has(p.id)),
-    [palletAktif, sudah],
-  );
+  const tersedia = useMemo(() => palletAktif.filter((p) => !sudah.has(p.id)), [palletAktif, sudah]);
 
   const simpan = async () => {
     if (!pilih.length) return;

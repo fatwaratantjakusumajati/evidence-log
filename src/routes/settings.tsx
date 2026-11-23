@@ -294,7 +294,7 @@ function SettingsPage() {
       throw new Error("Format data tidak valid");
     },
   });
-  const recipients = waData || [];
+  const recipients = useMemo(() => waData ?? [], [waData]);
 
   useEffect(() => {
     if (recipients.length > 0) {
@@ -304,7 +304,7 @@ function SettingsPage() {
       });
       setEditValues(values);
     }
-  }, [waData]);
+  }, [recipients]);
 
   // ======================== WA MUTATIONS ========================
   const mutationUpdate = useMutation({
