@@ -7,32 +7,47 @@ const { JWT_SECRET, requireAuth, requireAdmin } = require("../middleware/auth");
 const logger = require("../utils/logger");
 const { recordAudit } = require("../utils/auditLog");
 
-const attemptsByIp = new Map();
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 15 * 60 * 1000;
 
-// PERBAIKAN: sebelumnya entry di attemptsByIp tidak pernah dihapus setelah
-// window waktunya lewat -- Map ini terus bertambah selamanya selagi server
-// jalan (kebocoran memori kecil tapi terus-menerus). Sekarang dibersihkan
-// setiap 15 menit, membuang entry yang window-nya sudah lewat.
-setInterval(() => {
+// Cek batas percobaan login per IP disimpan di PostgreSQL (tabel login_attempts)
+// supaya terdistribusi dan persisten saat server restart atau multi-instance.
+async function isRateLimited(ip) {
   const now = Date.now();
-  for (const [ip, entry] of attemptsByIp) {
-    if (now - entry.firstAttempt > WINDOW_MS) {
-      attemptsByIp.delete(ip);
-    }
-  }
-}, WINDOW_MS).unref();
+  const windowStart = new Date(now - WINDOW_MS).toISOString();
 
-function isRateLimited(ip) {
-  const now = Date.now();
-  const entry = attemptsByIp.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    attemptsByIp.set(ip, { count: 1, firstAttempt: now });
+  // Bersihkan entri yang sudah lewat window waktu (idempotent, aman dipanggil berkala)
+  await pool.query(
+    `DELETE FROM login_attempts WHERE updated_at < $1`,
+    [windowStart],
+  );
+
+  // Ambil entri untuk IP ini
+  const result = await pool.query(
+    `SELECT count, first_attempt FROM login_attempts WHERE ip = $1`,
+    [ip],
+  );
+  const row = result.rows[0];
+
+  if (!row) {
+    // Belum ada entri -> buat baru dengan count = 1
+    await pool.query(
+      `INSERT INTO login_attempts (ip, count, first_attempt, updated_at)
+       VALUES ($1, 1, NOW(), NOW())`,
+      [ip],
+    );
     return false;
   }
-  entry.count += 1;
-  return entry.count > MAX_ATTEMPTS;
+
+  const count = Number(row.count) + 1;
+
+  // Update entri yang ada
+  await pool.query(
+    `UPDATE login_attempts SET count = $1, updated_at = NOW() WHERE ip = $2`,
+    [count, ip],
+  );
+
+  return count > MAX_ATTEMPTS;
 }
 
 router.post("/login", async (req, res) => {
@@ -42,7 +57,7 @@ router.post("/login", async (req, res) => {
     }
 
     const ip = req.ip || req.socket.remoteAddress || "unknown";
-    if (isRateLimited(ip)) {
+    if (await isRateLimited(ip)) {
       return res.status(429).json({ error: "Terlalu banyak percobaan login, coba lagi nanti" });
     }
 
