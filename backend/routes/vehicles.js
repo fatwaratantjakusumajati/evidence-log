@@ -85,7 +85,7 @@ router.get("/log", async (req, res) => {
              vl.status_aktivitas -- [AKTIVITAS] kolom baru
       FROM vehicle_log vl
       JOIN top_groups g ON COALESCE(vl.vehicle_id, 'single-' || vl.id::text) = g.group_key
-      ORDER BY g.latest_ts DESC, vl.timestamp ASC
+      ORDER BY g.latest_ts DESC, vl.id DESC, vl.timestamp ASC
     `;
     // Total & totalPages sekarang dihitung dari JUMLAH KELOMPOK, bukan
     // jumlah baris -- supaya konsisten dengan apa yang sebenarnya

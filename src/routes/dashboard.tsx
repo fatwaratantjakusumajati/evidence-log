@@ -317,6 +317,7 @@ function Dashboard() {
   const { data: vehicles = [], dataUpdatedAt: vehiclesAt } = useQuery<VehicleLog[]>({
     queryKey: ["vehicle_log", "preview", filterClass, startDate, endDate],
     meta: { showErrorToast: true, errorLabel: "Log Kendaraan" },
+    refetchInterval: 15000,
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "40" });
       if (filterClass !== "all") params.append("jenis", filterClass);
@@ -538,8 +539,14 @@ function Dashboard() {
       onSelect: () => navigate({ to: "/logs/cameras" }),
     }));
 
+    const parseTime = (iso: string | null | undefined) => {
+      if (!iso) return 0;
+      const t = new Date(iso).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+
     return [...vehicleItems, ...trackingItems, ...cameraItems]
-      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .sort((a, b) => parseTime(b.time) - parseTime(a.time))
       .slice(0, PREVIEW_LIMIT);
   }, [groupedVehicles, trackingEvents, offlineCams, navigate]);
 

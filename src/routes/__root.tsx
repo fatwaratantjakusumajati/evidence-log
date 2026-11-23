@@ -501,9 +501,20 @@ function RootComponent() {
           toast(notif.title, { description: notif.description });
         }
 
-        // Perbarui data di semua halaman yang sedang aktif (dashboard, log
-        // kendaraan, staging, kamera) supaya tidak perlu refresh manual.
-        queryClient.invalidateQueries();
+        // Perbarui data yang relevan dengan channel notifikasi, bukan
+        // invalidate semua query sekaligus (hindari race condition di
+        // KPI card "Log Terbaru" saat 3 sumber refetch tidak sinkron).
+        if (channel === "vehicle_log_event") {
+          queryClient.invalidateQueries({ queryKey: ["vehicle_log"] });
+          queryClient.invalidateQueries({ queryKey: ["vehicle_interval"] });
+        } else if (channel === "alert_log_event") {
+          queryClient.invalidateQueries({ queryKey: ["camera_offline_events"] });
+          queryClient.invalidateQueries({ queryKey: ["camera_status"] });
+        } else if (channel === "pallet_event") {
+          queryClient.invalidateQueries({ queryKey: ["tracking_events"] });
+          queryClient.invalidateQueries({ queryKey: ["tracking_pos"] });
+          queryClient.invalidateQueries({ queryKey: ["tracking_summary"] });
+        }
       } catch {
         // Bukan JSON valid (misalnya heartbeat comment) — abaikan saja.
       }
