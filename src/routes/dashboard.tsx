@@ -79,6 +79,14 @@ type TrackingEvent = {
   po_number: string | null;
   pallet_id: number | null;
 };
+type RecentDocument = {
+  id: number;
+  jenis_dokumen: string;
+  judul: string | null;
+  po_number: string | null;
+  jumlah_pallet: number | null;
+  created_at: string;
+};
 type TrackingSummary = {
   po_aktif: number;
   po_perlu_acc: number;
@@ -389,6 +397,17 @@ function Dashboard() {
       return json.data || (Array.isArray(json) ? json : []);
     },
   });
+  const { data: recentDocuments = [] } = useQuery<RecentDocument[]>({
+    queryKey: ["documents", "recent_preview"],
+    meta: { showErrorToast: true, errorLabel: "Dokumen terbaru" },
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const res = await authFetch(`${API_BASE_URL}/api/documents?limit=${PREVIEW_LIMIT}`);
+      if (!res.ok) throw new Error(`Server merespons status ${res.status}`);
+      const json = await res.json();
+      return json?.data || [];
+    },
+  });
   const {
     data: vehicleIntervalRaw = [],
     isLoading: isVehicleIntervalLoading,
@@ -492,11 +511,18 @@ function Dashboard() {
     // sama dengan kartu di bawah, dengan label jenis dari event MASUK.
     const vehicleItems: ActivityItem[] = groupedVehicles.map((g) => {
       const masuk = g.events.find((e) => e.jenis_kejadian === "MASUK") || g.events[0];
-      const latest = g.events[g.events.length - 1]; // events sudah urut ASC
+      // Urutan kartu memakai waktu catatan masuk ke sistem (created_at),
+      // bukan timestamp deteksi yang bisa lebih lama dari waktu pencatatannya.
+      const latest = g.events.reduce((newest, event) =>
+        new Date(event.created_at || event.timestamp).getTime() >
+        new Date(newest.created_at || newest.timestamp).getTime()
+          ? event
+          : newest,
+      );
       const isTruk = (masuk.jenis_kendaraan || "").includes("Truk");
       return {
         id: `vehicle-${g.key}`,
-        time: latest.timestamp,
+        time: latest.created_at || latest.timestamp,
         label: masuk.jenis_kendaraan || "Kendaraan",
         category: "Kendaraan",
         detail: masuk.plat_nomor || latest.plat_nomor || masuk.kamera_nama || undefined,
@@ -529,16 +555,30 @@ function Dashboard() {
       onSelect: () => navigate({ to: "/logs/cameras" }),
     }));
 
+    const documentItems: ActivityItem[] = recentDocuments.map((doc) => ({
+      id: `document-${doc.id}`,
+      time: doc.created_at,
+      label: doc.judul || doc.jenis_dokumen || "Dokumen baru",
+      category: "Dokumen",
+      detail:
+        [doc.po_number, doc.jumlah_pallet ? `${doc.jumlah_pallet} pallet` : null]
+          .filter(Boolean)
+          .join(" · ") || undefined,
+      accent: "violet",
+      icon: <NotebookText className="h-3.5 w-3.5" />,
+      onSelect: () => navigate({ to: "/logs/documents" }),
+    }));
+
     const parseTime = (iso: string | null | undefined) => {
       if (!iso) return 0;
       const t = new Date(iso).getTime();
       return Number.isFinite(t) ? t : 0;
     };
 
-    return [...vehicleItems, ...trackingItems, ...cameraItems]
+    return [...vehicleItems, ...trackingItems, ...cameraItems, ...documentItems]
       .sort((a, b) => parseTime(b.time) - parseTime(a.time))
       .slice(0, PREVIEW_LIMIT);
-  }, [groupedVehicles, trackingEvents, offlineCams, navigate]);
+  }, [groupedVehicles, trackingEvents, offlineCams, recentDocuments, navigate]);
 
   const vehicleHourly = useMemo(
     () => buildHourlyFromStats(vehicleIntervalRaw),

@@ -72,7 +72,7 @@ router.get("/log", async (req, res) => {
         ${whereClause}
       ),
       top_groups AS (
-        SELECT group_key, MAX(timestamp) AS latest_ts
+        SELECT group_key, MAX(COALESCE(created_at, timestamp)) AS latest_ts
         FROM filtered
         GROUP BY group_key
         ORDER BY latest_ts DESC
