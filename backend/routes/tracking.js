@@ -45,21 +45,6 @@ const isOutboundZone = (z) => {
   return OUTBOUND_ZONES.some((term) => n.includes(term));
 };
 
-// Jeda (menit) sejak pallet hilang dari zona OUTBOUND sampai dianggap selesai.
-// Kalau marker terbaca lagi sebelum jeda habis, pallet tidak jadi selesai.
-// Default 1440 menit = 24 jam (marker bisa tertutup forklift/orang/plastik wrap cukup lama).
-// Ubah lewat .env, contoh: OUTBOUND_GRACE_MIN=720  (12 jam)
-const _grace = Number(process.env.OUTBOUND_GRACE_MIN);
-const OUTBOUND_GRACE_MIN =
-  process.env.OUTBOUND_GRACE_MIN != null &&
-  process.env.OUTBOUND_GRACE_MIN !== "" &&
-  Number.isFinite(_grace) &&
-  _grace >= 0
-    ? _grace
-    : 1440;
-
-const fmtGrace = (min) => (min >= 120 ? `${Math.round((min / 60) * 10) / 10} jam` : `${min} menit`);
-
 // Kejadian kamera hanya diumumkan dari sini kalau sumber kamera sudah dipindah
 // (supaya tidak dobel dengan notifikasi lama dari alert_log).
 const CAMERA_FROM_TRACKING =
@@ -101,8 +86,7 @@ const emptyToNull = (v) => (v == null || String(v).trim() === "" ? null : String
 // { time, event, id, from, to, zone, message, detail, image_base64 }
 //
 // Aturan selesai (pallet ACTIVE yang kejadiannya MISSING):
-//  - hilang dari zona OUTBOUND  -> menunggu OUTBOUND_GRACE_MIN menit (default 1440 = 24 jam); bila tidak terbaca lagi -> otomatis SELESAI
-//                                  (RELEASED, stiker menunggu dicopot). Penyelesaiannya dilakukan checkOutboundCompletions().
+//  - hilang dari zona OUTBOUND  -> langsung dicatat keluar (RELEASED).
 //  - hilang dari zona lain      -> menunggu ACC manual lewat web (approval_status = PENDING)
 //  - terlihat lagi (RETURNED) saat masih PENDING -> permintaan ACC dibatalkan otomatis
 router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
@@ -176,7 +160,7 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
           emptyToNull(b.message),
           pallet.id,
           pallet.document_id,
-          pallet.po_number,
+          pallet.po_label || pallet.po_number,
           imageFile,
         ],
       );
@@ -191,9 +175,8 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
 
       if (pallet.id && eventType === "MISSING") {
         if (isOutboundZone(zone)) {
-          // Hilang dari outbound -> pallet TETAP aktif, hanya dicatat sejak kapan hilang.
-          // Kalau sampai OUTBOUND_GRACE_MIN menit tidak terbaca lagi, checkOutboundCompletions()
-          // yang menandainya selesai.
+          // Waktu hilang dicatat dahulu. Setelah transaksi disimpan, pallet langsung
+          // diselesaikan oleh checkOutboundCompletions() untuk zona outbound.
           await client.query(
             `UPDATE document_pallets
                 SET missing_since = COALESCE(missing_since, $2)
@@ -232,12 +215,22 @@ router.post("/ingest", express.json({ limit: "10mb" }), async (req, res) => {
       client.release();
     }
 
+    // Zona outbound adalah batas keluar yang ditentukan pengguna: selesaikan segera
+    // setelah event MISSING tersimpan, tanpa menunggu polling atau mengakses inventory.
+    if (pallet.id && eventType === "MISSING" && isOutboundZone(zone)) {
+      const completedPalletIds = await checkOutboundCompletions();
+      outcome = completedPalletIds.includes(pallet.id) ? "COMPLETED_OUTBOUND" : "OUTBOUND_PENDING";
+    }
+
     logger.info(
       `📍 ${eventType} ID ${arucoId} zona "${zone}" -> PO ${pallet.po_label || pallet.po_number || "(marker belum terdaftar)"}${outcome ? ` [${outcome}]` : ""}`,
     );
 
     // Notifikasi web. MOVED_POS tidak diumumkan (terlalu sering); kamera hanya kalau sumbernya sudah pindah.
-    const announce = eventType !== "MOVED_POS" && (!isCamera || CAMERA_FROM_TRACKING);
+    const announce =
+      eventType !== "MOVED_POS" &&
+      !(eventType === "MISSING" && outcome === "COMPLETED_OUTBOUND") &&
+      (!isCamera || CAMERA_FROM_TRACKING);
     if (announce) {
       await notifyPalletEvent({
         id: eventId,
@@ -599,7 +592,7 @@ async function confirmPalletAction(req, res, kind) {
   try {
     await client.query("BEGIN");
     const p = await client.query(
-      `SELECT p.id, p.aruco_id, p.document_id, p.status, p.approval_status, p.stored_at, d.po_number,
+      `SELECT p.id, p.aruco_id, p.document_id, p.status, p.approval_status, p.stored_at, p.missing_since, d.po_number,
               ${poLabelSql("p.id")} AS po_label
          FROM document_pallets p LEFT JOIN documents d ON d.id = p.document_id
         WHERE p.id = $1 FOR UPDATE OF p`,
@@ -615,14 +608,15 @@ async function confirmPalletAction(req, res, kind) {
     // Aksi yang diizinkan:
     //  store   -> hanya pallet yang sedang menunggu konfirmasi (pending)
     //  exit    -> pallet pending atau sedang di inventaris
-    //  present -> hanya pallet pending (hilang, ternyata masih ada)
+    //  present -> pallet ACTIVE yang sedang hilang (missing_since terisi), termasuk yang
+    //             berstatus PENDING maupun yang hilang tanpa menunggu ACC
     const allowed =
       kind === "store"
         ? pending
         : kind === "exit"
           ? pending || stored
           : kind === "present"
-            ? pending
+            ? pal.status === "ACTIVE" && pal.missing_since != null
             : false;
     if (!allowed) {
       await client.query("ROLLBACK");
@@ -681,7 +675,7 @@ async function confirmPalletAction(req, res, kind) {
          (event_time, event_type, aruco_id, zone, detail, pallet_id, document_id, po_number)
        VALUES (now(), $6, $1, ${lastZone}, $3, $2, $4, $5)
        RETURNING id`,
-      [pal.aruco_id, id, detail, pal.document_id, pal.po_number, eventType],
+      [pal.aruco_id, id, detail, pal.document_id, pal.po_label || pal.po_number, eventType],
     );
     await client.query("COMMIT");
 
@@ -751,7 +745,7 @@ async function checkMissingAlerts() {
           `Hilang lebih dari ${jam} jam, belum ada konfirmasi (alert ${level}/${MISSING_ALERT_HOURS.length})`,
           row.id,
           row.document_id,
-          row.po_number,
+          row.po_label || row.po_number,
         ],
       );
       logger.warn(
@@ -779,13 +773,14 @@ if (process.env.TRACKING_ALERTS !== "off") {
   setInterval(checkMissingAlerts, MISSING_ALERT_CHECK_MIN * 60 * 1000).unref();
 }
 
-// ------------------ SELESAI OTOMATIS SETELAH JEDA OUTBOUND ------------------
-// Pallet ACTIVE yang kejadian terakhirnya MISSING di zona outbound, tanpa menunggu ACC,
-// dan sudah hilang >= OUTBOUND_GRACE_MIN menit -> ditandai selesai (RELEASED).
+// ------------------ SELESAI OTOMATIS DI ZONA OUTBOUND ------------------
+// Pallet ACTIVE yang kejadian terakhirnya MISSING di zona outbound langsung
+// dicatat keluar (RELEASED), tanpa menunggu ACC atau membaca database inventory.
 async function checkOutboundCompletions() {
+  const completedPalletIds = [];
   try {
     const r = await pool.query(
-      `SELECT p.id, p.aruco_id, p.document_id, d.po_number,
+      `SELECT p.id, p.aruco_id, p.document_id, p.missing_since, d.po_number,
               ${poLabelSql("p.id")} AS po_label,
               COALESCE(le.to_zone, le.from_zone, NULLIF(le.zone, '')) AS zone
          FROM document_pallets p
@@ -796,9 +791,8 @@ async function checkOutboundCompletions() {
             ORDER BY e.event_time DESC, e.id DESC LIMIT 1) le ON true
         WHERE p.status = 'ACTIVE' AND p.approval_status IS NULL
           AND p.missing_since IS NOT NULL
-          AND p.missing_since <= now() - make_interval(secs => $1::int)
           AND le.event_type = 'MISSING'`,
-      [Math.round(OUTBOUND_GRACE_MIN * 60)],
+      [],
     );
     for (const row of r.rows) {
       if (!isOutboundZone(row.zone)) continue;
@@ -821,19 +815,21 @@ async function checkOutboundCompletions() {
         }
         const ev = await client.query(
           `INSERT INTO pallet_events
-             (event_time, event_type, aruco_id, zone, from_zone, detail, pallet_id, document_id, po_number)
-           VALUES (now(), 'COMPLETED_OUTBOUND', $1, $2, $2, $3, $4, $5, $6) RETURNING id`,
+           (event_time, event_type, aruco_id, zone, from_zone, detail, pallet_id, document_id, po_number)
+           VALUES ($1, 'COMPLETED_OUTBOUND', $2, $3, $3, $4, $5, $6, $7) RETURNING id`,
           [
+            row.missing_since,
             row.aruco_id,
             zone,
-            `Otomatis selesai: hilang dari zona outbound lebih dari ${fmtGrace(OUTBOUND_GRACE_MIN)}`,
+            "Otomatis dianggap keluar: marker hilang dari zona outbound",
             row.id,
             row.document_id,
-            row.po_number,
+            row.po_label || row.po_number,
           ],
         );
         evId = ev.rows[0].id;
         await client.query("COMMIT");
+        completedPalletIds.push(row.id);
       } catch (e) {
         await client.query("ROLLBACK").catch(() => {});
         logger.error("Gagal menyelesaikan pallet outbound:", e);
@@ -856,8 +852,10 @@ async function checkOutboundCompletions() {
         timestamp: new Date().toISOString(),
       });
     }
+    return completedPalletIds;
   } catch (err) {
     logger.error("Gagal cek penyelesaian outbound:", err);
+    return completedPalletIds;
   }
 }
 setTimeout(checkOutboundCompletions, 15 * 1000).unref();
@@ -921,7 +919,7 @@ router.get("/events", async (req, res) => {
     params.push(limit);
     const r = await pool.query(
       `SELECT e.id, e.event_time, e.event_type, e.aruco_id, e.zone, e.from_zone, e.to_zone,
-              COALESCE(${poLabelSql("e.pallet_id")}, e.po_number) AS po_number, e.pallet_id
+              COALESCE(NULLIF(e.po_number, ''), ${poLabelSql("e.pallet_id")}) AS po_number, e.pallet_id
          FROM pallet_events e
         WHERE ${where.join(" AND ")}
         ORDER BY event_time DESC, id DESC

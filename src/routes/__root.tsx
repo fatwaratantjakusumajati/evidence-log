@@ -210,6 +210,15 @@ function buildNotificationFromPayload(
         kind: "tracking",
       };
     }
+    if (type === "COMPLETED_OUTBOUND") {
+      return {
+        id,
+        title: "Barang keluar dari warehouse",
+        description: `${po} hilang dari zona ${zone} dan langsung dicatat keluar.`,
+        time,
+        kind: "tracking",
+      };
+    }
     if (type === "MOVED_ZONE") {
       return {
         id,
@@ -566,6 +575,10 @@ function RootComponent() {
           queryClient.invalidateQueries({ queryKey: ["tracking_events"] });
           queryClient.invalidateQueries({ queryKey: ["tracking_pos"] });
           queryClient.invalidateQueries({ queryKey: ["tracking_summary"] });
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          queryClient.invalidateQueries({ queryKey: ["document_detail"] });
+          queryClient.invalidateQueries({ queryKey: ["documents_pool"] });
+          queryClient.invalidateQueries({ queryKey: ["documents_pallets_aktif"] });
         }
       } catch {
         // Bukan JSON valid (misalnya heartbeat comment) — abaikan saja.

@@ -8,7 +8,7 @@
 
 - **Document Processing & OCR Archive**: Automatically ingest and archive warehouse documents (Purchase Orders, Invoices, Delivery Orders / Surat Jalan, Receipts). Features full-text search, Excel export, and structured data extraction.
 - **ArUco Marker Lifecycle Management**: Dynamic assignment, pool allocation, and batch A4 printing of ArUco markers for pallets and POs to support computer-vision-based spatial tracking.
-- **Real-Time Pallet & PO Tracking**: Multi-camera zone tracking (Inbound, Storage/Staging, Outbound) with automatic completion detection, configurable grace periods, and inventory hold/release workflows.
+- **Real-Time Pallet & PO Tracking**: Multi-camera monitoring of pallet movements across Inbound, Storage/Staging, and Outbound zones. Outbound disappearance is recorded as exit; disappearance in other zones waits for operator confirmation. Tracking records do not update inventory stock.
 - **Vehicle Access & ALPR Logging**: Real-time logging of vehicle movements, license plate recognition confidence scores, parking duration tracking, and photographic evidence capture.
 - **Live Notifications & Incident Alerts**: Real-time updates delivered via Server-Sent Events (SSE) powered by PostgreSQL `LISTEN`/`NOTIFY`, including alerts for missing pallets and camera connection changes.
 - **Operational Analytics Dashboard**: Real-time KPI summaries, zone utilization breakdown, staging turnarounds, and interactive historical trends powered by Recharts.
@@ -125,7 +125,6 @@ Open the local URL displayed in your terminal (typically `http://localhost:3000`
 | `DOCUMENTS_INGEST_KEY` | Ingest API authentication key for n8n/OCR webhooks               | -                       |
 | `TRACKING_INGEST_KEY`  | Ingest API authentication key for camera monitors                | -                       |
 | `OUTBOUND_ZONES`       | Names of zones designated as outbound (comma-separated)          | `outbound,loading dock` |
-| `OUTBOUND_GRACE_MIN`   | Grace period in minutes before missing outbound pallet completes | `1440` (24h)            |
 | `MARKER_POOL_MAX`      | Upper limit for allocated ArUco marker IDs                       | `300`                   |
 | `MAX_PALLET_PER_PO`    | Maximum pallets allowed per Purchase Order                       | `100`                   |
 | `MISSING_ALERT_HOURS`  | Inactivity threshold hours triggering missing alerts             | `3,6`                   |

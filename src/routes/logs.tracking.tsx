@@ -285,8 +285,6 @@ function cleanDetail(text: string | null | undefined) {
     .trim();
 }
 
-const isOutboundZone = (z: string | null | undefined) => /outbound|outbund/i.test(z ?? "");
-
 // Nama zona dari kamera dirapikan: typo "outbund" dibetulkan, tiap kata diawali huruf besar.
 const prettyZone = (z: string | null | undefined) =>
   (z ?? "").replace(/outbund/gi, "outbound").replace(/\b\p{L}/gu, (c) => c.toUpperCase());
@@ -317,11 +315,15 @@ function clockLabel(iso: string) {
 // Catatan penjelas di bawah kejadian "hilang", supaya jelas artinya tanpa membuka dokumentasi.
 function eventNote(events: PalletEvent[], e: PalletEvent) {
   if (e.event_type !== "MISSING") return null;
-  if (isOutboundZone(e.zone)) {
-    return "Diperkirakan keluar dari gudang. Dinyatakan selesai otomatis bila tidak terbaca lagi setelah masa tunggu outbound.";
+  const index = events.indexOf(e);
+  const nextEvent = index > 0 ? events[index - 1] : null;
+  const completedFromThisZone =
+    nextEvent?.event_type === "COMPLETED_OUTBOUND" && nextEvent.zone === e.zone;
+  if (completedFromThisZone) {
+    return "Hilang dari zona outbound: langsung dicatat keluar dari pemantauan.";
   }
   return events[0] === e
-    ? "Bukan zona outbound: perlu dikonfirmasi petugas (Inventaris atau Sudah keluar)."
+    ? "Perlu konfirmasi petugas: masih ada, disimpan di gudang, atau sudah keluar."
     : null;
 }
 
@@ -437,15 +439,7 @@ function TrackingPage() {
       icon: Boxes,
       tone: "#6366f1",
     },
-    { label: "Pallet terlihat", value: summary?.present, icon: Eye, tone: "#14b8a6" },
-    {
-      label: "Pallet hilang",
-      value: summary?.missing,
-      danger: true,
-      icon: AlertTriangle,
-      tone: "#ef4444",
-      filter: "MISSING",
-    },
+    { label: "Terlihat sekarang", value: summary?.present, icon: Eye, tone: "#14b8a6" },
     {
       label: "Perlu konfirmasi",
       value: summary?.pending_approval,
@@ -456,23 +450,10 @@ function TrackingPage() {
       filter: "PENDING",
     },
     {
-      label: "Belum terbaca",
-      value: summary?.unseen,
-      icon: EyeOff,
-      tone: "#0ea5e9",
-      filter: "UNSEEN",
-    },
-    {
       label: "Dipindah hari ini",
       value: summary?.moved_today,
       icon: ArrowRightLeft,
       tone: "#8b5cf6",
-    },
-    {
-      label: "Selesai hari ini",
-      value: summary?.completed_today,
-      icon: CheckCircle2,
-      tone: "#10b981",
     },
   ];
 
@@ -552,7 +533,7 @@ function TrackingPage() {
             <div className="flex items-center gap-2.5">
               <AlertTriangle className="h-5 w-5 shrink-0" style={{ color: t.dangerText }} />
               <p className="text-sm font-semibold" style={{ color: t.dangerText }}>
-                {summary?.pending_approval} pallet hilang dan menunggu tindakan konfirmasi
+                {summary?.pending_approval} pallet menunggu konfirmasi
                 <span className="font-normal"> · {summary?.po_perlu_acc} PO</span>
               </p>
             </div>
@@ -564,12 +545,12 @@ function TrackingPage() {
               className="inline-flex h-8 items-center rounded-md px-3 text-xs font-semibold text-white hover:opacity-90"
               style={{ backgroundColor: t.dangerText }}
             >
-              Tampilkan PO
+              Lihat antrean
             </button>
           </div>
         )}
 
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+        <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {cards.map((c) => {
             const Icon = c.icon;
             const active = !!c.filter && stateFilter === c.filter;
@@ -657,17 +638,38 @@ function TrackingPage() {
           </ul>
         </details>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <ZonePanel
-            t={t}
-            activeZone={zoneFilter}
-            onPick={(z) => {
-              setZoneFilter(z === zoneFilter ? "" : z);
-              setPage(1);
-            }}
-          />
-          <RecentActivity t={t} />
-        </div>
+        <details
+          className="group mb-5 rounded-xl border"
+          style={{ borderColor: t.border, backgroundColor: t.card }}
+        >
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <span
+              className="flex items-center gap-2 text-sm font-semibold"
+              style={{ color: t.textMain }}
+            >
+              <MapPin className="h-4 w-4" style={{ color: t.primary }} />
+              Zona & aktivitas terbaru
+            </span>
+            <span className="flex items-center gap-2 text-xs" style={{ color: t.textMuted }}>
+              Lihat ringkasan
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div
+            className="grid gap-4 border-t p-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+            style={{ borderColor: t.border }}
+          >
+            <ZonePanel
+              t={t}
+              activeZone={zoneFilter}
+              onPick={(z) => {
+                setZoneFilter(z === zoneFilter ? "" : z);
+                setPage(1);
+              }}
+            />
+            <RecentActivity t={t} />
+          </div>
+        </details>
 
         <div
           className="mb-4 inline-flex rounded-lg border p-1"
@@ -1685,7 +1687,7 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: TrackingColors; onOpen: () => v
         borderLeftColor: urgent ? t.dangerText : r.active_pallet === 0 ? "#059669" : t.primary,
       }}
     >
-      <div className="grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)_290px] lg:items-center">
+      <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.85fr)_minmax(0,1.15fr)] lg:items-center">
         <div className="min-w-0">
           {(r.jumlah_po ?? 1) > 1 ? (
             <>
@@ -1745,8 +1747,6 @@ function PoCard({ r, t, onOpen }: { r: PoRow; t: TrackingColors; onOpen: () => v
             </div>
           )}
         </div>
-
-        <StageBar r={r} t={t} />
 
         <div className="min-w-0">
           <div
@@ -1874,7 +1874,13 @@ function PalletInfo({ p, t }: { p: PalletRow; t: TrackingColors }) {
 
 // Aktivitas terbaru lintas PO (tanpa "bergeser posisi" supaya tidak ramai)
 function RecentActivity({ t }: { t: TrackingColors }) {
-  const { data: events = [], dataUpdatedAt } = useQuery<RecentEvent[]>({
+  const {
+    data: events = [],
+    dataUpdatedAt,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery<RecentEvent[]>({
     queryKey: ["tracking_events", "recent"],
     refetchInterval: 15000,
     queryFn: () => getJson("/api/tracking/events?limit=6&hide_moved_pos=1"),
@@ -1888,11 +1894,38 @@ function RecentActivity({ t }: { t: TrackingColors }) {
         <p className="text-sm font-semibold font-space" style={{ color: t.textMain }}>
           Aktivitas terbaru
         </p>
-        <LastUpdated at={dataUpdatedAt} t={t} compact />
+        <div className="flex flex-wrap items-center gap-2">
+          {isFetching && (
+            <span className="text-[11px]" style={{ color: t.textMuted }}>
+              Menyegarkan…
+            </span>
+          )}
+          <LastUpdated at={dataUpdatedAt} t={t} compact />
+        </div>
       </div>
-      {events.length === 0 && (
+      {isError && (
+        <div
+          className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs"
+          style={{ borderColor: t.border, backgroundColor: t.dangerBg, color: t.dangerText }}
+          role="status"
+        >
+          <span>Gagal menyegarkan log. Data yang tampil mungkin belum terbaru.</span>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center gap-1 font-semibold underline underline-offset-2"
+          >
+            <RotateCcw className="h-3 w-3" /> Coba lagi
+          </button>
+        </div>
+      )}
+      {events.length === 0 && !isError && (
         <p className="text-xs font-mono" style={{ color: t.textMuted }}>
           Belum ada pergerakan tercatat.
+        </p>
+      )}
+      {events.length === 0 && isError && (
+        <p className="text-xs font-mono" style={{ color: t.textMuted }}>
+          Log belum bisa dimuat dari server.
         </p>
       )}
       <ul className="grid gap-y-3">
