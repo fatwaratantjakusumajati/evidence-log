@@ -115,10 +115,19 @@ function sendEventToAll(data) {
   });
 }
 
+// Endpoint SSE. Token diambil dari header Authorization: Bearer (prioritas,
+// untuk client yang bisa set custom header), lalu fallback ke query param
+// ?token= (untuk EventSource bawaan browser yang tidak mendukung custom header).
+function extractSseToken(req) {
+  const auth = req.headers.authorization || "";
+  if (auth.startsWith("Bearer ")) return auth.slice("Bearer ".length).trim();
+  return req.query.token || null;
+}
+
 // Endpoint SSE
 app.get("/api/events", async (req, res) => {
-  const token = req.query.token;
-  const user = verifyTokenString(req.query.token);
+  const token = extractSseToken(req);
+  const user = verifyTokenString(token);
   if (!user) {
     return res.status(401).json({ error: "Unauthorized: Token tidak valid atau kadaluarsa" });
   }

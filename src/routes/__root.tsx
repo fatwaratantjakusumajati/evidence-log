@@ -104,6 +104,11 @@ function buildNotificationFromPayload(
     payloadValue && typeof payloadValue === "object" && !Array.isArray(payloadValue)
       ? (payloadValue as Record<string, unknown>)
       : {};
+  // Jika event duplicate, abaikan atau tandai
+  if (payload.duplicate === true) {
+    return null;
+  }
+
   const asText = (value: unknown) => (value == null ? "" : String(value));
   const now = new Date().toISOString();
   const id = `${channel}-${payload?.id ?? Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -540,6 +545,9 @@ function RootComponent() {
     }
     setSseStatus("connecting");
     const token = getToken();
+    // EventSource browser tidak mendukung custom header, jadi token dikirim
+    // lewat query param. Backend /api/events juga menerima Authorization:
+    // Bearer header untuk client yang mampu set custom header.
     const eventSource = new EventSource(
       `${API_BASE_URL}/api/events?token=${encodeURIComponent(getToken() ?? "")}`,
     );

@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const { requireAuth, requireAdmin } = require("../middleware/auth");
+
 const pool = require("../db");
 const { clampLimit } = require("../utils/pagination");
 const puppeteer = require("puppeteer");
@@ -10,6 +12,10 @@ const { validateDateRange, endOfDayBoundary } = require("../utils/validateDateRa
 const logger = require("../utils/logger");
 
 logger.info("✅ Vehicles API routes loaded (FINAL - Weekly Restored)");
+// Semua endpoint vehicles wajib login
+router.use(requireAuth);
+
+
 
 // ------------------ LOG KENDARAAN (PAGINATION) ------------------
 // PERBAIKAN: sebelumnya LIMIT/OFFSET diterapkan langsung ke baris mentah
